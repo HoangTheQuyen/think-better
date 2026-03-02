@@ -5,6 +5,13 @@
 **Status**: Draft  
 **Input**: User description: "Skill sau này nên bắt đầu. make-decision"
 
+## Clarifications
+
+### Session 2026-03-03
+
+- Q: What is the scope boundary between make-decision and problem-solving-pro? → A: Complementary but independent. Content must strictly follow the same structured methodology source as problem-solving-pro, focusing on decision/choice phases: hypothesis-driven analysis, logic trees for option evaluation, prioritization, workplanning, and synthesis.
+- Q: Should knowledge domains (biases, analysis techniques) overlap with problem-solving-pro? → A: Yes, self-contained. The methodology is the single source of truth; make-decision includes its own complete set of decision-relevant content from the methodology, regardless of what problem-solving-pro already covers.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Decision Plan Generation (Priority: P1)
@@ -99,12 +106,12 @@ A user has multiple options to evaluate (e.g., 3 software tools, 4 apartment opt
 
 ### Key Entities
 
-- **Decision Framework**: A structured methodology for making decisions (e.g., weighted scoring, decision matrix, pros-cons-fixes, RAPID). Key attributes: name, description, best-for scenarios, steps, strengths, limitations.
-- **Decision Type**: A classification of decisions by characteristics (e.g., reversible/irreversible, individual/group, strategic/tactical, time-pressured/deliberate). Key attributes: name, description, characteristics, recommended frameworks, common pitfalls.
-- **Cognitive Bias**: A systematic pattern of deviation from rational judgment relevant to decisions. Key attributes: name, description, warning signs, impact on decisions, mitigation strategies, examples.
-- **Evaluation Criteria Template**: A reusable set of criteria appropriate for common decision domains (e.g., hiring, vendor selection, technology choice). Key attributes: domain, criteria list, suggested weights, measurement guidance.
-- **Decision Journal Entry**: A persistent record of a decision. Key attributes: decision statement, date, options considered, criteria used, framework applied, expected outcomes, confidence level, rationale, actual outcome (added later).
-- **Facilitation Technique**: Methods for improving group decision quality (e.g., pre-mortem, devil's advocate, nominal group technique). Key attributes: name, description, when to use, group size, time required, steps.
+- **Decision Framework**: A structured methodology derived from the source methodology for evaluating and choosing between options (e.g., hypothesis-driven decision trees, logic trees for option decomposition, weighted prioritization matrices, Day One answer synthesis). Key attributes: name, description, best-for scenarios, steps, strengths, limitations.
+- **Decision Type**: A classification of decisions by characteristics aligned with the methodology's problem categories (e.g., reversible/irreversible, individual/group, strategic/tactical, time-pressured/deliberate). Key attributes: name, description, characteristics, recommended frameworks, common pitfalls.
+- **Cognitive Bias**: A systematic pattern of deviation from rational judgment relevant to decisions, with debiasing strategies from the methodology. Key attributes: name, description, warning signs, impact on decisions, mitigation strategies, examples.
+- **Analysis Technique**: Analytical methods from the source methodology applied to decision evaluation (e.g., sensitivity analysis, scenario planning, expected value calculation, Bayesian updating). Key attributes: name, description, when to use, inputs required, output format.
+- **Decision Journal Entry**: A persistent record of a decision capturing the hypothesis-driven process. Key attributes: decision statement, date, hypothesis, options considered, logic tree, criteria used, framework applied, expected outcomes, confidence level, rationale, actual outcome (added later).
+- **Workplan Template**: Structured templates for planning the decision execution process, derived from the methodology's workplanning approach. Key attributes: decision type, activities, owners, timeline, deliverables, review points.
 
 ## Success Criteria *(mandatory)*
 
@@ -122,7 +129,9 @@ A user has multiple options to evaluate (e.g., 3 software tools, 4 apartment opt
 ## Assumptions
 
 - The skill follows the same architectural pattern as the existing problem-solving-pro skill: PROMPT.md workflow guide + CSV knowledge base + Python BM25 search engine with plan generation.
-- Decision-making knowledge is curated from widely-known, public-domain frameworks and concepts (no proprietary methodologies).
+- **All decision-making content must strictly derive from the same structured methodology source as problem-solving-pro** — focusing on the decision/choice phases of that methodology (hypothesis trees, logic trees, prioritization, analysis techniques, workplanning, synthesis). No generic or unrelated frameworks.
 - The primary user is an AI assistant (Claude/Copilot) that reads the PROMPT.md and executes the Python scripts on behalf of the human user.
 - Decision journal files are stored locally in the workspace and are not synced to any external service.
-- The skill complements the existing problem-solving-pro skill — problem-solving focuses on understanding and structuring problems, while make-decision focuses on choosing between options once the problem is understood.
+- The skill is complementary but independent from problem-solving-pro — either can be used standalone. problem-solving-pro focuses on defining and structuring problems; make-decision focuses on evaluating options and choosing the best course of action.
+- The skill is self-contained: it includes its own complete set of decision-relevant knowledge (biases, analysis techniques, etc.) derived from the methodology, even if some entries overlap with problem-solving-pro. Each skill must function independently.
+- No book title, author name, or direct quotations appear anywhere in the skill files.
