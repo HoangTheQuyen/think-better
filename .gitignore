@@ -33,3 +33,8 @@ internal/skills/skills/
 
 # Logs
 *.log
+
+# Books / copyrighted material
+*.pdf
+*.epub
+*.mobi
