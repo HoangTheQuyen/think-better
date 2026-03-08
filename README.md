@@ -43,7 +43,12 @@ Ever stared at a problem for hours, going in circles? **Think Better injects str
 # Clone & build
 git clone https://github.com/HoangTheQuyen/think-better.git
 cd think-better
-go build -o bin/think-better ./cmd/make-decision
+
+# Linux / macOS
+make build          # or: bash build.sh
+
+# Windows (PowerShell)
+.\build.ps1
 
 # Install skills for your AI assistant
 ./bin/think-better init --ai claude      # For Claude (VS Code / Desktop)
@@ -159,7 +164,12 @@ Dù bạn đang **phân vân giữa 2 lời mời làm việc lúc 2 giờ sáng
 # Clone và build
 git clone https://github.com/HoangTheQuyen/think-better.git
 cd think-better
-go build -o bin/think-better ./cmd/make-decision
+
+# Linux / macOS
+make build          # hoặc: bash build.sh
+
+# Windows (PowerShell)
+.\build.ps1
 
 # Cài skill cho AI assistant
 ./bin/think-better init --ai claude      # Cho Claude
