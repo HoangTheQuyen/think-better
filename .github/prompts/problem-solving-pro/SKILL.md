@@ -1,3 +1,14 @@
+---
+name: problem-solving-pro
+description: |
+  Systematic problem-solving toolkit: root cause analysis, hypothesis testing,
+  debugging strategies, critical thinking frameworks. Use when user says "solve",
+  "analyze", "diagnose", "debug", "figure out", "what's wrong", "root cause",
+  "why is this happening", "I'm stuck", "break down", "decompose", "structure",
+  "tại sao bị vậy", "tìm nguyên nhân", "phân tích", "giải quyết", "bị kẹt",
+  "không biết làm sao", or describes any problem that needs structured decomposition.
+---
+
 # Goal
 
 Help users solve complex problems systematically using proven frameworks — turning vague issues into structured analyses with actionable recommendations.
@@ -50,7 +61,7 @@ Extract key information from user's problem description:
 **Always start with `--plan`** to get comprehensive recommendations with reasoning:
 
 ```bash
-python3 prompts/problem-solving-pro/scripts/search.py "<problem_description>" --plan [-p "Project Name"]
+python3 scripts/search.py "<problem_description>" --plan [-p "Project Name"]
 ```
 
 This command:
@@ -62,7 +73,7 @@ This command:
 
 **Example:**
 ```bash
-python3 prompts/problem-solving-pro/scripts/search.py "revenue declining 20% despite market growth" --plan -p "Revenue Recovery"
+python3 scripts/search.py "revenue declining 20% despite market growth" --plan -p "Revenue Recovery"
 ```
 
 ### Step 2b: Persist Problem-Solving Plan
@@ -70,7 +81,7 @@ python3 prompts/problem-solving-pro/scripts/search.py "revenue declining 20% des
 To save the plan for reference:
 
 ```bash
-python3 prompts/problem-solving-pro/scripts/search.py "<problem>" --plan --persist -p "Project Name"
+python3 scripts/search.py "<problem>" --plan --persist -p "Project Name"
 ```
 
 This creates:
@@ -81,7 +92,7 @@ This creates:
 Use when the plan's recommendation needs more detail, OR when user asks about a specific topic (e.g., "how do I do a root cause analysis?"):
 
 ```bash
-python3 prompts/problem-solving-pro/scripts/search.py "<keyword>" --domain <domain> [-n <max_results>]
+python3 scripts/search.py "<keyword>" --domain <domain> [-n <max_results>]
 ```
 
 **When to use domain searches:**
@@ -143,7 +154,7 @@ Guide the user through the recommended process:
 ### Step 2: Generate Problem-Solving Plan (REQUIRED)
 
 ```bash
-python3 prompts/problem-solving-pro/scripts/search.py "revenue declining 20% despite market growth" --plan -p "Revenue Diagnosis"
+python3 scripts/search.py "revenue declining 20% despite market growth" --plan -p "Revenue Diagnosis"
 ```
 
 **Output:** Complete plan with profitability tree decomposition, Pareto prioritization, benchmarking + root cause analysis toolkit, pyramid principle communication, and bias warnings (confirmation bias, anchoring).
@@ -152,13 +163,13 @@ python3 prompts/problem-solving-pro/scripts/search.py "revenue declining 20% des
 
 ```bash
 # Get decomposition framework details
-python3 prompts/problem-solving-pro/scripts/search.py "profitability revenue cost" --domain decomposition
+python3 scripts/search.py "profitability revenue cost" --domain decomposition
 
 # Get root cause analysis methodology
-python3 prompts/problem-solving-pro/scripts/search.py "root cause 5 whys diagnostic" --domain analysis
+python3 scripts/search.py "root cause 5 whys diagnostic" --domain analysis
 
 # Check for relevant biases
-python3 prompts/problem-solving-pro/scripts/search.py "confirmation bias anchoring" --domain biases
+python3 scripts/search.py "confirmation bias anchoring" --domain biases
 ```
 
 ### Step 4: Apply the Framework
@@ -181,10 +192,10 @@ The `--plan` flag supports two output formats:
 
 ```bash
 # ASCII box (default) - best for terminal display
-python3 prompts/problem-solving-pro/scripts/search.py "market entry strategy" --plan
+python3 scripts/search.py "market entry strategy" --plan
 
 # Markdown - best for documentation
-python3 prompts/problem-solving-pro/scripts/search.py "market entry strategy" --plan -f markdown
+python3 scripts/search.py "market entry strategy" --plan -f markdown
 ```
 
 ---

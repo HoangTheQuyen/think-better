@@ -64,6 +64,11 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    # Validate query is not empty
+    if not args.query.strip():
+        print("Error: Query is required. Describe the problem you want to solve.", file=sys.stderr)
+        sys.exit(1)
+
     # Plan generation takes priority
     if args.plan:
         result = generate_solving_plan(
