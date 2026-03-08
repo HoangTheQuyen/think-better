@@ -17,8 +17,8 @@ type AITarget struct {
 var Targets = []AITarget{
 	{
 		Name:           "claude",
-		DisplayName:    "Claude (VS Code Copilot Chat)",
-		InstallPattern: ".github/prompts/{skill}/",
+		DisplayName:    "Claude",
+		InstallPattern: ".claude/skills/{skill}/",
 	},
 	{
 		Name:           "copilot",

@@ -80,7 +80,7 @@ func TestInstallDir(t *testing.T) {
 		skill    string
 		expected string
 	}{
-		{"claude", "make-decision", ".github/prompts/make-decision/"},
+		{"claude", "make-decision", ".claude/skills/make-decision/"},
 		{"copilot", "problem-solving-pro", ".github/prompts/problem-solving-pro/"},
 		{"antigravity", "make-decision", ".agents/skills/make-decision/"},
 	}
