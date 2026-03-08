@@ -82,7 +82,7 @@ func TestInstallDir(t *testing.T) {
 	}{
 		{"claude", "make-decision", ".github/prompts/make-decision/"},
 		{"copilot", "problem-solving-pro", ".github/prompts/problem-solving-pro/"},
-		{"antigravity", "make-decision", ".antigravity/skills/make-decision/"},
+		{"antigravity", "make-decision", ".agents/skills/make-decision/"},
 	}
 
 	for _, tt := range tests {

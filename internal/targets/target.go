@@ -28,7 +28,7 @@ var Targets = []AITarget{
 	{
 		Name:           "antigravity",
 		DisplayName:    "Antigravity (Gemini Antigravity)",
-		InstallPattern: ".antigravity/skills/{skill}/",
+		InstallPattern: ".agents/skills/{skill}/",
 	},
 }
 
