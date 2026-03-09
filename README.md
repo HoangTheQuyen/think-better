@@ -157,6 +157,14 @@ think-better/
 
 ---
 
+## 🤝 Contributing
+
+Contributions are what make the open source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
+
+Please see our [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines on how to fork the repo, create a branch, and submit a Pull Request.
+
+---
+
 ## License
 
 MIT License
@@ -237,6 +245,11 @@ Chỉ cần nói chuyện với AI bình thường:
 - Knowledge base chỉ có tiếng Anh → AI sẽ **tự dịch** từ khóa của bạn sang English trước khi search
 - Cần **Python 3** để chạy script phân tích
 - Hoạt động với **Claude, Copilot, và Antigravity**
+
+### 🤝 Đóng Góp (Contributing)
+
+Dự án này là mã nguồn mở! Nếu bạn có ý tưởng cho một AI Skill mới hoặc muốn sửa lỗi, vui lòng tham khảo chi tiết tại [CONTRIBUTING.md](CONTRIBUTING.md).
+Quy trình cơ bản: Fork repo → Tạo branch mới → Cập nhật code → Push → Mở Pull Request (PR).
 
 ---
 
