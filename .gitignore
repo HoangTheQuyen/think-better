@@ -29,7 +29,6 @@ solving-plans/
 
 # Go
 bin/
-internal/skills/skills/
 
 # Logs
 *.log
