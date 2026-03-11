@@ -8,13 +8,15 @@ Comprehensive structured problem-solving framework for tackling any complex chal
 
 ## Prerequisites
 
-Check if Python is installed:
+**IMPORTANT: Detect the correct Python command first.** Some systems use `python3`, others use `python`. Run:
 
 ```bash
-python3 --version || python --version
+python3 --version 2>/dev/null || python --version
 ```
 
-If Python is not installed, install it based on user's OS:
+Use whichever command succeeds (`python3` or `python`) for ALL script calls below. If the system only has `python` (common on Windows), substitute `python` everywhere you see `python3` in this document.
+
+If Python is not installed at all, install it based on user's OS:
 
 **macOS:**
 ```bash
@@ -30,6 +32,8 @@ sudo apt update && sudo apt install python3
 ```powershell
 winget install Python.Python.3.12
 ```
+
+> **Note:** On Windows, Python 3 is typically available as `python` (not `python3`).
 
 ---
 
@@ -218,7 +222,7 @@ python3 prompts/problem-solving-pro/scripts/search.py "market entry strategy" --
 
 If the Python scripts fail or are unavailable:
 
-1. **Check Python**: Run `python3 --version` — if not found, guide the user to install it
+1. **Check Python**: Run `python3 --version` or `python --version` — if neither is found, guide the user to install it
 2. **Manual fallback**: If scripts cannot run, apply the Key Principles above manually:
    - Ask the user to describe the problem → classify the type yourself
    - Suggest a decomposition framework (e.g., Issue Tree for diagnostic, Hypothesis Tree for uncertain causes)
