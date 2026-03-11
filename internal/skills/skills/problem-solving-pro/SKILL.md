@@ -15,7 +15,7 @@ Help users solve complex problems systematically using proven frameworks — tur
 
 # problem-solving-pro
 
-Comprehensive structured problem-solving framework for tackling any complex challenge. Contains a 7-step methodology, 10 decomposition frameworks, 8 prioritization techniques, 12 analysis tools, 12 cognitive biases with debiasing strategies, 10 communication patterns, 12 mental models, and 10 team dynamics patterns. Searchable database with reasoning-based recommendations that adapts to your specific problem type.
+Comprehensive structured problem-solving framework for tackling any complex challenge. Contains a 7-step methodology, 15 decomposition frameworks, 8 prioritization techniques, 12 analysis tools, 12 cognitive biases with debiasing strategies, 10 communication patterns, 12 mental models, and 10 team dynamics patterns. Searchable database with reasoning-based recommendations that adapts to your specific problem type.
 
 ## Prerequisites
 
@@ -216,6 +216,7 @@ python3 scripts/search.py "market entry strategy" --plan -f markdown
 8. **Iterate** — Update your answer as evidence comes in (Bayesian updating)
 9. **Simple first** — Use the simplest analysis that answers the question (Occam's Razor)
 10. **Communication is the final product** — The best analysis is worthless if you can't drive action
+11. **What you'd have to believe** — When stuck or attached to an idea, ask "what would have to be true for this to be the right answer?" to break framing ruts and rigorously test assumptions.
 
 ---
 

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en" class="scroll-smooth">
 
 <head>
@@ -49,17 +49,8 @@
             sans: ['Inter', 'sans-serif'],
             mono: ['JetBrains Mono', 'monospace'],
           },
-          colors: {
-            // Vercel-like extremely dark grays
-            background: '#000000',
-            foreground: '#ffffff',
-            muted: '#a1a1aa', // zinc-400
-            border: '#27272a', // zinc-800
-            card: '#09090b', // zinc-950
-          },
           backgroundImage: {
             'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-            'grid-white': 'radial-gradient(circle at center, #27272a 1px, transparent 1px)',
           }
         }
       }
@@ -91,15 +82,8 @@
 
     /* Animations */
     @keyframes fadeUp {
-      from {
-        opacity: 0;
-        transform: translateY(20px);
-      }
-
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
     .animate-fade-up {
@@ -107,41 +91,157 @@
     }
 
     @keyframes pulseGlow {
-
-      0%,
-      100% {
-        opacity: 0.5;
-      }
-
-      50% {
-        opacity: 1;
-      }
+      0%, 100% { opacity: 0.5; }
+      50% { opacity: 1; }
     }
 
     .animate-pulse-glow {
       animation: pulseGlow 3s ease-in-out infinite;
     }
 
-    .delay-100 {
-      animation-delay: 100ms;
-    }
-
-    .delay-200 {
-      animation-delay: 200ms;
-    }
-
-    .delay-300 {
-      animation-delay: 300ms;
-    }
+    .delay-100 { animation-delay: 100ms; }
+    .delay-200 { animation-delay: 200ms; }
+    .delay-300 { animation-delay: 300ms; }
 
     /* Hide scrollbar for code blocks but keep functionality */
-    .no-scrollbar::-webkit-scrollbar {
-      display: none;
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    /* i18n: hide non-active lang */
+    [data-lang] { display: none; }
+    [data-lang].active { display: revert; }
+
+    /* Language toggle */
+    .lang-toggle {
+      display: inline-flex;
+      border-radius: 9999px;
+      border: 1px solid rgba(255,255,255,0.1);
+      overflow: hidden;
+    }
+    .lang-btn {
+      padding: 4px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      color: #a1a1aa;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: transparent;
+      border: none;
+    }
+    .lang-btn.active {
+      background: rgba(255,255,255,0.1);
+      color: #fff;
     }
 
-    .no-scrollbar {
-      -ms-overflow-style: none;
-      scrollbar-width: none;
+    /* === PREMIUM EFFECTS === */
+
+    /* Scroll reveal */
+    .reveal {
+      opacity: 0;
+      transform: translateY(40px);
+      transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .reveal-delay-1 { transition-delay: 0.1s; }
+    .reveal-delay-2 { transition-delay: 0.2s; }
+    .reveal-delay-3 { transition-delay: 0.3s; }
+    .reveal-delay-4 { transition-delay: 0.4s; }
+
+    /* Animated gradient border on hover */
+    .glow-card {
+      position: relative;
+      background: rgba(9, 9, 11, 0.6);
+      border: 1px solid rgba(39, 39, 42, 0.8);
+      border-radius: 16px;
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .glow-card::before {
+      content: '';
+      position: absolute;
+      inset: -1px;
+      border-radius: 17px;
+      padding: 1px;
+      background: linear-gradient(135deg, transparent 40%, rgba(59, 130, 246, 0.3), rgba(168, 85, 247, 0.3), transparent 60%);
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      opacity: 0;
+      transition: opacity 0.4s;
+    }
+    .glow-card:hover::before {
+      opacity: 1;
+    }
+    .glow-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 32px rgba(59, 130, 246, 0.08);
+    }
+
+    /* Animated flowing dot on SVG paths */
+    @keyframes flowDot {
+      0% { offset-distance: 0%; opacity: 0; }
+      10% { opacity: 1; }
+      90% { opacity: 1; }
+      100% { offset-distance: 100%; opacity: 0; }
+    }
+    .flow-dot {
+      offset-path: var(--flow-path);
+      animation: flowDot 3s ease-in-out infinite;
+    }
+
+    /* Animated gradient text shimmer */
+    @keyframes shimmer {
+      0% { background-position: -200% center; }
+      100% { background-position: 200% center; }
+    }
+    .text-shimmer {
+      background: linear-gradient(90deg, #60a5fa, #a78bfa, #60a5fa, #a78bfa);
+      background-size: 200% auto;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: shimmer 4s linear infinite;
+    }
+
+    /* Flow pipeline step card */
+    .pipeline-step {
+      background: rgba(9, 9, 11, 0.8);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(39, 39, 42, 0.6);
+      border-radius: 16px;
+      padding: 1.5rem;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+      overflow: hidden;
+    }
+    .pipeline-step::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: var(--step-color, rgba(59, 130, 246, 0.5));
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .pipeline-step:hover {
+      border-color: var(--step-border, rgba(59, 130, 246, 0.3));
+      transform: translateY(-4px);
+      box-shadow: 0 12px 40px var(--step-shadow, rgba(59, 130, 246, 0.06));
+    }
+    .pipeline-step:hover::after {
+      opacity: 1;
+    }
+
+    /* Animated connector lines */
+    @keyframes dashMove {
+      to { stroke-dashoffset: -20; }
+    }
+    .connector-animated {
+      stroke-dasharray: 6, 4;
+      animation: dashMove 1s linear infinite;
     }
   </style>
 </head>
@@ -155,12 +255,22 @@
         <span class="text-xl">🧠</span> Think Better
       </div>
       <nav class="hidden md:flex gap-8 text-sm font-medium text-zinc-400">
-        <a href="#features" class="hover:text-white transition-colors">Features</a>
-        <a href="#demo" class="hover:text-white transition-colors">Documentation</a>
+        <a href="#features" class="hover:text-white transition-colors" data-lang="en">Features</a>
+        <a href="#features" class="hover:text-white transition-colors" data-lang="vi">Tính Năng</a>
+        <a href="#commands" class="hover:text-white transition-colors" data-lang="en">Commands</a>
+        <a href="#commands" class="hover:text-white transition-colors" data-lang="vi">Lệnh</a>
+        <a href="#flow" class="hover:text-white transition-colors" data-lang="en">How It Works</a>
+        <a href="#flow" class="hover:text-white transition-colors" data-lang="vi">Cách Hoạt Động</a>
+        <a href="#demo" class="hover:text-white transition-colors" data-lang="en">Documentation</a>
+        <a href="#demo" class="hover:text-white transition-colors" data-lang="vi">Tài Liệu</a>
         <a href="https://github.com/HoangTheQuyen/think-better" target="_blank"
           class="hover:text-white transition-colors">GitHub</a>
       </nav>
-      <div class="flex items-center">
+      <div class="flex items-center gap-3">
+        <div class="lang-toggle">
+          <button class="lang-btn active" onclick="setLang('en')">EN</button>
+          <button class="lang-btn" onclick="setLang('vi')">VN</button>
+        </div>
         <a href="https://github.com/HoangTheQuyen/think-better" target="_blank"
           class="text-sm font-medium bg-white text-black px-4 py-2 rounded-full hover:bg-zinc-200 transition-colors">
           Star Repo
@@ -193,10 +303,11 @@
 
       <h1
         class="mx-auto max-w-4xl font-bold tracking-tighter text-5xl sm:text-7xl mb-6 opacity-0 animate-fade-up delay-100">
-        Stop Babysitting <br> <span class="text-blue-500">Your AI.</span>
+        <span data-lang="en">Stop Babysitting <br> <span class="text-blue-500">Your AI.</span></span>
+        <span data-lang="vi">Ngừng Đoán Mò. <br> <span class="text-blue-500">Ra Quyết Định Đúng.</span></span>
       </h1>
 
-      <p
+      <p data-lang="en"
         class="mx-auto max-w-2xl text-lg sm:text-xl text-zinc-400 leading-relaxed mb-10 opacity-0 animate-fade-up delay-200">
         Your AI writes code fast but makes <strong class="text-white font-medium">terrible architectural
           decisions</strong>.
@@ -204,6 +315,14 @@
         <strong class="text-white font-medium">elite decision-making frameworks</strong> (MECE, Issue Trees,
         Pre-Mortems)
         directly into your prompts — turning a Code Monkey into a Staff Engineer.
+      </p>
+      <p data-lang="vi"
+        class="mx-auto max-w-2xl text-lg sm:text-xl text-zinc-400 leading-relaxed mb-10 opacity-0 animate-fade-up delay-200">
+        AI của bạn code nhanh nhưng <strong class="text-white font-medium">ra quyết định kiến trúc tệ hại</strong>.
+        Think Better là công cụ CLI mã nguồn mở, tiêm
+        <strong class="text-white font-medium">framework ra quyết định cấp chuyên gia</strong> (MECE, Issue Trees,
+        Pre-Mortems)
+        trực tiếp vào prompt — biến Code Monkey thành Staff Engineer.
       </p>
 
       <!-- Install Snippet (Vercel Style) -->
@@ -266,99 +385,25 @@
 
       <div
         class="mt-12 flex items-center justify-center gap-6 text-sm font-medium text-zinc-500 opacity-0 animate-fade-up delay-300">
-        <a href="https://github.com/HoangTheQuyen/think-better" class="hover:text-white transition-colors">Read
-          Documentation →</a>
+        <a href="https://github.com/HoangTheQuyen/think-better" class="hover:text-white transition-colors">
+          <span data-lang="en">Read Documentation →</span>
+          <span data-lang="vi">Xem Tài Liệu →</span>
+        </a>
       </div>
     </div>
 
-    <!-- 2. "SHOW, DON'T TELL" TERMINAL DEMO -->
-    <div class="mx-auto max-w-5xl px-6 mt-20 sm:mt-32 opacity-0 animate-fade-up delay-300" id="demo">
-      <div class="rounded-xl overflow-hidden border border-zinc-800 bg-[#0c0c0c] shadow-2xl relative">
-        <!-- Mac UI Header -->
-        <div class="flex items-center px-4 py-3 bg-[#161618] border-b border-zinc-800">
-          <div class="flex gap-2">
-            <div class="w-3 h-3 rounded-full bg-red-500/80 border border-red-500/20"></div>
-            <div class="w-3 h-3 rounded-full bg-yellow-500/80 border border-yellow-500/20"></div>
-            <div class="w-3 h-3 rounded-full bg-green-500/80 border border-green-500/20"></div>
-          </div>
-          <div class="mx-auto text-xs font-mono text-zinc-500">claude-ai — bash</div>
-        </div>
 
-        <!-- Terminal Content -->
-        <div class="p-6 font-mono text-sm leading-relaxed overflow-x-auto no-scrollbar" style="min-height: 400px;">
-          <div class="mb-4">
-            <span class="text-blue-400">➜</span> <span class="text-zinc-400">~/projects</span>
-            <span class="text-white">claude "Should I take the remote offer or stay at my current job?"</span>
-          </div>
-          <div class="text-zinc-500 mb-2">Running Think Better skill <span
-              class="text-zinc-300">/make-decision</span>...</div>
-          <br>
-          <div class="text-white">Decision Type: <span class="text-blue-400">Binary Choice</span></div>
-          <div class="text-white mb-4">Framework: <span class="text-blue-400">Hypothesis-Driven Decision Tree</span>
-          </div>
-
-          <div class="text-yellow-400/90 bg-yellow-400/10 border border-yellow-400/20 rounded px-3 py-2 mb-4 max-w-2xl">
-            <div class="font-bold mb-1">⚠ BIAS WARNING: Status Quo Bias</div>
-            <div class="text-yellow-400/70">Your current job receives an unfair cognitive advantage. Remedy: Calculate
-              the literal "cost of inaction" over a 2-year horizon.</div>
-          </div>
-
-          <div class="text-white font-bold mb-2">Weighted Evaluation Matrix:</div>
-          <table class="text-zinc-300 mb-4 font-mono text-xs sm:text-sm border-collapse w-auto">
-            <thead>
-              <tr class="border-b border-zinc-700">
-                <th class="text-left pr-6 py-1 text-zinc-100">Criteria</th>
-                <th class="text-center px-4 py-1 text-zinc-100">Weight</th>
-                <th class="text-center px-4 py-1 text-zinc-100">Remote</th>
-                <th class="text-center px-4 py-1 text-zinc-100">Current</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td class="pr-6 py-0.5">Growth potential</td>
-                <td class="text-center px-4">25%</td>
-                <td class="text-center px-4">****</td>
-                <td class="text-center px-4">*****</td>
-              </tr>
-              <tr>
-                <td class="pr-6 py-0.5">Compensation</td>
-                <td class="text-center px-4">20%</td>
-                <td class="text-center px-4">*****</td>
-                <td class="text-center px-4">****</td>
-              </tr>
-              <tr>
-                <td class="pr-6 py-0.5">Work-life balance</td>
-                <td class="text-center px-4">20%</td>
-                <td class="text-center px-4">*****</td>
-                <td class="text-center px-4">***</td>
-              </tr>
-              <tr>
-                <td class="pr-6 py-0.5">Team quality</td>
-                <td class="text-center px-4">15%</td>
-                <td class="text-center px-4">***</td>
-                <td class="text-center px-4">*****</td>
-              </tr>
-              <tr>
-                <td class="pr-6 py-0.5">Location flex</td>
-                <td class="text-center px-4">10%</td>
-                <td class="text-center px-4">*****</td>
-                <td class="text-center px-4">**</td>
-              </tr>
-            </tbody>
-          </table>
-
-          <div class="text-green-400 font-bold">✅ Recommendation: Remote — scores 4.15 vs 3.85</div>
-        </div>
-      </div>
-    </div>
 
     <!-- 3. BENTO BOX FEATURES (PAIN POINTS) -->
     <div class="mx-auto max-w-7xl px-6 mt-32" id="features">
       <div class="mb-12">
-        <h2 class="text-2xl sm:text-3xl font-bold tracking-tight mb-4">Your AI is smart. <span
-            class="text-blue-500">Make it think.</span></h2>
-        <p class="text-zinc-400">Because asking ChatGPT "what should I do?" and getting a generic pros/cons list is not
+        <h2 class="text-2xl sm:text-3xl font-bold tracking-tight mb-4">
+          <span data-lang="en">Your AI is smart. <span class="text-blue-500">Make it think.</span></span>
+          <span data-lang="vi">AI của bạn thông minh. <span class="text-blue-500">Hãy dạy nó tư duy.</span></span>
+        </h2>
+        <p class="text-zinc-400" data-lang="en">Because asking ChatGPT "what should I do?" and getting a generic pros/cons list is not
           engineering.</p>
+        <p class="text-zinc-400" data-lang="vi">Vì hỏi ChatGPT "tôi nên làm gì?" rồi nhận được danh sách ưu/nhược điểm chung chung thì không phải là engineering.</p>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -369,11 +414,17 @@
             <div class="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center mb-6">
               <span class="text-xl">🌳</span>
             </div>
-            <h3 class="text-xl font-semibold mb-2">Force Deep Reasoning</h3>
-            <p class="text-zinc-400 max-w-md">Your AI gives lazy answers because it has zero structural constraints.
+            <h3 class="text-xl font-semibold mb-2">
+              <span data-lang="en">Force Deep Reasoning</span>
+              <span data-lang="vi">Buộc Tư Duy Sâu</span>
+            </h3>
+            <p class="text-zinc-400 max-w-md" data-lang="en">Your AI gives lazy answers because it has zero structural constraints.
               Inject
               McKinsey-grade methodologies (Issue Trees, Pre-Mortems, MECE) to force it to think like a principal
               engineer, not an intern.</p>
+            <p class="text-zinc-400 max-w-md" data-lang="vi">AI của bạn trả lời lười biếng vì không có ràng buộc cấu trúc nào.
+              Tiêm phương pháp luận cấp McKinsey (Issue Trees, Pre-Mortems, MECE) để buộc nó tư duy như principal
+              engineer, không phải intern.</p>
           </div>
           <!-- Abstract visual representation -->
           <div class="mt-8 flex gap-2">
@@ -389,11 +440,17 @@
           <div class="w-10 h-10 rounded-lg bg-orange-500/10 flex items-center justify-center mb-6">
             <span class="text-xl">🛡️</span>
           </div>
-          <h3 class="text-xl font-semibold mb-2">Kill "Yes-Man" Mode</h3>
-          <p class="text-zinc-400 text-sm">Your AI agrees with every bad idea you have. We inject cognitive bias
+          <h3 class="text-xl font-semibold mb-2">
+            <span data-lang="en">Kill "Yes-Man" Mode</span>
+            <span data-lang="vi">Triệt Tiêu Chế Độ "Gật Đầu"</span>
+          </h3>
+          <p class="text-zinc-400 text-sm" data-lang="en">Your AI agrees with every bad idea you have. We inject cognitive bias
             detectors
             (Sunk Cost, Confirmation, Status Quo) into the prompt <em>before</em> it answers — so it fights back when
             you're wrong.</p>
+          <p class="text-zinc-400 text-sm" data-lang="vi">AI đồng ý mọi ý tưởng tồi của bạn. Chúng tôi tiêm bộ phát hiện thiên kiến nhận thức
+            (Sunk Cost, Confirmation, Status Quo) vào prompt <em>trước khi</em> AI trả lời — để nó phản bác khi
+            bạn sai.</p>
         </div>
 
         <!-- Box 3: Zero Deps (Small) -->
@@ -412,8 +469,10 @@
           class="md:col-span-2 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-8 flex flex-col sm:flex-row gap-8 items-center group hover:border-zinc-700 transition-colors">
           <div class="flex-1">
             <h3 class="text-xl font-semibold mb-2">BM25 Search Engine</h3>
-            <p class="text-zinc-400 text-sm mb-4">Uses lightning-fast keyword matching across embedded CSV databases to
+            <p class="text-zinc-400 text-sm mb-4" data-lang="en">Uses lightning-fast keyword matching across embedded CSV databases to
               find the exact framework for your specific problem type.</p>
+            <p class="text-zinc-400 text-sm mb-4" data-lang="vi">Sử dụng tìm kiếm từ khóa siêu nhanh trong cơ sở dữ liệu CSV nhúng để
+              tìm framework chính xác cho loại vấn đề cụ thể của bạn.</p>
             <div class="inline-flex gap-2">
               <span class="px-2 py-1 rounded bg-zinc-800 text-xs font-mono text-zinc-300 border border-zinc-700">Go
                 1.25</span>
@@ -431,15 +490,425 @@
       </div>
     </div>
 
-    <!-- 4. INSTALLATION BLOCKS -->
+    <!-- 4. SLASH COMMANDS — HYBRID ACTIVATION -->
+    <div class="mx-auto max-w-7xl px-6 mt-32" id="commands">
+      <div class="text-center mb-16">
+        <div
+          class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-purple-500/30 bg-purple-500/10 text-xs font-medium text-purple-300 mb-4">
+          ⚡ NEW
+        </div>
+        <h2 class="text-2xl sm:text-4xl font-bold tracking-tight mb-4">
+          <span data-lang="en">Two ways to think. <span class="text-purple-400">Your choice.</span></span>
+          <span data-lang="vi">Hai cách tư duy. <span class="text-purple-400">Bạn chọn.</span></span>
+        </h2>
+        <p class="text-zinc-400 max-w-2xl mx-auto" data-lang="en">Speak naturally and the AI auto-detects the right skill — or use
+          slash commands for precise, instant control.</p>
+        <p class="text-zinc-400 max-w-2xl mx-auto" data-lang="vi">Nói tự nhiên và AI tự nhận diện skill phù hợp — hoặc dùng
+          slash command để điều khiển chính xác.</p>
+      </div>
+
+      <!-- Two-column: Natural vs Slash -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+        <!-- Natural Language -->
+        <div class="glow-card p-8 reveal">
+          <div class="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center mb-6">
+            <span class="text-xl">🗣️</span>
+          </div>
+          <h3 class="text-lg font-semibold mb-3">
+            <span data-lang="en">Natural Language</span>
+            <span data-lang="vi">Ngôn Ngữ Tự Nhiên</span>
+          </h3>
+          <p class="text-zinc-400 text-sm mb-4" data-lang="en">Just describe your problem. The AI reads the skill triggers and
+            auto-selects the right analysis depth.</p>
+          <p class="text-zinc-400 text-sm mb-4" data-lang="vi">Chỉ cần mô tả vấn đề. AI đọc các trigger của skill và
+            tự chọn độ sâu phân tích phù hợp.</p>
+          <div class="rounded-lg bg-zinc-950 border border-zinc-800 p-4 font-mono text-xs" data-lang="en">
+            <span class="text-blue-400">You:</span> <span class="text-zinc-300">"Our revenue dropped 20%, analyze deeply"</span><br>
+            <span class="text-zinc-500">→ AI auto-detects:</span> <span class="text-green-400">problem-solving-pro (deep)</span>
+          </div>
+          <div class="rounded-lg bg-zinc-950 border border-zinc-800 p-4 font-mono text-xs" data-lang="vi">
+            <span class="text-blue-400">Bạn:</span> <span class="text-zinc-300">"Doanh thu giảm 20%, phân tích sâu giúp tôi"</span><br>
+            <span class="text-zinc-500">→ AI tự nhận diện:</span> <span class="text-green-400">problem-solving-pro (deep)</span>
+          </div>
+        </div>
+
+        <!-- Slash Commands -->
+        <div class="glow-card p-8 reveal reveal-delay-1">
+          <div class="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center mb-6">
+            <span class="text-xl">⌨️</span>
+          </div>
+          <h3 class="text-lg font-semibold mb-3">
+            <span data-lang="en">Slash Commands</span>
+            <span data-lang="vi">Lệnh Slash</span>
+          </h3>
+          <p class="text-zinc-400 text-sm mb-4" data-lang="en">Type a command for instant, precise control. No guessing, no ambiguity.</p>
+          <p class="text-zinc-400 text-sm mb-4" data-lang="vi">Gõ lệnh để điều khiển ngay lập tức, chính xác. Không đoán mò, không mơ hồ.</p>
+          <div class="rounded-lg bg-zinc-950 border border-zinc-800 p-4 font-mono text-xs">
+            <span class="text-purple-400">/solve.deep</span> <span class="text-zinc-300">Revenue declined 20% QoQ</span><br>
+            <span class="text-zinc-500">→ Runs:</span> <span class="text-green-400">problem-solving-pro, depth=deep, 1.7× results</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Command Grid -->
+      <div class="rounded-2xl border border-zinc-800 bg-zinc-900/30 overflow-hidden">
+        <div class="grid grid-cols-1 sm:grid-cols-2">
+          <!-- Problem Solving Commands -->
+          <div class="p-6 sm:p-8 border-b sm:border-b-0 sm:border-r border-zinc-800">
+            <div class="flex items-center gap-3 mb-4">
+              <h4 class="text-sm font-bold text-blue-400 tracking-wider uppercase">
+                <span data-lang="en">Problem Solving</span>
+                <span data-lang="vi">Giải Quyết Vấn Đề</span>
+              </h4>
+              <code class="text-[10px] font-mono text-zinc-500 bg-zinc-800/50 px-1.5 py-0.5 rounded">/problem-solving-pro</code>
+            </div>
+            <div class="space-y-3">
+              <div class="flex items-center gap-3">
+                <code
+                  class="font-mono text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-200 w-32 text-center shrink-0">/solve</code>
+                <span class="text-zinc-400 text-sm" data-lang="en">Standard analysis</span>
+                <span class="text-zinc-400 text-sm" data-lang="vi">Phân tích chuẩn</span>
+              </div>
+              <div class="flex items-center gap-3">
+                <code
+                  class="font-mono text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-200 w-32 text-center shrink-0">/solve.quick</code>
+                <span class="text-zinc-400 text-sm" data-lang="en">15-second scan</span>
+                <span class="text-zinc-400 text-sm" data-lang="vi">Scan nhanh 15 giây</span>
+              </div>
+              <div class="flex items-center gap-3">
+                <code
+                  class="font-mono text-xs bg-zinc-800 border border-blue-500/30 rounded px-2 py-1 text-blue-300 w-32 text-center shrink-0">/solve.deep</code>
+                <span class="text-zinc-400 text-sm" data-lang="en">All frameworks + alternatives</span>
+                <span class="text-zinc-400 text-sm" data-lang="vi">Mọi framework + giải pháp thay thế</span>
+              </div>
+              <div class="flex items-center gap-3">
+                <code
+                  class="font-mono text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-200 w-32 text-center shrink-0">/solve.exec</code>
+                <span class="text-zinc-400 text-sm" data-lang="en">Board-level briefing</span>
+                <span class="text-zinc-400 text-sm" data-lang="vi">Báo cáo cấp board</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Decision Making Commands -->
+          <div class="p-6 sm:p-8">
+            <div class="flex items-center gap-3 mb-4">
+              <h4 class="text-sm font-bold text-purple-400 tracking-wider uppercase">
+                <span data-lang="en">Decision Making</span>
+                <span data-lang="vi">Ra Quyết Định</span>
+              </h4>
+              <code class="text-[10px] font-mono text-zinc-500 bg-zinc-800/50 px-1.5 py-0.5 rounded">/make-decision</code>
+            </div>
+            <div class="space-y-3">
+              <div class="flex items-center gap-3">
+                <code
+                  class="font-mono text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-200 w-32 text-center shrink-0">/decide</code>
+                <span class="text-zinc-400 text-sm" data-lang="en">Standard comparison</span>
+                <span class="text-zinc-400 text-sm" data-lang="vi">So sánh chuẩn</span>
+              </div>
+            <div class="flex items-center gap-3">
+                <code
+                  class="font-mono text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-200 w-32 text-center shrink-0">/decide.quick</code>
+                <span class="text-zinc-400 text-sm" data-lang="en">Rapid binary choice</span>
+                <span class="text-zinc-400 text-sm" data-lang="vi">Chọn nhanh giữa 2 options</span>
+              </div>
+              <div class="flex items-center gap-3">
+                <code
+                  class="font-mono text-xs bg-zinc-800 border border-purple-500/30 rounded px-2 py-1 text-purple-300 w-32 text-center shrink-0">/decide.deep</code>
+                <span class="text-zinc-400 text-sm" data-lang="en">Detailed criteria analysis</span>
+                <span class="text-zinc-400 text-sm" data-lang="vi">Phân tích tiêu chí chi tiết</span>
+              </div>
+              <div class="flex items-center gap-3">
+                <code
+                  class="font-mono text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-200 w-32 text-center shrink-0">/decide.exec</code>
+                <span class="text-zinc-400 text-sm" data-lang="en">Leadership-level briefing</span>
+                <span class="text-zinc-400 text-sm" data-lang="vi">Báo cáo cấp lãnh đạo</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. HOW IT WORKS — VERTICAL PIPELINE -->
+    <div class="mx-auto max-w-4xl px-6 mt-32 relative" id="flow">
+      <div class="text-center mb-16 reveal">
+        <h2 class="text-2xl sm:text-4xl font-bold tracking-tight mb-4">
+          <span data-lang="en">How it <span class="text-shimmer">works.</span></span>
+          <span data-lang="vi">Cách <span class="text-shimmer">hoạt động.</span></span>
+        </h2>
+        <p class="text-zinc-400 max-w-2xl mx-auto" data-lang="en">From prompt to structured action plan in 5 intelligent steps</p>
+        <p class="text-zinc-400 max-w-2xl mx-auto" data-lang="vi">Từ câu lệnh đến kế hoạch hành động qua 5 bước thông minh</p>
+      </div>
+
+      <!-- Vertical Flow Container -->
+      <div class="flex flex-col items-center gap-6 relative">
+      
+        <!-- Step 1: Input -->
+        <div class="w-full bg-[#0c0c0c] border border-zinc-800/80 rounded-2xl p-6 sm:p-8 shadow-2xl relative reveal hover:border-blue-500/30 transition-colors duration-500">
+          <div class="flex items-start gap-4 sm:gap-6">
+            <div class="w-10 h-10 shrink-0 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center font-bold font-mono shadow-[0_0_15px_rgba(59,130,246,0.2)]">1</div>
+            <div class="flex-1">
+              <h4 class="text-lg font-semibold text-white mb-4" data-lang="en">Your Prompt</h4>
+              <h4 class="text-lg font-semibold text-white mb-4" data-lang="vi">Đầu Vào Của Bạn</h4>
+              
+              <div class="bg-[#161618] border border-zinc-800 rounded-lg p-4 font-mono text-sm text-zinc-300">
+                <span class="text-blue-400">$</span> <span data-lang="en">"Revenue dropped 20% despite market growth"</span><span data-lang="vi" style="display: none;">"Doanh thu giảm 20% mặc dù thị trường đang tăng trưởng"</span>
+                <br>
+                <div class="mt-3 flex gap-2 items-center text-xs text-zinc-500">
+                  <span data-lang="en">↳ Trigger via:</span><span data-lang="vi" style="display: none;">↳ Gọi qua:</span>
+                  <code class="text-purple-300 bg-purple-900/20 border border-purple-500/20 px-1.5 py-0.5 rounded">/solve.deep</code>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Connection Arrow -->
+        <div class="text-zinc-600 text-xl animate-bounce reveal reveal-delay-1">↓</div>
+
+        <!-- Step 2: Skill Selection -->
+        <div class="w-full bg-[#0c0c0c] border border-zinc-800/80 rounded-2xl p-6 sm:p-8 shadow-2xl relative reveal reveal-delay-1 hover:border-purple-500/30 transition-colors duration-500">
+          <div class="flex items-start gap-4 sm:gap-6">
+            <div class="w-10 h-10 shrink-0 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center font-bold font-mono shadow-[0_0_15px_rgba(168,85,247,0.2)]">2</div>
+            <div class="flex-1">
+              <h4 class="text-lg font-semibold text-white mb-4" data-lang="en">Skill Routing</h4>
+              <h4 class="text-lg font-semibold text-white mb-4" data-lang="vi">Định Tuyến Kỹ Năng</h4>
+              
+              <div class="flex gap-4">
+                <div class="flex-1 bg-purple-500/5 border border-purple-500/20 rounded-lg p-3 relative overflow-hidden">
+                  <div class="absolute inset-0 bg-gradient-to-r from-purple-500/10 to-transparent pointer-events-none w-1/2"></div>
+                  <code class="text-purple-300 text-xs font-bold block mb-1">problem-solving-pro</code>
+                  <span class="text-[10px] text-zinc-500 uppercase tracking-widest"><span data-lang="en">Selected</span><span data-lang="vi" style="display: none;">Đã chọn</span></span>
+                </div>
+                <div class="flex-1 bg-[#161618] border border-zinc-800 rounded-lg p-3 opacity-50 grayscale">
+                  <code class="text-blue-300 text-xs font-bold block mb-1">make-decision</code>
+                  <span class="text-[10px] text-zinc-500 uppercase tracking-widest"><span data-lang="en">Ignored</span><span data-lang="vi" style="display: none;">Bỏ qua</span></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Connection Arrow -->
+        <div class="text-zinc-600 text-xl animate-bounce reveal reveal-delay-2">↓</div>
+
+        <!-- Step 3: Search Engine -->
+        <div class="w-full bg-[#0c0c0c] border border-zinc-800/80 rounded-2xl p-6 sm:p-8 shadow-2xl relative reveal reveal-delay-2 hover:border-amber-500/30 transition-colors duration-500">
+          <div class="flex items-start gap-4 sm:gap-6">
+            <div class="w-10 h-10 shrink-0 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center font-bold font-mono shadow-[0_0_15px_rgba(245,158,11,0.2)]">3</div>
+            <div class="flex-1">
+              <h4 class="text-lg font-semibold text-white mb-2" data-lang="en">Parallel Search Database</h4>
+              <h4 class="text-lg font-semibold text-white mb-2" data-lang="vi">Tìm Kiếm Cơ Sở Dữ Liệu</h4>
+              <div class="text-zinc-500 text-xs mb-4" data-lang="en">Scanning 160 embedded best-practice records across 9 domains...</div>
+              <div class="text-zinc-500 text-xs mb-4" data-lang="vi">Quét 160 bản ghi phương pháp luận nhúng qua 9 lĩnh vực...</div>
+              
+              <div class="grid grid-cols-2 md:grid-cols-3 gap-3 font-mono text-xs">
+                <div class="bg-amber-500/5 border border-amber-500/20 rounded p-2 text-amber-200/80 flex items-center gap-2">
+                  <span class="text-lg">🌳</span> <span>Decomposition <span class="text-amber-500/40 block text-[9px] mt-0.5">Trees &amp; Issue maps</span></span>
+                </div>
+                <div class="bg-amber-500/5 border border-amber-500/20 rounded p-2 text-amber-200/80 flex items-center gap-2">
+                  <span class="text-lg">📈</span> <span>Analysis <span class="text-amber-500/40 block text-[9px] mt-0.5">Toolkits &amp; Tactics</span></span>
+                </div>
+                <div class="bg-amber-500/5 border border-amber-500/20 rounded p-2 text-amber-200/80 flex items-center gap-2">
+                  <span class="text-lg">🛡️</span> <span>Biases <span class="text-amber-500/40 block text-[9px] mt-0.5">Cognitive limits</span></span>
+                </div>
+                <div class="bg-amber-500/5 border border-amber-500/20 rounded p-2 text-amber-200/80 flex items-center gap-2">
+                  <span class="text-lg">🎯</span> <span>Prioritize <span class="text-amber-500/40 block text-[9px] mt-0.5">Impact vs Effort</span></span>
+                </div>
+                <div class="bg-amber-500/5 border border-amber-500/20 rounded p-2 text-amber-200/80 flex items-center gap-2 md:col-span-2">
+                  <span class="text-lg">🧠</span> <span>Mental Models <span class="text-amber-500/40 block text-[9px] mt-0.5">+ Synthesis, Communication, Rules...</span></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Connection Arrow -->
+        <div class="text-zinc-600 text-xl animate-bounce reveal reveal-delay-3">↓</div>
+
+        <!-- Step 4: Advisor -->
+        <div class="w-full bg-[#0c0c0c] border border-zinc-800/80 rounded-2xl p-6 sm:p-8 shadow-2xl relative reveal reveal-delay-3 hover:border-cyan-500/30 transition-colors duration-500">
+          <div class="flex items-start gap-4 sm:gap-6">
+            <div class="w-10 h-10 shrink-0 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center font-bold font-mono shadow-[0_0_15px_rgba(6,182,212,0.2)]">4</div>
+            <div class="flex-1">
+              <h4 class="text-lg font-semibold text-white mb-2" data-lang="en">Intelligence Engine</h4>
+              <h4 class="text-lg font-semibold text-white mb-2" data-lang="vi">Engine Thông Minh</h4>
+              <div class="text-zinc-500 text-xs mb-4" data-lang="en">Synthesizing matched rules into a coherent consulting plan.</div>
+              <div class="text-zinc-500 text-xs mb-4" data-lang="vi">Tổng hợp các quy tắc phù hợp thành một kế hoạch tư vấn.</div>
+
+              <div class="bg-[#161618] border border-zinc-800 rounded-lg p-4 font-mono text-xs">
+                <div class="flex justify-between items-center mb-2 pb-2 border-b border-zinc-700/50">
+                  <span class="text-zinc-400">Classifying problem type...</span>
+                  <span class="text-cyan-400">Opportunity (Medium)</span>
+                </div>
+                <div class="flex justify-between items-center mb-2 pb-2 border-b border-zinc-700/50">
+                  <span class="text-zinc-400">Selecting tree logic...</span>
+                  <span class="text-green-400">Profitability Tree</span>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span class="text-zinc-400">Evaluating cognitive risks...</span>
+                  <span class="text-red-400">Anchoring Bias Flagged</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Connection Arrow -->
+        <div class="text-zinc-600 text-xl animate-bounce reveal reveal-delay-4">↓</div>
+
+        <!-- Step 5: Output -->
+        <div class="w-full bg-[#0c0c0c] border border-zinc-800/80 rounded-2xl p-6 sm:p-8 shadow-2xl relative reveal reveal-delay-4 hover:border-green-500/30 transition-colors duration-500">
+          <div class="flex items-start gap-4 sm:gap-6">
+            <div class="w-10 h-10 shrink-0 rounded-full bg-green-500/10 border border-green-500/20 text-green-400 flex items-center justify-center font-bold font-mono shadow-[0_0_15px_rgba(34,197,94,0.2)]">5</div>
+            <div class="flex-1">
+              <h4 class="text-lg font-semibold text-white mb-2" data-lang="en">Actionable Plan</h4>
+              <h4 class="text-lg font-semibold text-white mb-2" data-lang="vi">Kế Hoạch Khả Thi</h4>
+              
+              <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 relative overflow-hidden">
+                <div class="absolute left-0 top-0 bottom-0 w-1 bg-green-500"></div>
+                <h5 class="text-white text-sm font-bold mb-2 pl-2">## 🎯 Problem-Solving Plan</h5>
+                <div class="pl-2 space-y-2 font-mono text-[10px] text-zinc-400">
+                  <p><span class="text-zinc-300">Decomposition:</span> Map out Price x Volume against Fixed/Variable costs.</p>
+                  <p><span class="text-zinc-300">Analysis:</span> Run Fermi Estimation for actual market size.</p>
+                  <div class="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400/80 p-2 rounded mt-2">
+                    ⚠ Warning: Mitigate Anchoring bias during estimations.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 6. DEPTH LEVELS + STEP-BY-STEP WORKSPACE -->
+    <div class="mx-auto max-w-7xl px-6 mt-32">
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <!-- Depth Levels -->
+        <div class="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-8 hover:border-zinc-700 transition-colors">
+          <div class="w-10 h-10 rounded-lg bg-pink-500/10 flex items-center justify-center mb-6">
+            <span class="text-xl">📊</span>
+          </div>
+          <h3 class="text-xl font-semibold mb-2">
+            <span data-lang="en">4 Analysis Depth Levels</span>
+            <span data-lang="vi">4 Mức Độ Sâu Phân Tích</span>
+          </h3>
+          <p class="text-zinc-400 text-sm mb-6" data-lang="en">Match the analysis complexity to your problem complexity.</p>
+          <p class="text-zinc-400 text-sm mb-6" data-lang="vi">Độ phức tạp phân tích tương xứng với độ phức tạp vấn đề.</p>
+
+          <div class="space-y-3">
+            <div class="flex items-center gap-3">
+              <div class="w-16 h-2 rounded-full bg-zinc-700 overflow-hidden">
+                <div class="w-1/4 h-full bg-zinc-400 rounded-full"></div>
+              </div>
+              <span class="text-sm font-mono text-zinc-300 w-20">Quick</span>
+              <span class="text-xs text-zinc-500">0.5× · Core only · 15 sec</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <div class="w-16 h-2 rounded-full bg-zinc-700 overflow-hidden">
+                <div class="w-1/2 h-full bg-blue-500 rounded-full"></div>
+              </div>
+              <span class="text-sm font-mono text-blue-300 w-20">Standard</span>
+              <span class="text-xs text-zinc-500">1.0× · All sections · Default</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <div class="w-16 h-2 rounded-full bg-zinc-700 overflow-hidden">
+                <div class="w-3/4 h-full bg-purple-500 rounded-full"></div>
+              </div>
+              <span class="text-sm font-mono text-purple-300 w-20">Deep</span>
+              <span class="text-xs text-zinc-500">1.7× · + Alternatives · High-stakes</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <div class="w-16 h-2 rounded-full bg-zinc-700 overflow-hidden">
+                <div class="w-full h-full bg-gradient-to-r from-pink-500 to-amber-500 rounded-full"></div>
+              </div>
+              <span class="text-sm font-mono text-amber-300 w-20">Executive</span>
+              <span class="text-xs text-zinc-500">2.5× · Maximum · Board reports</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step-by-Step Workspace -->
+        <div class="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-8 hover:border-zinc-700 transition-colors">
+          <div class="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center mb-6">
+            <span class="text-xl">📁</span>
+          </div>
+          <h3 class="text-xl font-semibold mb-2">
+            <span data-lang="en">Step-by-Step Workspace</span>
+            <span data-lang="vi">Workspace Từng Bước</span>
+          </h3>
+          <p class="text-zinc-400 text-sm mb-6" data-lang="en">Get a full markdown directory to work through each step methodically.
+          </p>
+          <p class="text-zinc-400 text-sm mb-6" data-lang="vi">Nhận thư mục markdown hoàn chỉnh để làm việc từng bước có hệ thống.
+          </p>
+
+          <div class="rounded-lg bg-zinc-950 border border-zinc-800 p-4 font-mono text-xs leading-relaxed">
+            <div class="text-zinc-500 mb-2">solving-plans/my-project/</div>
+            <div class="pl-3 space-y-1">
+              <div><span class="text-zinc-600">├──</span> <span class="text-blue-300">00-OVERVIEW.md</span></div>
+              <div><span class="text-zinc-600">├──</span> <span class="text-zinc-300">01-PROBLEM-DEFINITION.md</span></div>
+              <div><span class="text-zinc-600">├──</span> <span class="text-zinc-300">02-DECOMPOSITION.md</span></div>
+              <div><span class="text-zinc-600">├──</span> <span class="text-zinc-300">03-PRIORITIZATION.md</span></div>
+              <div><span class="text-zinc-600">├──</span> <span class="text-zinc-300">04-ANALYSIS-PLAN.md</span></div>
+              <div><span class="text-zinc-600">├──</span> <span class="text-zinc-300">05-FINDINGS.md</span></div>
+              <div><span class="text-zinc-600">├──</span> <span class="text-zinc-300">06-SYNTHESIS.md</span></div>
+              <div><span class="text-zinc-600">├──</span> <span class="text-zinc-300">07-RECOMMENDATION.md</span></div>
+              <div><span class="text-zinc-600">├──</span> <span class="text-yellow-300">BIAS-WARNINGS.md</span></div>
+              <div><span class="text-zinc-600">└──</span> <span class="text-green-300">DECISION-LOG.md</span></div>
+            </div>
+            <div class="mt-3 text-zinc-500 text-[10px]" data-lang="en">Each file has editable templates with checklists & placeholders
+            </div>
+            <div class="mt-3 text-zinc-500 text-[10px]" data-lang="vi">Mỗi file có template sẵn với checklist & placeholder
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Next-Step Suggestions Banner -->
+      <div class="mt-8 rounded-2xl border border-zinc-800 bg-zinc-900/30 p-8 hover:border-zinc-700 transition-colors">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+          <div class="flex-1">
+            <h3 class="text-lg font-semibold mb-2">
+              <span data-lang="en">🔗 Guided Thinking Flow</span>
+              <span data-lang="vi">🔗 Luồng Tư Duy Có Hướng Dẫn</span>
+            </h3>
+            <p class="text-zinc-400 text-sm" data-lang="en">Every output ends with <strong class="text-white">contextual next-step
+                suggestions</strong>. Follow the natural progression from quick scan → deep analysis → decision →
+              documentation.</p>
+            <p class="text-zinc-400 text-sm" data-lang="vi">Mọi output đều kết thúc với <strong class="text-white">gợi ý bước tiếp theo</strong>
+              phù hợp ngữ cảnh. Đi theo luồng tự nhiên: scan nhanh → phân tích sâu → quyết định →
+              tài liệu.</p>
+          </div>
+          <div class="rounded-lg bg-zinc-950 border border-zinc-800 p-4 font-mono text-xs w-full sm:w-auto shrink-0">
+            <div class="text-zinc-300 mb-1.5">🎯 <strong>Next Steps:</strong></div>
+            <div class="text-purple-300">/solve.deep <span class="text-zinc-500">— Deeper analysis</span></div>
+            <div class="text-purple-300">/decide <span class="text-zinc-500">— Compare options</span></div>
+            <div class="text-purple-300">save step-by-step <span class="text-zinc-500">— Workspace</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7. INSTALLATION BLOCKS -->
     <div class="mx-auto max-w-7xl px-6 mt-32 mb-20">
-      <h2 class="text-2xl sm:text-3xl font-bold tracking-tight mb-12">Install in seconds.</h2>
+      <h2 class="text-2xl sm:text-3xl font-bold tracking-tight mb-12">
+        <span data-lang="en">Install in seconds.</span>
+        <span data-lang="vi">Cài đặt trong vài giây.</span>
+      </h2>
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
         <!-- Step 1 -->
         <div>
-          <div class="text-sm font-medium text-blue-500 mb-2">STEP 1</div>
-          <h3 class="text-lg font-semibold mb-4 text-white">Install the CLI</h3>
+          <div class="text-sm font-medium text-blue-500 mb-2" data-lang="en">STEP 1</div>
+          <div class="text-sm font-medium text-blue-500 mb-2" data-lang="vi">BƯỚC 1</div>
+          <h3 class="text-lg font-semibold mb-4 text-white">
+            <span data-lang="en">Install the CLI</span>
+            <span data-lang="vi">Cài đặt CLI</span>
+          </h3>
           <div
             class="rounded-lg bg-card border border-border p-4 font-mono text-xs overflow-x-auto text-zinc-300 no-scrollbar whitespace-nowrap">
             <span class="text-zinc-500"># macOS / Linux</span><button
@@ -454,8 +923,12 @@
         </div>
         <!-- Step 2 -->
         <div>
-          <div class="text-sm font-medium text-blue-500 mb-2">STEP 2</div>
-          <h3 class="text-lg font-semibold mb-4 text-white">Initialize Skills</h3>
+          <div class="text-sm font-medium text-blue-500 mb-2" data-lang="en">STEP 2</div>
+          <div class="text-sm font-medium text-blue-500 mb-2" data-lang="vi">BƯỚC 2</div>
+          <h3 class="text-lg font-semibold mb-4 text-white">
+            <span data-lang="en">Initialize Skills</span>
+            <span data-lang="vi">Khởi Tạo Skills</span>
+          </h3>
           <div class="rounded-lg bg-card border border-border p-4 font-mono text-xs overflow-x-auto text-zinc-300">
             <span class="text-zinc-500"># Target your AI assistant</span><br>
             think-better init <span class="text-blue-400">--ai claude</span><br>
@@ -465,8 +938,12 @@
         </div>
         <!-- Step 3 -->
         <div>
-          <div class="text-sm font-medium text-blue-500 mb-2">STEP 3</div>
-          <h3 class="text-lg font-semibold mb-4 text-white">Start Thinking</h3>
+          <div class="text-sm font-medium text-blue-500 mb-2" data-lang="en">STEP 3</div>
+          <div class="text-sm font-medium text-blue-500 mb-2" data-lang="vi">BƯỚC 3</div>
+          <h3 class="text-lg font-semibold mb-4 text-white">
+            <span data-lang="en">Start Thinking</span>
+            <span data-lang="vi">Bắt Đầu Tư Duy</span>
+          </h3>
           <div class="rounded-lg bg-zinc-900 border border-zinc-700 p-4 font-sans text-sm">
             <div class="bg-blue-500 text-white rounded-lg rounded-br-none px-4 py-2 w-fit mb-3 text-xs ml-auto">
               Help me compare Next.js vs Go for my new API.
@@ -489,9 +966,15 @@
         <a href="https://github.com/HoangTheQuyen/think-better"
           class="text-sm text-zinc-500 hover:text-white transition-colors">GitHub</a>
         <a href="https://github.com/HoangTheQuyen/think-better/blob/main/CONTRIBUTING.md"
-          class="text-sm text-zinc-500 hover:text-white transition-colors">Contributing</a>
+          class="text-sm text-zinc-500 hover:text-white transition-colors">
+          <span data-lang="en">Contributing</span>
+          <span data-lang="vi">Đóng Góp</span>
+        </a>
         <a href="https://github.com/HoangTheQuyen/think-better/issues"
-          class="text-sm text-zinc-500 hover:text-white transition-colors">Report an Issue</a>
+          class="text-sm text-zinc-500 hover:text-white transition-colors">
+          <span data-lang="en">Report an Issue</span>
+          <span data-lang="vi">Báo Lỗi</span>
+        </a>
       </div>
       <div class="text-center md:text-left text-sm text-zinc-500">
         MIT License &copy; 2026 HoangTheQuyen.
@@ -525,6 +1008,76 @@
         }
       });
     }
+  </script>
+
+  <script>
+    // i18n Language Switcher
+    function setLang(lang) {
+      // Update active class on buttons
+      document.querySelectorAll('.lang-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.textContent.trim() === (lang === 'en' ? 'EN' : 'VN'));
+      });
+
+      // Toggle visibility of data-lang elements
+      document.querySelectorAll('[data-lang]').forEach(el => {
+        el.classList.toggle('active', el.dataset.lang === lang);
+      });
+
+      // Update html lang attribute
+      document.documentElement.lang = lang;
+
+      // Persist preference
+      localStorage.setItem('tb-lang', lang);
+    }
+
+    // Initialize language from localStorage or browser preference
+    (function() {
+      const saved = localStorage.getItem('tb-lang');
+      const browserLang = navigator.language || navigator.userLanguage;
+      const isVN = browserLang.startsWith('vi');
+      setLang(saved || (isVN ? 'vi' : 'en'));
+    })();
+  </script>
+  <script>
+    // Scroll Reveal (Intersection Observer)
+    const revealObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          revealObserver.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+    document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+  </script>
+
+  <script>
+    // Theme switching
+    function toggleTheme() {
+      const html = document.documentElement;
+      const current = html.getAttribute('data-theme');
+      const next = current === 'dark' ? 'light' : 'dark';
+      setTheme(next);
+    }
+
+    function setTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem('tb-theme', theme);
+      // Update icon visibility
+      const lightIcon = document.querySelector('.theme-icon-light');
+      const darkIcon = document.querySelector('.theme-icon-dark');
+      if (lightIcon && darkIcon) {
+        lightIcon.style.display = theme === 'light' ? 'inline' : 'none';
+        darkIcon.style.display = theme === 'dark' ? 'inline' : 'none';
+      }
+    }
+
+    // Initialize theme from localStorage (default: dark)
+    (function() {
+      const saved = localStorage.getItem('tb-theme');
+      setTheme(saved || 'dark');
+    })();
   </script>
 </body>
 

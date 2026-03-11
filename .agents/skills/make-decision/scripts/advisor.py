@@ -19,6 +19,32 @@ from datetime import datetime
 from pathlib import Path
 from core import search, search_domain, load_csv, DATA_DIR
 
+# ============ DEPTH CONFIGURATION ============
+DEPTH_CONFIG = {
+    "quick": {
+        "multiplier": 0.5,
+        "sections": ["decision_type", "framework", "bias_warnings"],
+        "show_alternatives": False,
+    },
+    "standard": {
+        "multiplier": 1.0,
+        "sections": "all",
+        "show_alternatives": False,
+    },
+    "deep": {
+        "multiplier": 1.7,
+        "sections": "all",
+        "show_alternatives": True,
+    },
+    "executive": {
+        "multiplier": 2.5,
+        "sections": "all",
+        "show_alternatives": True,
+    },
+}
+
+VALID_DEPTHS = list(DEPTH_CONFIG.keys())
+
 
 # ============ DECISION ADVISOR ============
 class DecisionAdvisor:
@@ -46,30 +72,44 @@ class DecisionAdvisor:
         }
 
     # ---- Plan Generation (T014) ----
-    def generate(self, project_name: str = None) -> dict:
-        """Generate a comprehensive decision-making plan."""
+    def generate(self, project_name: str = None, depth: str = "standard") -> dict:
+        """Generate a comprehensive decision-making plan.
+
+        Args:
+            project_name: Optional project name
+            depth: Analysis depth - quick, standard, deep, or executive
+        """
+        depth_cfg = DEPTH_CONFIG.get(depth, DEPTH_CONFIG["standard"])
+        multiplier = depth_cfg["multiplier"]
+        show_alts = depth_cfg.get("show_alternatives", False)
+
         # Step 1: Classify the decision type
         dtype = self.classify_decision_type()
         type_name = dtype.get("Decision Type", "General")
 
-        # Step 2: Search frameworks
-        fw_result = search_domain(self.query, "frameworks", 3)
+        # Step 2: Search frameworks (depth-aware)
+        max_fw = max(1, int(3 * multiplier))
+        fw_result = search_domain(self.query, "frameworks", max_fw)
         frameworks = fw_result.get("results", [])
 
         # Step 3: Search biases
-        bias_result = search_domain(self.query, "biases", 3)
+        max_bias = max(1, int(3 * multiplier))
+        bias_result = search_domain(self.query, "biases", max_bias)
         biases = bias_result.get("results", [])
 
         # Step 4: Search analysis techniques
-        analysis_result = search_domain(self.query, "analysis", 3)
+        max_analysis = max(1, int(3 * multiplier))
+        analysis_result = search_domain(self.query, "analysis", max_analysis)
         analysis = analysis_result.get("results", [])
 
         # Step 5: Search criteria templates
-        criteria_result = search_domain(self.query, "criteria", 2)
+        max_crit = max(1, int(2 * multiplier))
+        criteria_result = search_domain(self.query, "criteria", max_crit)
         criteria = criteria_result.get("results", [])
 
         # Step 6: Search facilitation techniques
-        facil_result = search_domain(self.query, "facilitation", 2)
+        max_facil = max(1, int(2 * multiplier))
+        facil_result = search_domain(self.query, "facilitation", max_facil)
         facilitation = facil_result.get("results", [])
 
         # Select best framework based on recommended frameworks for this type
@@ -80,7 +120,10 @@ class DecisionAdvisor:
         rec_analysis = dtype.get("Analysis Methods", "")
         best_analysis = self._select_best_match(analysis, rec_analysis)
 
+        alt_count = 4 if show_alts else 2
+
         return {
+            "depth": depth,
             "project_name": project_name or self.query[:60],
             "decision_type": {
                 "name": type_name,
@@ -98,7 +141,7 @@ class DecisionAdvisor:
                 "strengths": best_framework.get("Strengths", ""),
                 "limitations": best_framework.get("Limitations", ""),
                 "complexity": best_framework.get("Complexity", "Medium"),
-                "alternatives": [f.get("Framework", "") for f in frameworks[1:3]],
+                "alternatives": [f.get("Framework", "") for f in frameworks[1:alt_count+1]],
             },
             "criteria": {
                 "domain": criteria[0].get("Domain", "") if criteria else "",
@@ -713,9 +756,248 @@ Medium
         return []
 
 
+    def persist_step_by_step(self, plan: dict, output_dir: str = None) -> tuple:
+        """Save decision plan as separate markdown files per step."""
+        project = plan.get("project_name", "default")
+        slug = re.sub(r'[^\w\s-]', '', project.lower()).strip()
+        slug = re.sub(r'[\s]+', '-', slug)[:50]
+
+        base = Path(output_dir) if output_dir else Path.cwd()
+        plan_dir = base / "decision-plans" / slug
+        plan_dir.mkdir(parents=True, exist_ok=True)
+
+        depth = plan.get("depth", "standard")
+        dt = plan.get("decision_type", {})
+        fw = plan.get("framework", {})
+        crit = plan.get("criteria", {})
+        techniques = plan.get("analysis_techniques", [])
+        biases = plan.get("bias_warnings", [])
+        facil = plan.get("facilitation", [])
+        anti = plan.get("anti_patterns", "")
+        ts = datetime.now().strftime('%Y-%m-%d %H:%M')
+
+        files_written = []
+
+        def _write(path, content):
+            with open(path, 'w', encoding='utf-8') as f:
+                f.write(content)
+
+        # 00-OVERVIEW.md
+        overview = f"""# Decision-Making Plan: {project}
+
+**Depth:** {depth} | **Generated:** {ts}
+
+## Decision Type
+- **Type:** {dt.get('name', '')}
+- **Characteristics:** {dt.get('characteristics', '')}
+
+## Files in This Plan
+- [01-DECISION-TYPE.md](./01-DECISION-TYPE.md) — Problem classification
+- [02-FRAMEWORK.md](./02-FRAMEWORK.md) — Recommended framework
+- [03-CRITERIA.md](./03-CRITERIA.md) — Evaluation criteria
+- [04-ANALYSIS.md](./04-ANALYSIS.md) — Analysis techniques
+- [05-OPTIONS.md](./05-OPTIONS.md) — Options evaluation (template)
+- [06-DECISION.md](./06-DECISION.md) — Final decision
+- [BIAS-WARNINGS.md](./BIAS-WARNINGS.md) — Bias alerts
+- [DECISION-LOG.md](./DECISION-LOG.md) — Decision journal
+"""
+        _write(plan_dir / "00-OVERVIEW.md", overview)
+        files_written.append("00-OVERVIEW.md")
+
+        # 01-DECISION-TYPE.md
+        type_doc = f"""# Step 1: Classify the Decision
+
+## Decision Type: {dt.get('name', '')}
+**Characteristics:** {dt.get('characteristics', '')}
+**Recommended Frameworks:** {dt.get('recommended_frameworks', '')}
+**Analysis Methods:** {dt.get('analysis_methods', '')}
+
+## Warning Signs
+{dt.get('warning_signs', 'N/A')}
+
+## Common Pitfalls
+{dt.get('common_pitfalls', 'N/A')}
+
+## Your Decision Statement
+<!-- Write a clear, specific decision statement -->
+
+"""
+        _write(plan_dir / "01-DECISION-TYPE.md", type_doc)
+        files_written.append("01-DECISION-TYPE.md")
+
+        # 02-FRAMEWORK.md
+        alts = [a for a in fw.get('alternatives', []) if a]
+        alts_str = ', '.join(alts) if alts else 'N/A'
+        framework_doc = f"""# Step 2: Apply Framework
+
+## Recommended: {fw.get('name', '')} ({fw.get('complexity', '')} complexity)
+**Category:** {fw.get('category', '')}
+**Description:** {fw.get('description', '')}
+
+### Steps
+{fw.get('steps', '')}
+
+### Strengths
+{fw.get('strengths', '')}
+
+### Limitations
+{fw.get('limitations', '')}
+
+### Alternative Frameworks
+{alts_str}
+"""
+        _write(plan_dir / "02-FRAMEWORK.md", framework_doc)
+        files_written.append("02-FRAMEWORK.md")
+
+        # 03-CRITERIA.md
+        criteria_doc = f"""# Step 3: Define Evaluation Criteria
+
+## Suggested Criteria ({crit.get('domain', 'General')})
+"""
+        if crit.get("criteria_list"):
+            criteria_items = [c.strip() for c in crit["criteria_list"].split(",")]
+            weight_items = [w.strip() for w in crit.get("weights", "").split(",")]
+            for i, c in enumerate(criteria_items):
+                w = weight_items[i] if i < len(weight_items) else "?"
+                criteria_doc += f"- **{c}** (weight: {w})\n"
+            if crit.get("measurement"):
+                criteria_doc += f"\n## Scoring Guide\n{crit['measurement']}\n"
+        criteria_doc += """\n## Your Criteria\n| Criterion | Weight (%) | Description | Score Guide |\n|-----------|-----------|-------------|-------------|\n| | | | |\n"""
+        _write(plan_dir / "03-CRITERIA.md", criteria_doc)
+        files_written.append("03-CRITERIA.md")
+
+        # 04-ANALYSIS.md
+        analysis_doc = "# Step 4: Analysis Techniques\n\n"
+        for i, t in enumerate(techniques, 1):
+            analysis_doc += f"## {i}. {t.get('technique', '')}\n"
+            analysis_doc += f"**When to use:** {t.get('when', '')}\n"
+            analysis_doc += f"**Output:** {t.get('output', '')}\n\n"
+        _write(plan_dir / "04-ANALYSIS.md", analysis_doc)
+        files_written.append("04-ANALYSIS.md")
+
+        # 05-OPTIONS.md
+        options_doc = """# Step 5: Evaluate Options
+
+## Options
+| Option | Description | Pros | Cons | Score |
+|--------|-------------|------|------|-------|
+| Option A | | | | |
+| Option B | | | | |
+| Option C | | | | |
+
+## Weighted Scoring Matrix
+<!-- Fill in based on your criteria from 03-CRITERIA.md -->
+| Criterion | Weight | Option A | Option B | Option C |
+|-----------|--------|----------|----------|----------|
+| | | | | |
+| **TOTAL** | 100% | | | |
+"""
+        _write(plan_dir / "05-OPTIONS.md", options_doc)
+        files_written.append("05-OPTIONS.md")
+
+        # 06-DECISION.md
+        decision_doc = """# Step 6: Final Decision
+
+## Decision
+<!-- State your decision clearly -->
+
+
+## Rationale
+<!-- Why this option over others? -->
+
+
+## Key Arguments
+1. **Argument 1:**
+   - Evidence:
+2. **Argument 2:**
+   - Evidence:
+
+## Risks and Mitigations
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| | | |
+
+## Next Steps
+| Action | Owner | Deadline | Status |
+|--------|-------|----------|--------|
+| | | | |
+
+## Confidence Level
+<!-- High / Medium / Low — and why -->
+
+"""
+        _write(plan_dir / "06-DECISION.md", decision_doc)
+        files_written.append("06-DECISION.md")
+
+        # BIAS-WARNINGS.md
+        bias_doc = "# Bias Warnings\n\nThese biases may affect your decision.\n\n"
+        for i, b in enumerate(biases, 1):
+            bias_doc += f"## {i}. {b.get('bias', 'Unknown')} [{b.get('severity', '')}]\n"
+            bias_doc += f"**Impact:** {b.get('impact', '')}\n"
+            bias_doc += f"**Remedy:** {b.get('debiasing', '')}\n\n"
+        if anti:
+            bias_doc += f"## Anti-Patterns\n{anti}\n"
+        _write(plan_dir / "BIAS-WARNINGS.md", bias_doc)
+        files_written.append("BIAS-WARNINGS.md")
+
+        # DECISION-LOG.md
+        log = f"""# Decision Log: {project}
+
+| # | Date | Decision | Rationale | Confidence | Status |
+|---|------|----------|-----------|------------|--------|
+| 1 | {ts[:10]} | | | | Open |
+"""
+        _write(plan_dir / "DECISION-LOG.md", log)
+        files_written.append("DECISION-LOG.md")
+
+        return str(plan_dir), files_written
+
+
+# ============ NEXT-STEP SUGGESTIONS ============
+NEXT_STEPS = {
+    "quick": """
+---
+🎯 **Next Steps:**
+| Command | Description |
+|---------|-------------|
+| `/decide` | Full standard decision analysis |
+| `/decide.deep` | Detailed comparison with alternatives |
+| `/solve.quick` | Quick scan of the root problem first |
+""",
+    "standard": """
+---
+🎯 **Next Steps:**
+| Command | Description |
+|---------|-------------|
+| `/decide.deep` | Deeper comparison with more criteria & frameworks |
+| `/decide.exec` | Executive briefing for leadership |
+| `/solve` | Analyze the underlying problem first |
+""",
+    "deep": """
+---
+🎯 **Next Steps:**
+| Command | Description |
+|---------|-------------|
+| `/decide.exec` | Executive summary for stakeholders |
+| `/solve.deep` | Deep analysis of risks for chosen option |
+| Add "save step-by-step" | Create markdown workspace for decision process |
+""",
+    "executive": """
+---
+🎯 **Next Steps:**
+| Command | Description |
+|---------|-------------|
+| `/solve.exec` | Executive problem analysis for related issues |
+| Add "save step-by-step" | Create full decision workspace |
+| `/decide` | Standard-depth analysis for different perspective |
+""",
+}
+
+
 # ============ PUBLIC API ============
 def generate_decision_plan(query: str, project_name: str = None, output_format: str = "ascii",
-                           persist: bool = False, output_dir: str = None) -> str:
+                           persist: bool = False, output_dir: str = None,
+                           depth: str = "standard", step_docs: bool = False) -> str:
     """Generate a comprehensive decision-making plan.
 
     Args:
@@ -724,12 +1006,14 @@ def generate_decision_plan(query: str, project_name: str = None, output_format: 
         output_format: 'ascii' or 'markdown'
         persist: Whether to save to file
         output_dir: Output directory for persistence
+        depth: Analysis depth - quick, standard, deep, or executive
+        step_docs: If True with persist, create separate markdown files per step
 
     Returns:
         Formatted decision plan
     """
     advisor = DecisionAdvisor(query)
-    plan = advisor.generate(project_name)
+    plan = advisor.generate(project_name, depth=depth)
 
     if output_format == "markdown":
         result = advisor.format_markdown(plan)
@@ -737,7 +1021,17 @@ def generate_decision_plan(query: str, project_name: str = None, output_format: 
         result = advisor.format_ascii_box(plan)
 
     if persist:
-        path = advisor.persist_plan(plan, output_dir)
-        result += f"\n\nPlan saved to: {path}"
+        if step_docs:
+            plan_dir, files = advisor.persist_step_by_step(plan, output_dir)
+            result += f"\n\nStep-by-step plan saved to: {plan_dir}/"
+            result += f"\n  Files created: {len(files)}"
+            for f_name in files:
+                result += f"\n    {f_name}"
+        else:
+            path = advisor.persist_plan(plan, output_dir)
+            result += f"\n\nPlan saved to: {path}"
+
+    # Append next-step suggestions
+    result += NEXT_STEPS.get(depth, NEXT_STEPS["standard"])
 
     return result

@@ -17,7 +17,7 @@ import argparse
 import sys
 import io
 from core import CSV_CONFIG, MAX_RESULTS, search
-from advisor import generate_solving_plan
+from advisor import generate_solving_plan, VALID_DEPTHS
 
 # Force UTF-8 for stdout/stderr to handle Unicode on Windows
 if sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
@@ -61,6 +61,10 @@ if __name__ == "__main__":
     # Persistence
     parser.add_argument("--persist", action="store_true", help="Save plan to solving-plans/ directory")
     parser.add_argument("--output-dir", "-o", type=str, default=None, help="Output directory for persisted files")
+    # Depth
+    parser.add_argument("--depth", choices=VALID_DEPTHS, default="standard", help="Analysis depth: quick, standard, deep, or executive (default: standard)")
+    # Step-by-step docs
+    parser.add_argument("--step-docs", action="store_true", help="With --persist, create separate markdown files per step")
 
     args = parser.parse_args()
 
@@ -76,7 +80,9 @@ if __name__ == "__main__":
             args.project_name,
             args.format,
             persist=args.persist,
-            output_dir=args.output_dir
+            output_dir=args.output_dir,
+            depth=args.depth,
+            step_docs=args.step_docs
         )
         print(result)
 

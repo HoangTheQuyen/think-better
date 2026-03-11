@@ -19,7 +19,7 @@ import argparse
 import sys
 import io
 from core import CSV_CONFIG, MAX_RESULTS, search, search_domain, DOMAIN_KEYWORDS
-from advisor import DecisionAdvisor, generate_decision_plan
+from advisor import DecisionAdvisor, generate_decision_plan, VALID_DEPTHS
 
 # Force UTF-8 for stdout/stderr on Windows
 if sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
@@ -106,6 +106,7 @@ if __name__ == "__main__":
     parser.add_argument("--project", "-p", type=str, default=None, help="Project name for output")
     parser.add_argument("--format", "-f", choices=["ascii", "markdown"], default="ascii", help="Output format (default: ascii)")
     parser.add_argument("--persist", action="store_true", help="Save plan to decision-plans/ directory")
+    parser.add_argument("--output-dir", "-o", type=str, default=None, help="Output directory for persisted files")
 
     # Domain search
     parser.add_argument("--domain", "-d", choices=list(CSV_CONFIG.keys()), help="Search specific domain")
@@ -124,6 +125,11 @@ if __name__ == "__main__":
     # JSON output
     parser.add_argument("--json", action="store_true", help="Output as JSON")
 
+    # Depth
+    parser.add_argument("--depth", choices=VALID_DEPTHS, default="standard", help="Analysis depth: quick, standard, deep, or executive (default: standard)")
+    # Step-by-step docs
+    parser.add_argument("--step-docs", action="store_true", help="With --persist, create separate markdown files per step")
+
     args = parser.parse_args()
 
     advisor = DecisionAdvisor(args.query or "")
@@ -139,6 +145,9 @@ if __name__ == "__main__":
                 args.project,
                 args.format,
                 persist=args.persist,
+                output_dir=args.output_dir,
+                depth=args.depth,
+                step_docs=args.step_docs,
             )
             print(result)
             if args.persist:
