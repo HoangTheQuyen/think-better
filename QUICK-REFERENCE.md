@@ -4,12 +4,11 @@
 
 ```bash
 # Install binary
-git clone https://github.com/htrbao/think-better.git
-cd think-better
-go build -o bin/think-better ./cmd/think-better
+curl -sSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.sh | bash
+# Or Windows: irm https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.ps1 | iex
 
-# Install a skill
-think-better init --ai claude --skill make-decision
+# Install skills
+think-better init --ai claude       # or: copilot, antigravity
 
 # List installed skills
 think-better list
@@ -78,7 +77,12 @@ python scripts/search.py "opportunity cost" --domain analysis
 ### Problem-Solving / Debugging
 ```bash
 # In your AI assistant with problem-solving-pro skill:
-@workspace /solve [Describe problem, environment, what you've tried]
+/solve [Describe problem, environment, what you've tried]
+
+# With depth control:
+/solve.quick API latency spiked after deploy
+/solve.deep Revenue declining despite growth
+/solve.exec Board-level crisis analysis
 
 # The skill guides you through:
 # 1. Problem decomposition (break into layers)
@@ -199,22 +203,17 @@ python scripts/search.py "keywords" --domain facilitation
 ```
 ## For Decision-Making
 
-"@workspace /make-decision Should we [option A] or [option B]?"
-
-"@workspace /make-decision Choosing between [A], [B], and [C] for [purpose]. 
-Help me set up evaluation criteria."
-
-"@workspace /make-decision We need to allocate [resources] across 
-[X initiatives]. What framework should we use?"
-
+/decide Should we [option A] or [option B]?
+/decide.deep Choosing between [A], [B], and [C] for [purpose].
+/decide.exec Strategic analysis of [major decision] for board discussion
 
 ## For Problem-Solving
 
-"@workspace /solve [Describe symptom]. Happens in [environment]. 
-Stack: [tech stack]. I've tried [what you've tried so far]."
+/solve [Describe symptom]. Happens in [environment].
+Stack: [tech stack]. I've tried [what you've tried so far].
 
-"@workspace /solve Why does [system] sometimes [fail condition]? 
-Recent changes: [recent deployments/config changes]"
+/solve.deep Why does [system] sometimes [fail condition]?
+Recent changes: [recent deployments/config changes]
 ```
 
 ---
@@ -223,7 +222,7 @@ Recent changes: [recent deployments/config changes]"
 
 - **Main Guide:** [USER-GUIDE.md](USER-GUIDE.md) — Full workflows with examples
 - **Case Studies:** [examples/](examples/) — Real decisions with outcomes
-- **Skill Reference:** `.github/prompts/make-decision/PROMPT.md` — Full documentation
+- **Skill Reference:** `.agents/skills/make-decision/SKILL.md` — Full documentation
 - **Templates:** [examples/06-template.md](examples/06-template.md) onwards — Adapt for your use cases
 
 ---

@@ -9,36 +9,44 @@ A step-by-step guide to installing and using the bundled skills for structured t
 ### 1. Download and Install
 
 ```bash
-# Download binary for your platform from releases
+# macOS / Linux
+curl -sSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.sh | bash
+
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.ps1 | iex
+
 # Or build from source:
-git clone https://github.com/htrbao/think-better.git
-cd think-better
-go build -o bin/think-better ./cmd/make-decision
+git clone https://github.com/HoangTheQuyen/think-better.git && cd think-better
+make build          # Linux/macOS
+.\build.ps1         # Windows
 ```
 
 ### 2. Install a Skill
 
 ```bash
-# For Claude (VS Code)
-make-decision init --ai claude --skill make-decision
+# For Claude Code
+think-better init --ai claude
 
 # For GitHub Copilot
-make-decision init --ai copilot --skill problem-solving-pro
+think-better init --ai copilot
 
-# Install all skills
-make-decision init --ai claude --force
+# For Antigravity
+think-better init --ai antigravity
 ```
 
 ### 3. Open Your AI Assistant
 
-- **Claude:** Open Cursor or VS Code with Continue extension
+- **Claude:** Open Claude Code or VS Code with Claude extension
 - **Copilot:** Open VS Code and switch to Copilot Chat
+- **Antigravity:** Open your Antigravity-powered editor
 
 ### 4. Start Using
 
-In your AI chat, type:
+Just describe your problem naturally, or use a slash command:
 ```
-@workspace /make-decision Should we migrate to microservices?
+"Should we migrate to microservices?"
+/decide.deep Should we migrate to microservices?
+/solve.quick API latency spiked after deploy
 ```
 
 ---
@@ -58,7 +66,7 @@ In your AI chat, type:
 **How it works:**
 ```bash
 # Inside the skill directory:
-cd .github/prompts/make-decision
+cd .agents/skills/make-decision
 
 # Step 1: Generate decision plan (always start here!)
 python scripts/search.py "your decision question here" --plan -p "Project Name"
@@ -97,12 +105,13 @@ python scripts/search.py --journal --update "decision-slug" \
 
 In your AI assistant:
 ```
-@workspace /solve [Describe your problem in detail]
-
-Example:
-@workspace /solve My API sometimes returns stale data after updates. 
+/solve My API sometimes returns stale data after updates. 
 Happens intermittently (~2% of requests), no clear pattern by time or user.
 Stack: Node.js + Express, PostgreSQL with read replica, Redis cache.
+
+# Or with depth control:
+/solve.deep My API sometimes returns stale data after updates...
+/solve.exec Revenue declined 20% despite market growth
 ```
 
 The skill will guide you through:
@@ -291,7 +300,7 @@ python scripts/search.py --journal "Senior engineer hire: chose [NAME] based on 
 ```bash
 # In your AI assistant with problem-solving-pro skill:
 
-@workspace /solve My API returns stale data ~2% of the time after updates.
+/solve My API returns stale data ~2% of the time after updates.
 No clear pattern by time, user, or endpoint. Stack: Node.js + Express,
 PostgreSQL (primary + read replica), Redis cache.
 ```
@@ -533,7 +542,7 @@ python scripts/search.py "list all biases" --domain biases
 ---
 
 **Next Steps:**
-1. Install the skills: `make-decision init --ai claude`
+1. Install the skills: `think-better init --ai claude`
 2. Pick a real decision you're facing this week
 3. Work through the workflow above for your decision type
 4. Document it with decision journal
