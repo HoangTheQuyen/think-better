@@ -30,6 +30,11 @@ var Targets = []AITarget{
 		DisplayName:    "Antigravity (Gemini Antigravity)",
 		InstallPattern: ".agents/skills/{skill}/",
 	},
+	{
+		Name:           "opencode",
+		DisplayName:    "OpenCode",
+		InstallPattern: ".opencode/skills/{skill}/",
+	},
 }
 
 // FindTarget returns the target with the given name (case-insensitive), or nil if not found.

@@ -10,6 +10,7 @@ func TestFindTarget(t *testing.T) {
 		{"claude", true},
 		{"copilot", true},
 		{"antigravity", true},
+		{"opencode", true},
 		{"nonexistent", false},
 		{"", false},
 	}
@@ -35,6 +36,9 @@ func TestFindTargetCaseInsensitive(t *testing.T) {
 		"COPILOT",
 		"Antigravity",
 		"ANTIGRAVITY",
+		"Opencode",
+		"OPENCODE",
+		"OpenCode",
 	}
 
 	for _, name := range tests {
@@ -66,6 +70,7 @@ func TestTargetNames(t *testing.T) {
 		"claude":      true,
 		"copilot":     true,
 		"antigravity": true,
+		"opencode":    true,
 	}
 	for _, name := range names {
 		if !expected[name] {
@@ -83,6 +88,8 @@ func TestInstallDir(t *testing.T) {
 		{"claude", "make-decision", ".claude/skills/make-decision/"},
 		{"copilot", "problem-solving-pro", ".github/prompts/problem-solving-pro/"},
 		{"antigravity", "make-decision", ".agents/skills/make-decision/"},
+		{"opencode", "make-decision", ".opencode/skills/make-decision/"},
+		{"opencode", "problem-solving-pro", ".opencode/skills/problem-solving-pro/"},
 	}
 
 	for _, tt := range tests {

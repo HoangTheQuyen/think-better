@@ -60,7 +60,7 @@ func printVersion() {
 func printUsage() {
 	fmt.Fprintln(os.Stderr, `think-better — AI-powered decision-making framework & problem-solving toolkit
 
-Install decision frameworks and critical thinking skills for Claude AI and GitHub Copilot.
+Install decision frameworks and critical thinking skills for Claude AI, GitHub Copilot, and OpenCode.
 Includes cognitive bias detection, strategic planning frameworks, and systematic problem-solving methodologies.
 
 Usage:
@@ -75,7 +75,7 @@ Commands:
   help        Show this help message
 
 Global options:
-  --ai string     AI assistant target: claude, copilot, antigravity
+  --ai string     AI assistant target: claude, copilot, antigravity, opencode
   --skill string  Skill name (default: all for init, required for uninstall)
   --force         Skip confirmation prompts
 
