@@ -107,7 +107,69 @@ func (inst *Installer) Install(skill *skills.SkillPackage, target *targets.AITar
 	return created, nil
 }
 
-// fileMode returns the appropriate file permission based on extension.
+// InstallWorkflows copies embedded workflow files to the target's workflow directory.
+// Returns the list of created files, or nil if the target doesn't support workflows.
+func (inst *Installer) InstallWorkflows(target *targets.AITarget, force bool) ([]string, error) {
+	if !target.HasWorkflows() {
+		return nil, nil
+	}
+
+	workflowDir := filepath.Join(inst.BaseDir, filepath.FromSlash(target.WorkflowDir()))
+
+	// Get the workflow filesystem
+	sub, err := skills.WorkflowFS()
+	if err != nil {
+		return nil, fmt.Errorf("accessing embedded workflows: %w", err)
+	}
+
+	if err := os.MkdirAll(workflowDir, 0o755); err != nil {
+		return nil, fmt.Errorf("creating workflow directory: %w", err)
+	}
+
+	var created []string
+	err = fs.WalkDir(sub, ".", func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if d.IsDir() {
+			return nil
+		}
+
+		targetPath := filepath.Join(workflowDir, filepath.FromSlash(path))
+
+		// Skip existing files unless force
+		if !force {
+			if _, err := os.Stat(targetPath); err == nil {
+				return nil // File exists, skip
+			}
+		}
+
+		// Read embedded file
+		data, err := fs.ReadFile(sub, path)
+		if err != nil {
+			return fmt.Errorf("reading embedded workflow %s: %w", path, err)
+		}
+
+		// Create parent directory
+		if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+			return fmt.Errorf("creating directory for workflow %s: %w", path, err)
+		}
+
+		if err := os.WriteFile(targetPath, data, 0o644); err != nil {
+			return fmt.Errorf("writing workflow %s: %w", path, err)
+		}
+
+		created = append(created, path)
+		return nil
+	})
+
+	if err != nil {
+		return created, fmt.Errorf("installing workflows: %w", err)
+	}
+
+	return created, nil
+}
+
 // .py files get 0o755 (executable), everything else gets 0o644.
 func fileMode(path string) os.FileMode {
 	if strings.HasSuffix(path, ".py") {
