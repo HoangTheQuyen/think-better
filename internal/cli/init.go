@@ -23,7 +23,7 @@ func RunInit(args []string) int {
 		fmt.Fprintln(os.Stderr, `Install decision-making frameworks and problem-solving skills for AI assistants.
 
 Installs cognitive bias detection, strategic planning frameworks, and critical thinking
-methodologies for Claude AI (VS Code, Claude Desktop) or GitHub Copilot.
+methodologies for Claude AI, GitHub Copilot, Antigravity, or OpenCode.
 
 Usage:
   think-better init [--ai <target>] [--skill <name>] [--force]
@@ -70,8 +70,8 @@ Flags:`)
 		return 1
 	}
 
-	// Warn if target directory doesn't exist
-	if ai != "antigravity" {
+	// Warn if target directory doesn't exist (only relevant for copilot which uses .github/)
+	if ai == "copilot" {
 		githubDir := filepath.Join(cwd, ".github")
 		if _, err := os.Stat(githubDir); os.IsNotExist(err) {
 			fmt.Fprintln(os.Stderr, "warning: .github/ directory does not exist (will be created)")
@@ -117,8 +117,14 @@ Flags:`)
 		if ai == "antigravity" {
 			fmt.Println("  - Skills installed as Antigravity skills (SKILL.md entry points)")
 			for _, s := range skillsToInstall {
-				fmt.Printf("  - Skill %q is available in .antigravity/skills/%s/\n", s.Name, s.Name)
+				fmt.Printf("  - Skill %q is available in .agents/skills/%s/\n", s.Name, s.Name)
 			}
+		} else if ai == "opencode" {
+			fmt.Println("  - Skills installed as OpenCode skills (SKILL.md entry points)")
+			for _, s := range skillsToInstall {
+				fmt.Printf("  - Skill %q is available in .opencode/skills/%s/\n", s.Name, s.Name)
+			}
+			fmt.Println("  - OpenCode will auto-discover skills via the native skill tool")
 		} else if len(skillsToInstall) == 1 {
 			fmt.Printf("  - Open your AI assistant and type /%s to start\n", skillsToInstall[0].Name)
 		} else {
