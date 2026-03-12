@@ -8,32 +8,37 @@ import (
 
 // AITarget represents a supported AI assistant platform.
 type AITarget struct {
-	Name           string // Canonical identifier (e.g., "claude", "copilot")
-	DisplayName    string // Human-friendly name
-	InstallPattern string // Path template with {skill} placeholder
+	Name            string // Canonical identifier (e.g., "claude", "copilot")
+	DisplayName     string // Human-friendly name
+	InstallPattern  string // Path template with {skill} placeholder
+	WorkflowPattern string // Directory for workflow files (empty = no workflow support)
 }
 
 // Targets contains all supported AI assistant targets.
 var Targets = []AITarget{
 	{
-		Name:           "claude",
-		DisplayName:    "Claude",
-		InstallPattern: ".claude/skills/{skill}/",
+		Name:            "claude",
+		DisplayName:     "Claude",
+		InstallPattern:  ".claude/skills/{skill}/",
+		WorkflowPattern: "",
 	},
 	{
-		Name:           "copilot",
-		DisplayName:    "GitHub Copilot",
-		InstallPattern: ".github/prompts/{skill}/",
+		Name:            "copilot",
+		DisplayName:     "GitHub Copilot",
+		InstallPattern:  ".github/prompts/{skill}/",
+		WorkflowPattern: "",
 	},
 	{
-		Name:           "antigravity",
-		DisplayName:    "Antigravity (Gemini Antigravity)",
-		InstallPattern: ".agents/skills/{skill}/",
+		Name:            "antigravity",
+		DisplayName:     "Antigravity (Gemini Antigravity)",
+		InstallPattern:  ".agents/skills/{skill}/",
+		WorkflowPattern: ".agents/workflows/",
 	},
 	{
-		Name:           "opencode",
-		DisplayName:    "OpenCode",
-		InstallPattern: ".opencode/skills/{skill}/",
+		Name:            "opencode",
+		DisplayName:     "OpenCode",
+		InstallPattern:  ".opencode/skills/{skill}/",
+		WorkflowPattern: "",
 	},
 }
 
@@ -65,6 +70,16 @@ func TargetNames() []string {
 // InstallDir resolves the install directory for a skill on this target.
 func (t *AITarget) InstallDir(skillName string) string {
 	return strings.ReplaceAll(t.InstallPattern, "{skill}", skillName)
+}
+
+// WorkflowDir returns the workflow directory for this target, or empty string if not supported.
+func (t *AITarget) WorkflowDir() string {
+	return t.WorkflowPattern
+}
+
+// HasWorkflows returns true if this target supports workflow installation.
+func (t *AITarget) HasWorkflows() bool {
+	return t.WorkflowPattern != ""
 }
 
 // ValidateTarget checks a target name and returns a clear error if invalid.

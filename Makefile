@@ -22,7 +22,7 @@ PLATFORMS := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 win
 
 all: embed-prep build
 
-## embed-prep: Copy skill files from .github/prompts/ into skills/ for embedding
+## embed-prep: Copy skill and workflow files into internal/ for embedding
 embed-prep:
 	@echo "Preparing embedded skills..."
 	@rm -rf $(SKILLS_DIR)
@@ -30,7 +30,11 @@ embed-prep:
 	@cp -r .agents/skills/make-decision $(SKILLS_DIR)/make-decision
 	@cp -r .agents/skills/problem-solving-pro $(SKILLS_DIR)/problem-solving-pro
 	@find $(SKILLS_DIR) -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-	@echo "Done: skills ready for embedding ($(SKILLS_DIR))"
+	@echo "Preparing embedded workflows..."
+	@rm -rf internal/skills/workflows
+	@mkdir -p internal/skills/workflows
+	@cp .agents/workflows/*.md internal/skills/workflows/
+	@echo "Done: skills + workflows ready for embedding"
 
 ## build: Build for current platform
 build: embed-prep

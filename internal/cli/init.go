@@ -111,6 +111,24 @@ Flags:`)
 		return 1
 	}
 
+	// Install workflow files (for targets that support them, e.g., Antigravity)
+	if target.HasWorkflows() {
+		wfCreated, err := inst.InstallWorkflows(target, sf.Force)
+		if err != nil {
+			Errorf("installing workflows: %v", err)
+			return 1
+		}
+		if len(wfCreated) > 0 {
+			workflowDir := target.WorkflowDir()
+			fmt.Printf("\nInstalling workflows to %s...\n", workflowDir)
+			for _, f := range wfCreated {
+				fmt.Printf("  Created %s\n", filepath.ToSlash(filepath.Join(workflowDir, f)))
+			}
+			fmt.Printf("✓ Installed %d workflow files\n", len(wfCreated))
+			totalFiles += len(wfCreated)
+		}
+	}
+
 	// Next steps & prerequisite check
 	if totalFiles > 0 {
 		fmt.Println("\nNext steps:")
@@ -119,6 +137,8 @@ Flags:`)
 			for _, s := range skillsToInstall {
 				fmt.Printf("  - Skill %q is available in .agents/skills/%s/\n", s.Name, s.Name)
 			}
+			fmt.Println("  - Workflows installed: /solve, /solve.deep, /solve.exec, /solve.quick")
+			fmt.Println("  - Workflows installed: /decide, /decide.deep, /decide.exec, /decide.quick")
 		} else if ai == "opencode" {
 			fmt.Println("  - Skills installed as OpenCode skills (SKILL.md entry points)")
 			for _, s := range skillsToInstall {
