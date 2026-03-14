@@ -1,0 +1,30 @@
+version: "2"
+
+linters:
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gofmt
+    - goimports
+    - misspell
+
+settings:
+  goimports:
+    local-prefixes: github.com/HoangTheQuyen/think-better
+  misspell:
+    locale: US
+  errcheck:
+    check-type-assertions: true
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck
+
+run:
+  timeout: 5m
