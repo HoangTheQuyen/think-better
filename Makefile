@@ -18,7 +18,7 @@ LDFLAGS := -s -w \
 # Cross-compilation targets
 PLATFORMS := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64
 
-.PHONY: all build build-all test clean embed-prep
+.PHONY: all build build-all test clean embed-prep lint fmt tidy
 
 all: embed-prep build
 
@@ -69,6 +69,21 @@ test-cover:
 clean:
 	rm -rf $(BIN_DIR) $(SKILLS_DIR)
 
+## lint: Run golangci-lint
+lint:
+	golangci-lint run ./...
+
+## fmt: Format Go source files
+fmt:
+	gofmt -s -w .
+	goimports -w -local github.com/HoangTheQuyen/think-better .
+
+## tidy: Tidy and verify Go module dependencies
+tidy:
+	go mod tidy
+	go mod verify
+
 ## help: Show available targets
 help:
 	@grep -E '^## ' Makefile | sed 's/^## /  /' | sed 's/: /\t/'
+
