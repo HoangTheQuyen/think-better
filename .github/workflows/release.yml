@@ -1,0 +1,73 @@
+name: Release
+
+on:
+    push:
+        tags:
+            - "v*"
+
+permissions:
+    contents: write
+
+jobs:
+    release:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - uses: actions/setup-go@v5
+              with:
+                  go-version-file: go.mod
+
+            - name: Prepare embedded skills
+              run: make embed-prep
+
+            - name: Cross-compile all platforms
+              run: |
+                  VERSION=${GITHUB_REF_NAME}
+                  COMMIT=$(git rev-parse --short HEAD)
+                  BUILD_DATE=$(date -u +%Y-%m-%d)
+                  LDFLAGS="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.buildDate=${BUILD_DATE}"
+
+                  platforms=(
+                    "linux/amd64"
+                    "linux/arm64"
+                    "darwin/amd64"
+                    "darwin/arm64"
+                    "windows/amd64"
+                    "windows/arm64"
+                  )
+
+                  mkdir -p dist
+
+                  for platform in "${platforms[@]}"; do
+                    GOOS="${platform%/*}"
+                    GOARCH="${platform#*/}"
+                    output="dist/think-better-${GOOS}-${GOARCH}"
+                    if [ "$GOOS" = "windows" ]; then
+                      output="${output}.exe"
+                    fi
+
+                    echo "Building ${GOOS}/${GOARCH}..."
+                    CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build \
+                      -ldflags "$LDFLAGS" \
+                      -o "$output" \
+                      ./cmd/make-decision
+                  done
+
+                  ls -la dist/
+
+            - name: Generate checksums
+              run: |
+                  cd dist
+                  sha256sum * > checksums.txt
+                  cat checksums.txt
+
+            - name: Create GitHub Release
+              uses: softprops/action-gh-release@v2
+              with:
+                  generate_release_notes: true
+                  files: |
+                      dist/think-better-*
+                      dist/checksums.txt
