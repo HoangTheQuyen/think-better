@@ -6,7 +6,7 @@ import os
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
 
 
-def write_csv(filename, headers, rows):
+def write_csv(filename, headers, rows) -> None:
     filepath = os.path.join(DATA_DIR, filename)
     with open(filepath, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=headers)
@@ -15,7 +15,7 @@ def write_csv(filename, headers, rows):
     print(f"  Written {len(rows)} rows to {filename}")
 
 
-def populate_frameworks():
+def populate_frameworks() -> None:
     headers = ["Framework", "Category", "Keywords", "Description", "When to Use", "Steps", "Strengths", "Limitations", "Best For", "Complexity"]
     rows = [
         {
@@ -142,7 +142,7 @@ def populate_frameworks():
     write_csv("decision-frameworks.csv", headers, rows)
 
 
-def populate_types():
+def populate_types() -> None:
     headers = ["Decision Type", "Keywords", "Characteristics", "Recommended Frameworks", "Analysis Methods", "Common Pitfalls", "Warning Signs", "Example Scenarios"]
     rows = [
         {
@@ -229,7 +229,7 @@ def populate_types():
     write_csv("decision-types.csv", headers, rows)
 
 
-def populate_biases():
+def populate_biases() -> None:
     headers = ["Bias", "Category", "Keywords", "Description", "Impact on Decisions", "How to Detect", "Debiasing Strategy", "Example", "Severity"]
     rows = [
         {
@@ -368,7 +368,7 @@ def populate_biases():
     write_csv("cognitive-biases.csv", headers, rows)
 
 
-def populate_analysis():
+def populate_analysis() -> None:
     headers = ["Technique", "Category", "Keywords", "Description", "When to Use", "Inputs Required", "How to Apply", "Output Format", "Strengths", "Limitations", "Complexity"]
     rows = [
         {
@@ -505,7 +505,7 @@ def populate_analysis():
     write_csv("analysis-techniques.csv", headers, rows)
 
 
-def populate_criteria():
+def populate_criteria() -> None:
     headers = ["Domain", "Keywords", "Description", "Criteria", "Default Weights", "Measurement Guidance", "Common Mistakes"]
     rows = [
         {
@@ -584,7 +584,7 @@ def populate_criteria():
     write_csv("criteria-templates.csv", headers, rows)
 
 
-def populate_facilitation():
+def populate_facilitation() -> None:
     headers = ["Technique", "Category", "Keywords", "Description", "When to Use", "Group Size", "Time Required", "Steps", "Counters Bias", "Output"]
     rows = [
         {
