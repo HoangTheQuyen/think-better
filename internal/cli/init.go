@@ -107,18 +107,15 @@ Flags:`)
 		totalFiles += len(created)
 	}
 
-	if hasError {
-		return 1
-	}
-
 	// Install workflow files (for targets that support them, e.g., Antigravity)
+	// Always attempt workflow installation regardless of skill errors —
+	// workflows are independent of skills and should not be blocked by them.
 	if target.HasWorkflows() {
 		wfCreated, err := inst.InstallWorkflows(target, sf.Force)
 		if err != nil {
 			Errorf("installing workflows: %v", err)
-			return 1
-		}
-		if len(wfCreated) > 0 {
+			hasError = true
+		} else if len(wfCreated) > 0 {
 			workflowDir := target.WorkflowDir()
 			fmt.Printf("\nInstalling workflows to %s...\n", workflowDir)
 			for _, f := range wfCreated {
@@ -126,7 +123,13 @@ Flags:`)
 			}
 			fmt.Printf("✓ Installed %d workflow files\n", len(wfCreated))
 			totalFiles += len(wfCreated)
+		} else {
+			fmt.Printf("\n✓ Workflows already up-to-date at %s\n", target.WorkflowDir())
 		}
+	}
+
+	if hasError {
+		return 1
 	}
 
 	// Next steps & prerequisite check
