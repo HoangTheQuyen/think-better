@@ -66,5 +66,5 @@ if command -v "$BINARY" &>/dev/null; then
   echo ""
   "$BINARY" version
   echo ""
-  echo "🚀 Ready! Run: think-better init --ai claude"
+  echo "🚀 Ready! Run: think-better init"
 fi

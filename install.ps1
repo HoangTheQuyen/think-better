@@ -48,4 +48,4 @@ else {
 Write-Host ""
 & $DestPath version
 Write-Host ""
-Write-Host "🚀 Ready! Run: think-better init --ai claude" -ForegroundColor Cyan
+Write-Host "🚀 Ready! Run: think-better init" -ForegroundColor Cyan
