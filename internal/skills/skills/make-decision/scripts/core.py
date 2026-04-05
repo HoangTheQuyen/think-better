@@ -79,7 +79,7 @@ class BM25:
         tokens = text.split()
         return [t for t in tokens if len(t) > 1]
 
-    def fit(self, corpus: list):
+    def fit(self, corpus: list) -> None:
         """Build IDF index from a list of document strings."""
         self.corpus_size = len(corpus)
         if self.corpus_size == 0:

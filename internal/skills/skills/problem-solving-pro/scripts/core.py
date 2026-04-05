@@ -69,7 +69,7 @@ CSV_CONFIG = {
 class BM25:
     """BM25 ranking algorithm for text search."""
 
-    def __init__(self, k1=1.5, b=0.75):
+    def __init__(self, k1: float=1.5, b: float=0.75):
         self.k1 = k1
         self.b = b
         self.corpus = []
@@ -84,7 +84,7 @@ class BM25:
         text = re.sub(r'[^\w\s]', ' ', str(text).lower())
         return [w for w in text.split() if len(w) > 2]
 
-    def fit(self, documents):
+    def fit(self, documents) -> None:
         """Build BM25 index from documents."""
         self.corpus = [self.tokenize(doc) for doc in documents]
         self.N = len(self.corpus)
