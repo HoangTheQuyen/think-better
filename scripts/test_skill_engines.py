@@ -59,7 +59,7 @@ def make_repo(root, files, message="initial"):
         subprocess.run(["git", "-C", str(root), "config", "core.autocrlf", "false"], check=True)
     for name, content in files.items():
         (root / name).parent.mkdir(parents=True, exist_ok=True)
-        (root / name).write_text(content, encoding="utf-8", newline="\n")
+        (root / name).write_bytes(content.encode("utf-8"))
     subprocess.run(["git", "-C", str(root), "add", "-A"], check=True, env=env)
     subprocess.run(["git", "-C", str(root), "commit", "-q", "-m", message], check=True, env=env)
 
@@ -93,7 +93,7 @@ class CodeContextTests(unittest.TestCase):
     def write(self, root, files):
         for name, content in files.items():
             (root / name).parent.mkdir(parents=True, exist_ok=True)
-            (root / name).write_text(content, encoding="utf-8", newline="\n")
+            (root / name).write_bytes(content.encode("utf-8"))
 
     def test_trace_frames_resolve_to_project_lines(self):
         trace = (
