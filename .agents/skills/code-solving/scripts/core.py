@@ -83,8 +83,9 @@ STOPWORDS = {
 _SUFFIXES = ("ations", "ation", "ings", "ing", "ies", "ied", "ed", "es", "ly", "s")
 
 
+@lru_cache(maxsize=65536)
 def stem(word: str) -> str:
-    """Light suffix stemmer so inflected forms meet.
+    """Light suffix stemmer so inflected forms meet (cached: long requests repeat words).
 
     'hire', 'hiring', 'hired' -> 'hir'; 'uncertain', 'uncertainty' -> 'uncertain';
     'decline', 'declining', 'declined' -> 'declin'; 'secure', 'security' -> 'secur'.

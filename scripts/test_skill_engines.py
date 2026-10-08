@@ -712,20 +712,96 @@ class CodeSolvingTests(unittest.TestCase):
 
 
 class SharedHelperTests(unittest.TestCase):
-    """The skills each ship their own copy of the text helpers; they must behave the same."""
+    """The skills each ship their own copy of the text helpers (they are installed independently);
+    the copies must be the same code, not merely agree on a few samples."""
 
-    def test_tokenize_and_slugify_agree_across_skills(self):
-        samples = ["Revenue dropped 20% despite growth", "CI is red on DB migrations",
-                   "nên chọn AWS hay GCP", "Refactoring the checkout's pricing rules"]
-        cores = {name: load_skill(name)[0] for name in ("problem-solving-pro", "make-decision", "code-solving")}
-        reference = cores["problem-solving-pro"]
-        for name, core in cores.items():
-            for text in samples:
-                with self.subTest(skill=name, text=text):
-                    self.assertEqual(core.tokenize(text), reference.tokenize(text))
-            for bad in ("../../x", "a/b", ".."):
-                self.assertNotIn("/", core.slugify(bad))
-                self.assertNotEqual(core.slugify(bad), "..")
+    SHARED = ("stem", "tokenize", "fold", "has_accents", "match_tokens", "query_grams", "phrase_tokens",
+              "display_width", "pad_display", "wrap_display", "slugify", "default_output_dir", "save_docs",
+              "read_stdin_query", "matched_phrases")
+    CONSTANTS = ("STOPWORDS", "_SUFFIXES")
+
+    @staticmethod
+    def definitions(skill):
+        """{name: ast.dump of its top-level definition} in a skill's core.py."""
+        import ast
+        tree = ast.parse((SKILLS / skill / "scripts" / "core.py").read_text(encoding="utf-8"))
+        found = {}
+        for node in tree.body:
+            if isinstance(node, ast.FunctionDef):
+                found[node.name] = ast.dump(node)
+            elif isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name):
+                found[node.targets[0].id] = ast.dump(node)
+        return found
+
+    def test_shared_helpers_have_identical_source(self):
+        skills = ("problem-solving-pro", "make-decision", "code-solving")
+        defs = {skill: self.definitions(skill) for skill in skills}
+        for name in self.SHARED + self.CONSTANTS:
+            for skill in skills:
+                with self.subTest(helper=name, skill=skill):
+                    self.assertIn(name, defs[skill])
+                    self.assertEqual(defs[skill][name], defs[skills[0]][name],
+                                     f"{name} in {skill} differs from {skills[0]}")
+
+    def test_slugify_cannot_escape_and_never_is_empty(self):
+        for name in ("problem-solving-pro", "make-decision", "code-solving"):
+            core = load_skill(name)[0]
+            for bad in ("../../x", "a/b", "..", "", "!!!"):
+                with self.subTest(skill=name, text=bad):
+                    slug = core.slugify(bad)
+                    self.assertNotIn("/", slug)
+                    self.assertNotEqual(slug, "..")
+                    self.assertTrue(slug)
+
+
+class BoxWidthTests(unittest.TestCase):
+    """ASCII boxes and tables line up in terminal columns, whatever the Unicode form of the text."""
+
+    TEXT = "Có nên mở rộng sang Nhật Bản 🎯 hay giữ thị trường 中文 hiện tại không?"
+
+    def box_widths(self, skill, text, *args):
+        import unicodedata
+        core = load_skill(skill)[0]
+        env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", PYTHONIOENCODING="utf-8")
+        with tempfile.TemporaryDirectory() as tmp:
+            r = subprocess.run([sys.executable, str(SKILLS / skill / "scripts/search.py"), "--stdin"] + list(args),
+                               input=unicodedata.normalize("NFD", text).encode("utf-8"), cwd=tmp, env=env,
+                               capture_output=True)
+        self.assertEqual(r.returncode, 0, r.stderr.decode("utf-8", "replace"))
+        lines = r.stdout.decode("utf-8").splitlines()
+        borders = [i for i, line in enumerate(lines) if line.startswith("+=")]
+        box = lines[borders[0]:borders[-1] + 1]
+        self.assertGreater(len(box), 10)
+        return box, {core.display_width(line) for line in box}
+
+    def test_plan_boxes_have_a_straight_right_border(self):
+        for skill in ("problem-solving-pro", "make-decision"):
+            for depth in ("quick", "standard"):
+                with self.subTest(skill=skill, depth=depth):
+                    out, widths = self.box_widths(skill, self.TEXT, "--plan", "--depth", depth)
+                    self.assertEqual(len(widths), 1, widths)
+
+    def test_display_width(self):
+        import unicodedata
+        for skill in ("problem-solving-pro", "make-decision", "code-solving"):
+            core = load_skill(skill)[0]
+            with self.subTest(skill=skill):
+                self.assertEqual(core.display_width(unicodedata.normalize("NFD", "Giảm")), 4)
+                self.assertEqual(core.display_width("中文🎯"), 6)
+                self.assertEqual(core.display_width(core.pad_display(unicodedata.normalize("NFD", "lỗi"), 6)), 6)
+                lines = core.wrap_display("một hai ba bốn năm sáu bảy tám chín mười " * 3, 20, "  ", "    ")
+                self.assertTrue(all(core.display_width(line) <= 20 for line in lines))
+                self.assertTrue(lines[0].startswith("  m") and lines[1].startswith("    "))
+
+    def test_matrix_columns_line_up(self):
+        _, advisor = load_skill("make-decision")
+        text = advisor.format_matrix(advisor.build_matrix("Nhật Bản hay 中文市场", "Chi phí:2,Rủi ro:1",
+                                                          "Nhật Bản:4,3;中文市场:3,5"))
+        core = load_skill("make-decision")[0]
+        table = [line for line in text.split("Winner")[0].splitlines() if " | " in line]
+        positions = {tuple(core.display_width(line[:i]) for i, ch in enumerate(line) if ch == "|")
+                     for line in table}
+        self.assertEqual(len(positions), 1, table)
 
 
 class OutputLocationTests(unittest.TestCase):
@@ -1865,6 +1941,36 @@ class CodeContextRegressionTests(unittest.TestCase):
             self.assertIs(ctx["git"], False)
             self.assertEqual(ctx["symbols"], [{"name": "get_order_total", "defined": ["app/orders.py:1"],
                                                "files": 2}])
+
+
+class LongRequestTests(unittest.TestCase):
+    """A pasted log or document (hundreds of KB) must not stall a plan."""
+
+    LIMIT_SECONDS = 15  # generous: about 1 s on a laptop; CI machines are slower
+
+    def test_long_requests_finish_quickly(self):
+        import random
+        import time
+        rng = random.Random(7)
+        words = ("timeout deploy vendor error React we users budget revenue should or Vue hire latency cache "
+                 "database customer churn lỗi doanh thu giảm nên chọn hay").split()
+        lines, size = [], 0
+        while size < 250_000:
+            line = " ".join(rng.choice(words) for _ in range(rng.randint(5, 30)))
+            lines.append(line)
+            size += len(line.encode("utf-8")) + 1
+        text = "\n".join(lines)
+        env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", PYTHONIOENCODING="utf-8")
+        for skill in ("make-decision", "problem-solving-pro", "code-solving"):
+            args = [sys.executable, str(SKILLS / skill / "scripts/search.py"), "--stdin", "--plan", "--depth", "deep"]
+            if skill == "code-solving":
+                args.append("--no-context")
+            with self.subTest(skill=skill), tempfile.TemporaryDirectory() as tmp:
+                start = time.monotonic()
+                r = subprocess.run(args, input=text.encode("utf-8"), cwd=tmp, env=env, capture_output=True)
+                elapsed = time.monotonic() - start
+                self.assertEqual(r.returncode, 0, r.stderr.decode("utf-8", "replace")[-500:])
+                self.assertLess(elapsed, self.LIMIT_SECONDS)
 
 
 if __name__ == "__main__":

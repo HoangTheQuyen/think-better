@@ -13,14 +13,13 @@ Usage:
 """
 
 import json
-import textwrap
 import unicodedata
 from datetime import datetime
 from pathlib import Path
 from core import (
     search, load_reasoning, classify_category, classify_problem_type, problem_type_names, category_names,
     resolve_choice, slugify, default_output_dir, save_docs, find_record, split_names, _load_csv,
-    DATA_DIR, CSV_CONFIG,
+    pad_display, wrap_display, DATA_DIR, CSV_CONFIG,
 )
 from workspace import prepare_folder, progress_table, record_state
 
@@ -564,21 +563,20 @@ BOX_WIDTH = 90
 
 
 def format_ascii_box(plan: dict) -> str:
-    """Format problem-solving plan as an ASCII box; every line is BOX_WIDTH characters."""
+    """Format problem-solving plan as an ASCII box; every line is BOX_WIDTH terminal columns wide."""
     inner = BOX_WIDTH - 4
     depth = plan.get("depth", "standard")
     label = f" [{depth.upper()}]" if depth != "standard" else ""
 
     def row(text=""):
-        return f"| {text.ljust(inner)} |"
+        # Columns, not characters: accents (even typed as combining marks) and wide characters
+        return f"| {pad_display(text, inner)} |"
 
     def wrapped(text, indent=""):
         text = text.replace("**", "").replace("`", "")
         lead = len(text) - len(text.lstrip())
         first = " " * lead
-        return [row(line) for line in textwrap.wrap(text.strip(), inner, initial_indent=first,
-                                                     subsequent_indent=first + "  " + indent,
-                                                     break_long_words=True, break_on_hyphens=False)] or [row()]
+        return [row(line) for line in wrap_display(text.strip(), inner, first, first + "  " + indent)] or [row()]
 
     border = "+" + "=" * (BOX_WIDTH - 2) + "+"
     lines = [border]

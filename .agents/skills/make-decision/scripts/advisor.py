@@ -695,7 +695,7 @@ class DecisionAdvisor:
         """The plan in a terminal box (same content as Markdown, without the markup)."""
         width = 90
         title, sections = self._sections(plan)
-        out = ["+" + "=" * (width - 1) + "+"]
+        out = ["+" + "=" * width + "+"]
 
         def add(text: str = "", indent: str = "  "):
             if not text.strip():
@@ -706,18 +706,18 @@ class DecisionAdvisor:
                 out.append("|" + pad_display(line, width) + "|")
 
         add(title.upper())
-        out.append("+" + "=" * (width - 1) + "+")
+        out.append("+" + "=" * width + "+")
         for heading, lines in sections:
             if not lines:
                 continue
             if heading:
-                out.append("+" + "-" * (width - 1) + "+")
+                out.append("+" + "-" * width + "+")
                 add(heading.upper())
             for line in lines:
                 plain = re.sub(r"\*\*|`|(?<![\w*])[*_](?=\S)|(?<=\S)[*_](?![\w*])", "", line).replace("\n", " ")
                 add(plain, "    " if heading else "  ")
             add()
-        out.append("+" + "=" * (width - 1) + "+")
+        out.append("+" + "=" * width + "+")
         return "\n".join(out)
 
     # ---- Persisted plans ----
