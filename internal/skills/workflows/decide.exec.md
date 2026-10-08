@@ -24,8 +24,7 @@ description: Executive-level decision analysis with maximum detail, all framewor
 - **Output**: present the plan: it is the analysis, so do not replace it with your own. If it says
   no decision type matched, re-run with `--type` (values are in the note and in SKILL.md) before
   presenting. Keep option names exactly as the user wrote them.
-- **Language**: answer in the user's language. The script's output is in English: translate it when
-  you present it, and keep commands, flags, file names and option names exactly as written.
+- **Language**: Respond in English. The script's output is in English: show it as it is, and keep commands, flags, file names and option names exactly as written.
 - **Next steps**: the plan already ends with a **Next steps** table for this command: show it once,
   at the end of your answer, and do not add another one.
 
@@ -37,8 +36,7 @@ description: Executive-level decision analysis with maximum detail, all framewor
 cat .agents/skills/make-decision/SKILL.md
 ```
 
-2. Run the analysis. If the user asked to save the work ("save", "step-by-step", "workspace", "lưu",
-   "lưu lại", "lưu từng bước"), run step 3 instead of this command.
+2. Run the analysis. If the user asked to save the work ("save", "step-by-step", "workspace"), run step 3 instead of this command.
    If you can tell the decision type, add `--type "<decision type>"` (values are listed in
    SKILL.md); otherwise omit it and the script auto-detects.
 // turbo
@@ -68,4 +66,4 @@ $ARGUMENTS
 THINK_BETTER_EOF_7f3a
 ```
 
-5. Present the plan (and the scores, if any) in the user's language.
+5. Present the plan (and the scores, if any) in English.

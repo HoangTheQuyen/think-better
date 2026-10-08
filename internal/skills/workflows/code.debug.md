@@ -1,7 +1,6 @@
 ---
 description: Fix a bug by reproducing it, finding the root cause, fixing it with a regression test
-  and verifying. Use when user reports an error, exception, crash or wrong output in their code
-  ("sửa lỗi", "bị lỗi").
+  and verifying. Use when user reports an error, exception, crash or wrong output in their code.
 ---
 
 ## Debug
@@ -22,8 +21,7 @@ description: Fix a bug by reproducing it, finding the root cause, fixing it with
   stop. Never present a plan the script did not produce.
 - **Output**: the plan is your working method: follow its steps and gates instead of writing your
   own plan, and treat "Context from the project" as leads to verify by reading the code.
-- **Language**: answer in the user's language. The script's output is in English: translate it when
-  you present it, and keep commands, flags, file names and option names exactly as written.
+- **Language**: Respond in English. The script's output is in English: show it as it is, and keep commands, flags, file names and option names exactly as written.
 - **Next steps**: the plan already ends with a **Next steps** table for this command: show it once,
   at the end of your answer, and do not add another one.
 
@@ -35,8 +33,7 @@ description: Fix a bug by reproducing it, finding the root cause, fixing it with
 cat .agents/skills/code-solving/SKILL.md
 ```
 
-2. Generate the plan. If the user asked to save the work ("save", "step-by-step", "workspace",
-   "lưu", "lưu lại", "lưu từng bước"), run step 3 instead of this command.
+2. Generate the plan. If the user asked to save the work ("save", "step-by-step", "workspace"), run step 3 instead of this command.
    If the user shared an error or stack trace, keep all of it in the text: the plan maps its
    frames to project files and lines under "Context from the project".
 // turbo

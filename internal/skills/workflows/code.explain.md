@@ -1,6 +1,6 @@
 ---
 description: Explain how code works by tracing a real input through it with file:line evidence,
-  without changing it. Use when user asks how something works or what code does ("giải thích code").
+  without changing it. Use when user asks how something works or what code does.
 ---
 
 ## Explain Code
@@ -21,8 +21,7 @@ description: Explain how code works by tracing a real input through it with file
   stop. Never present a plan the script did not produce.
 - **Output**: the plan is your working method: follow its steps and gates instead of writing your
   own plan, and treat "Context from the project" as leads to verify by reading the code.
-- **Language**: answer in the user's language. The script's output is in English: translate it when
-  you present it, and keep commands, flags, file names and option names exactly as written.
+- **Language**: Respond in English. The script's output is in English: show it as it is, and keep commands, flags, file names and option names exactly as written.
 - **Next steps**: the plan already ends with a **Next steps** table for this command: show it once,
   at the end of your answer, and do not add another one.
 
@@ -34,8 +33,7 @@ description: Explain how code works by tracing a real input through it with file
 cat .agents/skills/code-solving/SKILL.md
 ```
 
-2. Generate the plan. If the user asked to save the work ("save", "step-by-step", "workspace",
-   "lưu", "lưu lại", "lưu từng bước"), run step 3 instead of this command.
+2. Generate the plan. If the user asked to save the work ("save", "step-by-step", "workspace"), run step 3 instead of this command.
    Files and symbols named in the text are located under "Context from the project": start there.
 // turbo
 ```

@@ -1,7 +1,7 @@
 ---
 description: Resume a saved problem-solving workspace (solving-plans/) at the first step that is not
   done yet. Use when user wants to continue earlier problem analysis ("continue the analysis", "pick
-  up where we left off", "tiếp tục phân tích").
+  up where we left off").
 ---
 
 ## Resume Problem Solving
@@ -23,8 +23,7 @@ description: Resume a saved problem-solving workspace (solving-plans/) at the fi
 - **Output**: `--status` lists each step's file and whether it is done, then the **Next** step with
   its guidance. If it says there is no saved workspace, tell the user and suggest starting one with
   `/solve` and asking to save it; do not invent a workspace.
-- **Language**: answer in the user's language. The script's output is in English: translate it when
-  you present it, and keep commands, flags, file names and option names exactly as written.
+- **Language**: Respond in English. The script's output is in English: show it as it is, and keep commands, flags, file names and option names exactly as written.
 - **Next steps**: the status output has no Next steps table; add the one in step 5 once, when every
   step is done.
 

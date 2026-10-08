@@ -24,8 +24,7 @@ description: Analyze a problem with standard depth. Use when user says "solve", 
 - **Output**: present the plan: it is the analysis, so do not replace it with your own. If it says
   no type or context matched, re-run with `--type` / `--category` (values are in the note and in
   SKILL.md) before presenting.
-- **Language**: answer in the user's language. The script's output is in English: translate it when
-  you present it, and keep commands, flags, file names and option names exactly as written.
+- **Language**: Respond in English. The script's output is in English: show it as it is, and keep commands, flags, file names and option names exactly as written.
 - **Next steps**: the plan already ends with a **Next steps** table for this command: show it once,
   at the end of your answer, and do not add another one.
 
@@ -37,8 +36,7 @@ description: Analyze a problem with standard depth. Use when user says "solve", 
 cat .agents/skills/problem-solving-pro/SKILL.md
 ```
 
-2. Run the analysis. If the user asked to save the work ("save", "step-by-step", "workspace", "lưu",
-   "lưu lại", "lưu từng bước"), run step 3 instead of this command.
+2. Run the analysis. If the user asked to save the work ("save", "step-by-step", "workspace"), run step 3 instead of this command.
    If you can tell the problem type and context, add `--type <type> --category "<context>"`
    (values are listed in SKILL.md); otherwise omit them and the script auto-detects.
 // turbo
@@ -58,4 +56,4 @@ $ARGUMENTS
 THINK_BETTER_EOF_7f3a
 ```
 
-4. Present the plan in the user's language, then help the user work through its first step.
+4. Present the plan in English, then help the user work through its first step.

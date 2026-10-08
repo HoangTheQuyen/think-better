@@ -22,8 +22,7 @@ description: Review code for real defects by tracing callers, checking the revie
   stop. Never present a plan the script did not produce.
 - **Output**: the plan is your working method: follow its steps and gates instead of writing your
   own plan, and treat "Context from the project" as leads to verify by reading the code.
-- **Language**: answer in the user's language. The script's output is in English: translate it when
-  you present it, and keep commands, flags, file names and option names exactly as written.
+- **Language**: Respond in English. The script's output is in English: show it as it is, and keep commands, flags, file names and option names exactly as written.
 - **Next steps**: the plan already ends with a **Next steps** table for this command: show it once,
   at the end of your answer, and do not add another one.
 
@@ -35,8 +34,7 @@ description: Review code for real defects by tracing callers, checking the revie
 cat .agents/skills/code-solving/SKILL.md
 ```
 
-2. Generate the plan. If the user asked to save the work ("save", "step-by-step", "workspace",
-   "lưu", "lưu lại", "lưu từng bước"), run step 3 instead of this command.
+2. Generate the plan. If the user asked to save the work ("save", "step-by-step", "workspace"), run step 3 instead of this command.
    The plan includes the diff (uncommitted changes, else this branch against the default branch).
    If the user names a branch, tag or commit to compare against, add `--diff <base>`.
 // turbo
