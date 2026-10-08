@@ -233,7 +233,7 @@ def _context_lines(ctx: dict) -> list:
                     lines.append(f"- **{a['area']}**: " + "; ".join(a["reasons"]) + more)
     if lines:
         lines.insert(0, "Found in the code and git history, not guessed. Read these first in Step 2.")
-    elif ctx.get("git") is False:
+    if ctx.get("git") is False:
         lines.append("Not a git repository: no history or diff available. Search the code by hand in Step 2.")
     return lines
 

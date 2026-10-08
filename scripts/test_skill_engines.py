@@ -1822,5 +1822,50 @@ class ConsistentCliTests(unittest.TestCase):
             self.assertEqual(r.returncode, 2)
 
 
+class CodeContextRegressionTests(unittest.TestCase):
+    """Stack frames with spaces in Windows paths, symbols that are not the project's, folders without git."""
+
+    @classmethod
+    def setUpClass(cls):
+        sys.modules.pop("context", None)
+        path = str(SKILLS / "code-solving" / "scripts")
+        sys.path.insert(0, path)
+        try:
+            cls.context = importlib.import_module("context")
+        finally:
+            sys.path.remove(path)
+            sys.modules.pop("context", None)
+
+    def test_csharp_frame_with_spaces_in_the_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "src/App").mkdir(parents=True)
+            (root / "src/App/Program.cs").write_text("using System;\nclass Program {\n  static void Main() {\n"
+                                                     "    Run();\n    var x = obj.Name;\n  }\n}\n")
+            trace = ("Unhandled exception. System.NullReferenceException: Object reference not set to an instance "
+                     "of an object.\n   at App.Program.Main() in C:\\Users\\John Smith\\src\\App\\Program.cs:line 5")
+            locs = self.context.trace_locations(trace, ["src/App/Program.cs"], root)
+            self.assertEqual([(loc["file"], loc["line"]) for loc in locs], [("src/App/Program.cs", 5)])
+            self.assertEqual(locs[0]["code"], "var x = obj.Name;")
+
+    def test_language_names_are_not_project_symbols(self):
+        names = self.context.candidate_symbols("AttributeError: 'NoneType' object has no attribute 'getTotal' "
+                                               "in JavaScript and PostgreSQL")
+        self.assertEqual(names, ["getTotal"])
+
+    def test_symbols_are_found_without_git(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "app").mkdir()
+            (root / "app/orders.py").write_text("def get_order_total(order):\n    return 1\n")
+            (root / "app/views.py").write_text("from app.orders import get_order_total\nget_order_total(x)\n")
+            (root / "node_modules/lib").mkdir(parents=True)
+            (root / "node_modules/lib/x.js").write_text("function get_order_total() {}\n")
+            ctx = self.context.gather("get_order_total returns the wrong value", root)
+            self.assertIs(ctx["git"], False)
+            self.assertEqual(ctx["symbols"], [{"name": "get_order_total", "defined": ["app/orders.py:1"],
+                                               "files": 2}])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

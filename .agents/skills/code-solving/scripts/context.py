@@ -32,13 +32,25 @@ TRACE_PATTERNS = [
     re.compile(r'File "(?P<file>[^"]+)", line (?P<line>\d+)(?:, in (?P<func>[\w<>.]+))?'),
     # Java / Kotlin / Scala:  at com.shop.OrderService.getTotal(OrderService.java:42)
     re.compile(r"at (?P<func>[\w$.<>]+)\((?P<file>[\w$-]+\.(?:java|kt|kts|scala|groovy)):(?P<line>\d+)\)"),
-    # C#:  in /src/Orders/OrderService.cs:line 42
-    re.compile(r" in (?P<file>\S+\.cs):line (?P<line>\d+)"),
+    # C#:  in /src/Orders/OrderService.cs:line 42  (Windows paths may hold spaces: C:\Users\John Smith\...)
+    re.compile(r" in (?P<file>(?:[A-Za-z]:)?[^:*?\"<>|\r\n]+?\.cs):line (?P<line>\d+)"),
     # Everything else: path.ext:line[:col] (JS/TS, Go, Rust, Ruby, PHP, C, compiler errors)
     re.compile(r"(?P<file>(?:[A-Za-z]:)?[\w./\\@~+-]*\w\.(?:" + CODE_EXT + r")):(?P<line>\d+)(?::\d+)?\b"),
 ]
 FILE_TOKEN = re.compile(r"(?<![\w/.-])(?P<file>[\w@~+-][\w./@~+-]*\.(?:" + CODE_EXT + r"))(?![\w:])")
 IDENTIFIER = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\b")
+# Mixed-case names that belong to languages, runtimes and products, never to the project
+NOT_PROJECT_SYMBOLS = {
+    "NoneType", "NaN", "JavaScript", "TypeScript", "GitHub", "GitLab", "BitBucket", "PostgreSQL", "MySQL",
+    "MongoDB", "DynamoDB", "BigQuery", "GraphQL", "WebSocket", "WebSockets", "NodeJS", "NextJS", "macOS",
+    "iOS", "iPhone", "iPad", "YouTube", "LinkedIn", "PyPI", "OAuth", "OpenAPI", "OpenAI", "ChatGPT",
+    "PowerShell", "VSCode", "IntelliJ", "PyCharm", "LocalStorage", "localStorage", "sessionStorage",
+    "XMLHttpRequest", "JSONDecodeError", "StopIteration", "KeyboardInterrupt", "SystemExit",
+    "GeneratorExit", "BaseException", "ArrayList", "HashMap", "NullReference", "StackOverflow",
+    "CrashLoopBackOff", "ImagePullBackOff", "ReferenceError", "SyntaxError", "RangeError",
+    "addEventListener", "querySelector", "getElementById", "setTimeout", "setInterval", "useEffect",
+    "useState", "console_log", "__init__", "__main__", "__name__", "self_id",
+}
 # First words of lines that call a function rather than declare it
 NOT_DECLARATIONS = {"return", "await", "new", "throw", "yield", "if", "else", "elif", "case", "while",
                     "for", "assert", "print", "echo", "go", "defer", "not", "and", "or", "in", "is"}
@@ -234,7 +246,7 @@ def candidate_symbols(text: str) -> list:
         snake = "_" in word.strip("_") and word.lower() == word
         if not (mixed or snake):
             continue
-        if re.search(r"(Error|Exception|Warning|Panic)$", word):
+        if re.search(r"(Error|Exception|Warning|Panic)$", word) or word in NOT_PROJECT_SYMBOLS:
             continue
         names.append(word)
     return names[:6]
@@ -273,6 +285,56 @@ def find_symbols(names: list, root: Path) -> list:
         if defs or ref_files:
             found.append({"name": name, "defined": defs[:3], "files": len(ref_files)})
     return found
+
+
+MAX_GREP_BYTES = 20_000_000
+MAX_GREP_FILE = 1_000_000
+
+
+def find_symbols_walk(names: list, root: Path, files: list) -> list:
+    """find_symbols() without git: a bounded scan of the project's source files.
+
+    Reads at most MAX_GREP_BYTES in total and skips files over MAX_GREP_FILE,
+    so a huge folder never stalls the plan.
+    """
+    names = [n for n in names if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", n)]
+    if not names:
+        return []
+    keyword = (r"\b(?:def|class|func|function|fn|interface|type|struct|enum|trait|const|let|var|val|"
+               r"module|record)\s+(?:\([^)]*\)\s*)?")
+    definitions = {n: re.compile(keyword + re.escape(n) + r"\b") for n in names}
+    typed = {n: re.compile(r"^\s*(?:[\w\[\]<>,.?*&:]+\s+)+" + re.escape(n) + r"\s*\(") for n in names}
+    words = {n: re.compile(r"\b" + re.escape(n) + r"\b") for n in names}
+    defs = {n: [] for n in names}
+    refs = {n: 0 for n in names}
+    budget = MAX_GREP_BYTES
+    for rel in files:
+        if not SOURCE_PATH.search(rel) or budget <= 0:
+            continue
+        path = root / rel
+        try:
+            size = path.stat().st_size
+            if size > MAX_GREP_FILE:
+                continue
+            budget -= size
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        present = [n for n in names if n in text]
+        if not present:
+            continue
+        for n in present:
+            if words[n].search(text):
+                refs[n] += 1
+        for number, line in enumerate(text.splitlines(), 1):
+            for n in present:
+                if n not in line or len(defs[n]) >= 3:
+                    continue
+                code = line.strip()
+                if definitions[n].search(line) or (typed[n].search(line) and not code.endswith(";")
+                                                   and code.split()[0] not in NOT_DECLARATIONS):
+                    defs[n].append(f"{rel}:{number}")
+    return [{"name": n, "defined": defs[n][:3], "files": refs[n]} for n in names if defs[n] or refs[n]]
 
 
 # ============ GIT STATE ============
@@ -428,6 +490,10 @@ def gather(text: str, root: Path, diff: str = None) -> dict:
     if files:
         ctx["locations"] = trace_locations(text, files, root)
         ctx["files"] = named_files(text, files, root, exclude={loc["file"] for loc in ctx["locations"]})
+    if not in_git:
+        names = candidate_symbols(text)
+        if names:
+            ctx["symbols"] = find_symbols_walk(names, root, files or project_files(root, False))
     if in_git:
         ctx["symbols"] = find_symbols(candidate_symbols(text), root)
         touched = [loc["file"] for loc in ctx.get("locations", [])] + ctx.get("files", [])
