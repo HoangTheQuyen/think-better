@@ -1973,5 +1973,25 @@ class LongRequestTests(unittest.TestCase):
                 self.assertLess(elapsed, self.LIMIT_SECONDS)
 
 
+class CodeExecutiveDepthTests(unittest.TestCase):
+    """code-solving executive depth leads with a summary a stakeholder can act on."""
+
+    def test_executive_plan_starts_with_a_summary(self):
+        _, advisor = load_skill("code-solving")
+        engine = advisor.CodeSolvingAdvisor()
+        with tempfile.TemporaryDirectory() as tmp:
+            query = "Production checkout returns 502 for all users since the deploy"
+            plans = {d: engine.generate(query, depth=d, project_dir=tmp) for d in ("deep", "executive")}
+        texts = {d: advisor.format_markdown(p) for d, p in plans.items()}
+        headings = [line[4:] for line in texts["executive"].splitlines() if line.startswith("### ")]
+        self.assertEqual(headings[0], "Executive summary")
+        self.assertNotIn("Executive summary", texts["deep"])
+        summary = texts["executive"].split("### Executive summary")[1].split("###")[0]
+        for label in ("Situation", "Evidence so far", "Approach", "Main risks", "Decision needed"):
+            self.assertIn(f"**{label}:**", summary)
+        self.assertIn("mitigation", summary)  # incidents: mitigate before root-causing
+        self.assertIn("EXECUTIVE SUMMARY", advisor.format_text(plans["executive"]))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

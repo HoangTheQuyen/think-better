@@ -238,6 +238,60 @@ def _context_lines(ctx: dict) -> list:
     return lines
 
 
+# What leadership is asked to decide, by task type (executive depth)
+DECISION_NEEDED = {
+    "incident": "Approve the mitigation first (rollback, feature flag or failover) and who communicates with "
+                "users; the root cause and the postmortem follow once users are no longer affected.",
+    "security": "Agree the disclosure path and whether users or keys need rotating; ship the fix privately "
+                "before any public detail.",
+    "migration": "Agree the cut-over window, the rollback plan and who signs off on each stage.",
+    "performance": "Agree the target (e.g. p95 under a number, on representative data) and the budget for "
+                   "an architecture change if profiling points there.",
+    "feature": "Agree the acceptance criteria and what is out of scope; trade-offs between designs go to "
+               "/decide before building.",
+    "refactor": "Agree that behavior must not change and how that is proven (characterization tests).",
+    "review": "Agree which findings block the merge and which become follow-up tickets.",
+}
+
+
+def _first_sentence(text: str) -> str:
+    text = " ".join(str(text).split())
+    cut = text.find(". ")
+    return text if cut < 0 else text[:cut + 1]
+
+
+def _executive_summary(plan: dict) -> list:
+    """What a stakeholder needs first: the situation, the evidence, the approach, the risk and the ask."""
+    task, ctx = plan["task"], plan.get("context", {})
+    lines = [f"- **Situation:** \"{_short_name(plan['query'], 200)}\": a {task['name'].lower()} task "
+             f"(`{task['type']}`). {task['description']}"]
+    evidence = []
+    if plan.get("errors"):
+        e = plan["errors"][0]
+        evidence.append(f"known error *{e['error']}* ({e['meaning'].rstrip('.')})")
+    if ctx.get("locations"):
+        loc = ctx["locations"][0]
+        evidence.append(f"the stack trace points at `{loc['file']}:{loc['line']}`")
+    elif ctx.get("files"):
+        evidence.append("the request names " + ", ".join(f"`{f}`" for f in ctx["files"][:3]))
+    if ctx.get("diff", {}).get("files"):
+        diff = ctx["diff"]
+        evidence.append(f"{len(diff['files'])} changed files (+{diff['added']} −{diff['removed']})")
+    lines.append("- **Evidence so far:** " + ("; ".join(evidence) + "." if evidence else
+                                            "none found in the code yet: Step 2 maps where the change goes."))
+    names = [t["name"] for t in plan["techniques"][:2]]
+    verify = next((s["gate"] for s in plan["steps"] if s["name"] == "Verify"), "")
+    lines.append(f"- **Approach:** {' → '.join(s['name'] for s in plan['steps'])}"
+                 + (f"; start with {' and '.join(names)}" if names else "") + "."
+                 + (f" Done when: {verify}" if verify else ""))
+    risks = [r.strip().rstrip(".") for r in plan["anti_patterns"].split(";") if r.strip()][:2]
+    lines.append(f"- **Main risks:** {'; '.join(risks)}. "
+                 f"**Escalate when:** {_first_sentence(plan['escalate'])}")
+    lines.append(f"- **Decision needed:** {DECISION_NEEDED.get(task['type'], 'Agree the acceptance check and the scope before work starts.')}"
+                 f" The result is handed over as a {plan['artifact']['name']}.")
+    return lines
+
+
 def _sections(plan: dict) -> list:
     """Plan as (heading, [lines]) pairs, lines in light markdown."""
     task = plan["task"]
@@ -254,6 +308,9 @@ def _sections(plan: dict) -> list:
         head.append("Small change: Decompose, Prioritize and Plan are folded into Execute. "
                     "If it turns out to touch logic, re-run with `--type feature` or `--type debug`.")
     out.append(("", head))
+
+    if depth == "executive":
+        out.append(("Executive summary", _executive_summary(plan)))
 
     lines = _context_lines(plan.get("context", {}))
     if lines:
@@ -322,7 +379,7 @@ def _sections(plan: dict) -> list:
     out.append(("Escalate when", [plan["escalate"]]))
 
     if depth == "executive":
-        out.append(("Stakeholder summary", [
+        out.append(("Stakeholder update (fill in as the work moves)", [
             "- **Outcome:** what changes for users or the business, in one sentence",
             "- **Status:** current step and the evidence so far",
             "- **Risk:** what could go wrong and how likely",
