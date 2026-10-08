@@ -5,21 +5,21 @@
 class ThinkBetter < Formula
   desc "Structured decision-making and problem-solving skills for AI coding assistants"
   homepage "https://thinkbetter.dev/"
-  version "1.1.1"
+  version "1.2.0"
   license "MIT"
 
   on_macos do
     if Hardware::CPU.intel?
-      url "https://github.com/HoangTheQuyen/think-better/releases/download/v1.1.1/think-better_1.1.1_darwin_amd64.tar.gz"
-      sha256 "4c3ca513ebc06b26817d82cf33d6c7cf2f99bc25b185d61706371e99c84a8444"
+      url "https://github.com/HoangTheQuyen/think-better/releases/download/v1.2.0/think-better_1.2.0_darwin_amd64.tar.gz"
+      sha256 "94d4f0d1e7719feae8cad59f4788cc77d33913d2bfc9af7ff73954a6eeb9dc6b"
 
       define_method(:install) do
         bin.install "think-better"
       end
     end
     if Hardware::CPU.arm?
-      url "https://github.com/HoangTheQuyen/think-better/releases/download/v1.1.1/think-better_1.1.1_darwin_arm64.tar.gz"
-      sha256 "20e636b975e634b4b8eb8ed357bdba6a1042763eda4f000b635dec4413d3f5df"
+      url "https://github.com/HoangTheQuyen/think-better/releases/download/v1.2.0/think-better_1.2.0_darwin_arm64.tar.gz"
+      sha256 "4c3a0c8f03bec6a0005fa3abc4acf3a70697de86e851de9b282b6a3e9daa11c3"
 
       define_method(:install) do
         bin.install "think-better"
@@ -29,15 +29,15 @@ class ThinkBetter < Formula
 
   on_linux do
     if Hardware::CPU.intel? && Hardware::CPU.is_64_bit?
-      url "https://github.com/HoangTheQuyen/think-better/releases/download/v1.1.1/think-better_1.1.1_linux_amd64.tar.gz"
-      sha256 "377612666ebfd6ced9d3ba19eed91ea553dbee952ee7cd83a6f0ac9038c10eee"
+      url "https://github.com/HoangTheQuyen/think-better/releases/download/v1.2.0/think-better_1.2.0_linux_amd64.tar.gz"
+      sha256 "65b9b3ac8050e0aa2d694728449b1133e2822822c8650ff93673496f1520ab00"
       define_method(:install) do
         bin.install "think-better"
       end
     end
     if Hardware::CPU.arm? && Hardware::CPU.is_64_bit?
-      url "https://github.com/HoangTheQuyen/think-better/releases/download/v1.1.1/think-better_1.1.1_linux_arm64.tar.gz"
-      sha256 "1035099f443e8ce2a4a5be7fe73081d82775babf1a0910a05b24aa484840c9b2"
+      url "https://github.com/HoangTheQuyen/think-better/releases/download/v1.2.0/think-better_1.2.0_linux_arm64.tar.gz"
+      sha256 "2da6d7c0798d14897244f268ca2acb4e0b6f9aa272738204593cb811def72420"
       define_method(:install) do
         bin.install "think-better"
       end
