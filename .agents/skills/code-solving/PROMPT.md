@@ -139,7 +139,21 @@ When the user asks to save or work step by step:
 python3 .agents/skills/code-solving/scripts/search.py "<task>" --plan --type <type> --persist --step-docs -p "<short-name>"
 ```
 
-This creates `coding-plans/<short-name>/` with `00-OVERVIEW.md`, `01-DEFINE.md`, `02-CHANGE-MAP.md`, `03-PLAN.md`, `04-LOG.md`, `05-VERIFY.md` and the hand-off file. Fill them in as you work.
+This creates `coding-plans/<short-name>/` with `00-OVERVIEW.md`, `01-DEFINE.md`, `02-CHANGE-MAP.md`, `03-PLAN.md`, `04-LOG.md`, `05-VERIFY.md` and the hand-off file. Fill them in as you work, and tick each gate once its evidence is in the file:
+
+```bash
+python3 .agents/skills/code-solving/scripts/search.py --done <step> -p "<short-name>"   # 1-7 or define, decompose, ...
+```
+
+### Step 6: Resume Later
+
+A saved workspace is how work continues in a new session (`/code.resume`):
+
+```bash
+python3 .agents/skills/code-solving/scripts/search.py --status [-p "<short-name>"]
+```
+
+It shows each step's file, whether it was filled in and whether its gate is ticked, then the **next** step with its guidance and gate. Without `-p`, it picks the workspace whose name or request matches the text given on stdin, else the most recently changed one. Read the files of finished steps before continuing, re-run the Step 1 check, and never tick a gate whose evidence you did not produce. `--undone <step>` reopens a gate.
 
 ---
 

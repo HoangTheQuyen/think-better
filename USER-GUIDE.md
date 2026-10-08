@@ -192,7 +192,9 @@ The skill finds your project's own commands (npm/pnpm/yarn, Make, Go, Cargo, pyt
 uv/Poetry/PDM, Maven/Gradle, …), the command to run a single test, and the check steps your
 CI runs: `python3 .claude/skills/code-solving/scripts/search.py --detect`.
 Say "save step-by-step" to get a `coding-plans/<name>/` workspace with one file per step.
-Saving again keeps the files you already filled in.
+Saving again keeps the files you already filled in. The AI ticks each step's gate in
+`00-OVERVIEW.md` once its evidence is written down; in a later session, `/code.resume` (or
+`search.py --status`) shows which steps are done and continues at the first open gate.
 
 ---
 

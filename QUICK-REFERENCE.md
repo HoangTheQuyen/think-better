@@ -84,6 +84,7 @@ python scripts/search.py "opportunity cost" --domain analysis
 /code.review [PR or files]
 /code.test [module or behavior to protect]
 /code.explain [what you want to understand]
+/code.resume [which saved workspace, or nothing for the latest]
 /code [anything else: flaky tests, incidents, migrations, security fixes, small changes]
 
 # Every step needs evidence before the next:
