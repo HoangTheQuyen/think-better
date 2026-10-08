@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/images/banner.png" alt="Think Better" width="100%">
+<img src="docs/images/banner.png" alt="Think Better: structured thinking for your AI coding assistant" width="900" height="281">
 
 # Think Better
 
@@ -71,7 +71,7 @@ curl -fsSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/ins
 # Nix
 nix run github:HoangTheQuyen/think-better -- init --ai claude
 
-# From source
+# From source (the binary is written to bin/think-better; run ./bin/think-better init ...)
 git clone https://github.com/HoangTheQuyen/think-better && cd think-better && make build
 ```
 
