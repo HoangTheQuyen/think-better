@@ -12,7 +12,7 @@ solves problems with a proven method, and changes code with evidence instead of 
 [![CI](https://img.shields.io/github/actions/workflow/status/HoangTheQuyen/think-better/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/HoangTheQuyen/think-better/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 
-**3 skills · 309 knowledge records · 18 slash commands · 4 AI tools**
+**3 skills · 316 knowledge records · 19 slash commands · 4 AI tools**
 
 **Works with** Claude Code · GitHub Copilot · Antigravity · OpenCode
 
@@ -50,7 +50,7 @@ Then, **inside your project**, install the skills for your AI tool:
 | Antigravity | `think-better init --ai antigravity` | `.agents/skills/` | `.agents/workflows/` |
 | OpenCode | `think-better init --ai opencode` | `.opencode/skills/` | `.opencode/commands/` |
 
-Every target gets all three skills and all 18 slash commands (`/solve*`, `/decide*`, `/code*`).
+Every target gets all three skills and all 19 slash commands (`/solve*`, `/decide*`, `/code*`).
 Add `--global` to install once for every project (Claude Code, OpenCode, Antigravity), or
 `--skill code-solving` to install a single skill with its commands. The skills need **Python 3**
 (standard library only); run `think-better check` to verify.
@@ -126,13 +126,13 @@ Full walk-throughs: [examples/](examples/README.md).
 | **Comparison matrix** | `--matrix "A vs B vs C"` with weighted criteria |
 | **Decision journal** | Record the decision, review it later with the real outcome |
 
-### `/solve` — solve a problem · `problem-solving-pro` · 104 records
+### `/solve` — solve a problem · `problem-solving-pro` · 111 records
 
 | | |
 |---|---|
 | **7-Step Method** | Define → Disaggregate → Prioritize → Workplan → Analyze → Synthesize → Communicate |
-| **15 decomposition frameworks** | Issue Tree, Hypothesis Tree, Profitability Tree, Systems Map… |
-| **12 mental models** | First Principles, Inversion, Bayesian Updating, Second-Order Thinking… |
+| **18 decomposition frameworks** | Issue Tree, Hypothesis Tree, Profitability Tree, Systems Map… |
+| **13 mental models** | First Principles, Inversion, Bayesian Updating, Second-Order Thinking… |
 | **10 communication patterns** | Pyramid Principle, BLUF, SCR, Action Titles… |
 
 For bugs and other code changes use `/code`.
@@ -152,7 +152,7 @@ For bugs and other code changes use `/code`.
 
 | Skill | Commands |
 |-------|----------|
-| problem-solving-pro | `/solve.quick` · `/solve` · `/solve.deep` · `/solve.exec` |
+| problem-solving-pro | `/solve.quick` · `/solve` · `/solve.deep` · `/solve.exec` · `/solve.resume` |
 | make-decision | `/decide.quick` · `/decide` · `/decide.deep` · `/decide.exec` |
 | code-solving | `/code` · `/code.deep` · `/code.debug` · `/code.feature` · `/code.refactor` · `/code.perf` · `/code.review` · `/code.test` · `/code.explain` · `/code.resume` |
 
@@ -176,7 +176,7 @@ You ── "Revenue dropped 20%"  or  /solve.deep …  or  /code.debug …
           │
           ▼
   Skill engine (local, Python 3 standard library)
-   ├─ BM25 search over 309 knowledge records (CSV files shipped with the skill)
+   ├─ BM25 search over 316 knowledge records (CSV files shipped with the skill)
    ├─ classify: problem type · decision type · coding task type
    ├─ /code only: read the project (stack-trace frames, symbols, git log, diff, test commands)
    └─ build the plan: framework · steps and gates · bias warnings · checklist
@@ -223,7 +223,7 @@ think-better version     # Show version
 Một CLI cài ba skill và các lệnh slash đi kèm, để AI ra quyết định bằng framework thật, giải quyết
 vấn đề theo phương pháp rõ ràng và sửa code bằng bằng chứng thay vì đoán.
 
-**3 skill · 309 bản ghi kiến thức · 18 lệnh slash · 4 công cụ AI** (Claude Code, GitHub Copilot, Antigravity, OpenCode)
+**3 skill · 316 bản ghi kiến thức · 19 lệnh slash · 4 công cụ AI** (Claude Code, GitHub Copilot, Antigravity, OpenCode)
 
 ### Cài đặt
 
@@ -251,9 +251,9 @@ Cần **Python 3** (chỉ dùng thư viện chuẩn). Kiểm tra bằng `think-b
 **`/decide`** — Ra quyết định · `make-decision` · 56 bản ghi
 - 10 framework quyết định · 12 thiên kiến nhận thức kèm cách khắc phục · Bảng so sánh có trọng số · Nhật ký quyết định
 
-**`/solve`** — Giải quyết vấn đề kinh doanh, sản phẩm · `problem-solving-pro` · 104 bản ghi
+**`/solve`** — Giải quyết vấn đề kinh doanh, sản phẩm · `problem-solving-pro` · 111 bản ghi
 - 7 bước: Định nghĩa → Phân tách → Ưu tiên → Lập kế hoạch → Phân tích → Tổng hợp → Trình bày
-- 15 framework phân tách · 12 mô hình tư duy · 10 mẫu trình bày
+- 18 framework phân tách · 13 mô hình tư duy · 10 mẫu trình bày
 
 **`/code`** — Sửa và viết code có quy trình · `code-solving` · 149 bản ghi
 - 7 bước có "cổng kiểm tra": phải có test fail, chạy test thật, đủ bằng chứng mới qua bước
@@ -266,7 +266,7 @@ Cần **Python 3** (chỉ dùng thư viện chuẩn). Kiểm tra bằng `think-b
 
 | Skill | Lệnh |
 |-------|------|
-| problem-solving-pro | `/solve.quick` · `/solve` · `/solve.deep` · `/solve.exec` |
+| problem-solving-pro | `/solve.quick` · `/solve` · `/solve.deep` · `/solve.exec` · `/solve.resume` |
 | make-decision | `/decide.quick` · `/decide` · `/decide.deep` · `/decide.exec` |
 | code-solving | `/code` · `/code.deep` · `/code.debug` · `/code.feature` · `/code.refactor` · `/code.perf` · `/code.review` · `/code.test` · `/code.explain` · `/code.resume` |
 
