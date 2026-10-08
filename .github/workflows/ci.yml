@@ -105,6 +105,10 @@ jobs:
             - name: Skill engine regression tests
               run: python scripts/test_skill_engines.py
 
+            - name: Docs match the repository
+              if: runner.os == 'Linux'
+              run: python scripts/test_docs.py
+
     goreleaser:
         name: GoReleaser config
         # The release itself runs GoReleaser for real.

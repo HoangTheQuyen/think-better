@@ -12,7 +12,7 @@ solves problems with a proven method, and changes code with evidence instead of 
 [![CI](https://img.shields.io/github/actions/workflow/status/HoangTheQuyen/think-better/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/HoangTheQuyen/think-better/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 
-**3 skills · 316 knowledge records · 19 slash commands · 4 AI tools**
+**3 skills · 323 knowledge records · 20 slash commands · 4 AI tools**
 
 **Works with** Claude Code · GitHub Copilot · Antigravity · OpenCode
 
@@ -50,7 +50,7 @@ Then, **inside your project**, install the skills for your AI tool:
 | Antigravity | `think-better init --ai antigravity` | `.agents/skills/` | `.agents/workflows/` |
 | OpenCode | `think-better init --ai opencode` | `.opencode/skills/` | `.opencode/commands/` |
 
-Every target gets all three skills and all 19 slash commands (`/solve*`, `/decide*`, `/code*`).
+Every target gets all three skills and all 20 slash commands (`/solve*`, `/decide*`, `/code*`).
 Add `--global` to install once for every project (Claude Code, OpenCode, Antigravity), or
 `--skill code-solving` to install a single skill with its commands. The skills need **Python 3**
 (standard library only); run `think-better check` to verify.
@@ -117,7 +117,7 @@ Full walk-throughs: [examples/](examples/README.md).
 
 ## The three skills
 
-### `/decide` — make a choice · `make-decision` · 56 records
+### `/decide` — make a choice · `make-decision` · 63 records
 
 | | |
 |---|---|
@@ -153,7 +153,7 @@ For bugs and other code changes use `/code`.
 | Skill | Commands |
 |-------|----------|
 | problem-solving-pro | `/solve.quick` · `/solve` · `/solve.deep` · `/solve.exec` · `/solve.resume` |
-| make-decision | `/decide.quick` · `/decide` · `/decide.deep` · `/decide.exec` |
+| make-decision | `/decide.quick` · `/decide` · `/decide.deep` · `/decide.exec` · `/decide.resume` |
 | code-solving | `/code` · `/code.deep` · `/code.debug` · `/code.feature` · `/code.refactor` · `/code.perf` · `/code.review` · `/code.test` · `/code.explain` · `/code.resume` |
 
 Depth: `.quick` is a fast scan, the plain command is the default, `.deep` adds alternatives and pitfalls
@@ -176,7 +176,7 @@ You ── "Revenue dropped 20%"  or  /solve.deep …  or  /code.debug …
           │
           ▼
   Skill engine (local, Python 3 standard library)
-   ├─ BM25 search over 316 knowledge records (CSV files shipped with the skill)
+   ├─ BM25 search over 323 knowledge records (CSV files shipped with the skill)
    ├─ classify: problem type · decision type · coding task type
    ├─ /code only: read the project (stack-trace frames, symbols, git log, diff, test commands)
    └─ build the plan: framework · steps and gates · bias warnings · checklist
@@ -223,7 +223,7 @@ think-better version     # Show version
 Một CLI cài ba skill và các lệnh slash đi kèm, để AI ra quyết định bằng framework thật, giải quyết
 vấn đề theo phương pháp rõ ràng và sửa code bằng bằng chứng thay vì đoán.
 
-**3 skill · 316 bản ghi kiến thức · 19 lệnh slash · 4 công cụ AI** (Claude Code, GitHub Copilot, Antigravity, OpenCode)
+**3 skill · 323 bản ghi kiến thức · 20 lệnh slash · 4 công cụ AI** (Claude Code, GitHub Copilot, Antigravity, OpenCode)
 
 ### Cài đặt
 
@@ -248,7 +248,7 @@ Cần **Python 3** (chỉ dùng thư viện chuẩn). Kiểm tra bằng `think-b
 
 ### 3 skill
 
-**`/decide`** — Ra quyết định · `make-decision` · 56 bản ghi
+**`/decide`** — Ra quyết định · `make-decision` · 63 bản ghi
 - 10 framework quyết định · 12 thiên kiến nhận thức kèm cách khắc phục · Bảng so sánh có trọng số · Nhật ký quyết định
 
 **`/solve`** — Giải quyết vấn đề kinh doanh, sản phẩm · `problem-solving-pro` · 111 bản ghi
@@ -267,7 +267,7 @@ Cần **Python 3** (chỉ dùng thư viện chuẩn). Kiểm tra bằng `think-b
 | Skill | Lệnh |
 |-------|------|
 | problem-solving-pro | `/solve.quick` · `/solve` · `/solve.deep` · `/solve.exec` · `/solve.resume` |
-| make-decision | `/decide.quick` · `/decide` · `/decide.deep` · `/decide.exec` |
+| make-decision | `/decide.quick` · `/decide` · `/decide.deep` · `/decide.exec` · `/decide.resume` |
 | code-solving | `/code` · `/code.deep` · `/code.debug` · `/code.feature` · `/code.refactor` · `/code.perf` · `/code.review` · `/code.test` · `/code.explain` · `/code.resume` |
 
 `.quick` quét nhanh, lệnh gốc là mặc định, `.deep` phân tích sâu cho việc quan trọng, `.exec` thêm tóm tắt cho lãnh đạo.

@@ -9,12 +9,24 @@ and the project follows [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - README rewritten around install, a 30-second example per skill and accurate counts
-  (309 knowledge records, 18 slash commands, 4 AI tools); website updated for `/code`,
+  (323 knowledge records, 20 slash commands, 4 AI tools); website updated for `/code`,
   OpenCode, Homebrew and Scoop.
 - Examples: the five placeholder templates are replaced by a worked `/code.debug` example.
 
 ### Added
 
+- Installs record what they wrote (`.think-better.json`); new `think-better update` refreshes
+  installed skills and keeps files you edited (the new version is saved as `.new`; `--force`
+  overwrites and keeps a `.bak`). Writes refuse symlinks.
+- problem-solving-pro: Vietnamese keywords (with or without accents), real depth levels, resumable
+  workspaces (`--status`, `--done`) and `/solve.resume`.
+- make-decision: Vietnamese support, options read from the request, new criteria templates (tech
+  stack, pricing, job offer, relocation, education, housing), weighted scoring with the smallest
+  weight change that flips the winner, journal review dates, resumable workspaces and
+  `/decide.resume`; the `C:\Users` journal crash and note overwrite are fixed.
+- Shared stemmer: hire/hiring/hired, uncertain/uncertainty and similar forms now meet in all skills.
+- Release: `VERSION` file checked against the tag, CI gates the release, SBOMs, cosign signature and
+  build attestations, scheduled flake lock updates, PR title check.
 - `CHANGELOG.md`.
 - `scripts/test_docs.py`: fails when README or website counts drift from the skills'
   CSV files, workflows and AI targets, or when a relative link in the docs is broken.

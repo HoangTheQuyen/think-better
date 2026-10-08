@@ -29,6 +29,7 @@ TASK
 
 3. If user mentions "save", "persist", "step-by-step", "workspace":
    Replace `<project-name>` with a short name for this work; files are saved in the project.
+   Later sessions continue it with `/decide.resume`.
 // turbo
 ```
 python3 .agents/skills/make-decision/scripts/search.py --stdin --plan --depth executive --persist --step-docs -p "<project-name>" -f markdown <<'TASK'
@@ -36,14 +37,16 @@ $ARGUMENTS
 TASK
 ```
 
-4. Present the output, then append:
+4. If the user has scored the options (or asks which one wins), total the scores: use the
+   plan's criteria and weights, one score (1-5) per criterion for each option, in that order.
+   The output names the winner and the smallest weight change that would flip it.
+// turbo
+```
+python3 .agents/skills/make-decision/scripts/search.py --stdin --matrix -f markdown -c "<criterion>:<weight>,..." --scores "<option>:<s1>,<s2>,...;<option>:..." <<'TASK'
+$ARGUMENTS
+TASK
+```
 
-```
----
-🎯 **Next Steps:**
-| Command | Description |
-|---------|-------------|
-| `/solve.exec` | Executive analysis of related problems |
-| Add "save step-by-step" | Create full markdown workspace |
-| `/decide` | Re-analyze at standard depth for a different perspective |
-```
+5. Present the output in the user's language (the plan is in English; keep option names as the
+   user wrote them). The plan already ends with a **Next Steps** table: show that table once, at the end
+   of your answer, and do not add another one.

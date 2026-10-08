@@ -82,16 +82,26 @@ _SUFFIXES = ("ations", "ation", "ings", "ing", "ies", "ied", "ed", "es", "ly", "
 
 
 def stem(word: str) -> str:
-    """Light suffix stemmer so 'declining', 'declined' and 'decline' match."""
+    """Light suffix stemmer so inflected forms meet.
+
+    'hire', 'hiring', 'hired' -> 'hir'; 'uncertain', 'uncertainty' -> 'uncertain';
+    'decline', 'declining', 'declined' -> 'declin'; 'secure', 'security' -> 'secur'.
+    """
     for suffix in _SUFFIXES:
         if word.endswith(suffix) and len(word) - len(suffix) >= 3:
             word = word[: -len(suffix)]
             if suffix in ("ies", "ied"):
                 word += "y"
             break
-    if len(word) > 4 and word.endswith("e"):
+    # Nouns in -ity / -ty meet their adjective (security/secure, uncertainty/uncertain)
+    if word.endswith("ity") and len(word) >= 6:
+        word = word[:-3]
+    elif word.endswith("ty") and len(word) >= 6:
+        word = word[:-2]
+    # Drop a trailing e whether or not a suffix came off: hire/hiring, agree/agreed
+    while len(word) > 3 and word.endswith("e"):
         word = word[:-1]
-    # dropp -> drop, scal(l) stays readable enough for matching
+    # dropp -> drop, plann -> plan (l and s stay: scal(l), clas(s))
     if len(word) > 3 and word[-1] == word[-2] and word[-1] not in "aeiouls":
         word = word[:-1]
     return word

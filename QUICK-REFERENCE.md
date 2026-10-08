@@ -45,8 +45,9 @@ python scripts/search.py "[topic]" --domain criteria
 # 3. Get analysis techniques
 python scripts/search.py "comparison scoring sensitivity" --domain analysis
 
-# 4. Create matrix
-python scripts/search.py --matrix "A vs B vs C" -c "c1,c2,c3,c4,c5"
+# 4. Create matrix, then score it: weighted totals, winner, and the weight change that flips it
+python scripts/search.py --matrix "A vs B vs C" -c "c1:3,c2:2,c3:1"
+python scripts/search.py --matrix "A vs B vs C" -c "c1:3,c2:2,c3:1" --scores "A:4,3,5;B:5,4,3;C:3,3,4"
 
 # 5. Check biases
 python scripts/search.py "anchoring status quo first impression" --domain biases
@@ -54,8 +55,9 @@ python scripts/search.py "anchoring status quo first impression" --domain biases
 # 6. Group facilitation (if team)
 python scripts/search.py "anonymous voting structured" --domain facilitation
 
-# 7. Document
-python scripts/search.py --journal "Chose [WINNER] because..." -p "Project"
+# 7. Document (confidence and a review date), and list the decisions due for review later
+python scripts/search.py --journal "Chose [WINNER] because..." -p "Project" --confidence 70 --review-in 30d
+python scripts/search.py --journal --review --due
 ```
 **Framework:** Weighted Criteria Matrix + Sensitivity Analysis  
 **Key:** Define criteria BEFORE evaluating options
@@ -234,6 +236,8 @@ python scripts/search.py "keywords" --domain facilitation
 /decide Should we [option A] or [option B]?
 /decide.deep Choosing between [A], [B], and [C] for [purpose].
 /decide.exec Strategic analysis of [major decision] for board discussion
+/decide.resume [which saved decision, or nothing for the latest]
+/decide Nên chọn [A] hay [B]?   (Vietnamese works too)
 
 ## For Coding
 

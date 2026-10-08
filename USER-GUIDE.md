@@ -105,17 +105,25 @@ python scripts/search.py "relevant keywords" --domain criteria   # Evaluation te
 python scripts/search.py "relevant keywords" --domain analysis   # 10 analysis techniques
 python scripts/search.py "relevant keywords" --domain facilitation # Group decision tips
 
-# Step 3: Create comparison matrix for options
+# Step 3: Create comparison matrix for options; add --scores for totals, winner and sensitivity
 python scripts/search.py --matrix "Option A vs Option B vs Option C" \
-  -c "criterion1,criterion2,criterion3"
+  -c "criterion1:3,criterion2:2,criterion3:1" --scores "Option A:4,3,5;Option B:5,4,3;Option C:3,3,4"
 
-# Step 4: Document the decision
-python scripts/search.py --journal "Decision title" -p "Project Name"
+# Step 4: Document the decision (with your confidence and when to review it)
+python scripts/search.py --journal "Decision title" -p "Project Name" --confidence 70 --review-in 30d
 
-# Step 5: Update with actual outcome (later)
+# Step 5: Update with actual outcome (later); --review --due lists decisions due for review
+python scripts/search.py --journal --review --due
 python scripts/search.py --journal --update "decision-slug" \
   --outcome "What actually happened and what you learned"
 ```
+
+The plan names the options it found in your question, suggests five weighted criteria, and
+warns about the biases that fit the decision type. `--depth quick|standard|deep|executive` changes
+what it contains (executive is a recommendation-first brief). Questions in Vietnamese work too
+("Nên chọn React hay Vue?"). Say "save step-by-step" to get a `decision-plans/<name>/` workspace
+with one file per step and a **Done?** column in `00-OVERVIEW.md`; in a later session,
+`/decide.resume` (or `search.py --status`) shows which steps are done and continues at the next one.
 
 ### Skill 2: problem-solving-pro
 

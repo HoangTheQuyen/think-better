@@ -59,6 +59,7 @@ test:
 test-py:
 	python3 scripts/smoke_test_skills.py
 	python3 scripts/test_skill_engines.py
+	python3 scripts/test_docs.py
 
 ## check: What CI runs (vet, Go tests, lint if golangci-lint is installed, Python tests) - use before opening a PR
 check:
