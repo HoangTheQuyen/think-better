@@ -34,36 +34,41 @@
 
 ### Step 1: Generate decision plan
 
+Commands run from the project root. `$DECIDE` is the skill's script, for a Claude Code install
+`DECIDE=.claude/skills/make-decision/scripts/search.py` (other tools: see the
+[User Guide](../USER-GUIDE.md#running-the-scripts-yourself)). In a chat, `/decide <question>`
+runs the same plan for you.
+
 ```bash
-python scripts/search.py "hiring senior software engineer from 3 finalists with payments domain" \
+python3 $DECIDE "hiring senior software engineer from 3 finalists with payments domain" \
   --plan -p "Backend Engineer Hire Q1"
 ```
 
-**Output:**
+**Output (shortened):**
 ```
-Decision Type: Multi-Option Selection (Hiring Decision)
-Recommended Framework: Weighted Criteria Matrix
+Decision type: Multi-Option Selection
+Recommended framework: Weighted Criteria Matrix
+Evaluation criteria (Hiring Decision): Skills match, Growth potential, Values and team add,
+  Team complement, Compensation fit
 ```
 
-**Bias Warnings (CRITICAL for hiring):**
-- ⚠️ **Affinity Bias** [High] — We favor candidates similar to us
-- ⚠️ **Halo Effect** [High] — One strong trait (e.g., "ex-FAANG") colors everything
-- ⚠️ **Confirmation Bias** [High] — First impression drives what we notice in interview
+**Bias warnings** (from the plan, with how they applied here):
+- ⚠️ **Anchoring Effect** [High]: the first candidate, first impression or first salary sets the bar
+- ⚠️ **Confirmation Bias** [High]: the first impression drives what we notice in the interview
+- ⚠️ **Availability Heuristic** [Medium]: one vivid interview story outweighs the rest of the evidence
 
 ### Step 2: Get hiring criteria template
 
 ```bash
-python scripts/search.py "hiring" --domain criteria
+python3 $DECIDE "hiring" --domain criteria
 ```
 
-**Criteria (customized):**
-- Technical skills (Golang, distributed systems, payments)
+**Criteria (customized from the template, five at most):**
+- Technical skills (Golang, distributed systems)
 - Domain expertise (payments, fraud, compliance)
-- Culture fit (startup pace, ownership mentality)
-- Growth potential (can grow to staff/principal)
+- Values and team add (startup pace, ownership; references checked here)
 - Team complement (fills skill gaps)
-- References (credible, enthusiastic)
-- Compensation alignment (within budget + equity expectations)
+- Compensation fit (within budget and equity expectations)
 
 ### Step 3: Define criteria BEFORE seeing resumes
 
@@ -71,13 +76,11 @@ python scripts/search.py "hiring" --domain criteria
 
 | Criterion | Weight | Rationale |
 |-----------|--------|-----------|
-| Technical Skills | 20 | Must be strong, but all three are qualified |
-| Domain Expertise | 25 | **Highest** — payments knowledge is rare |
-| Culture Fit | 15 | Important for retention |
-| Growth Potential | 10 | Nice but not critical (senior, not staff) |
-| Team Complement | 20 | We have algorithms experts, need domain depth |
-| References | 5 | Hygiene factor |
-| Compensation | 5 | All within range |
+| Technical skills | 20 | Must be strong, but all three are qualified |
+| Domain expertise | 30 | **Highest**: payments knowledge is rare |
+| Values and team add | 20 | Important for retention |
+| Team complement | 20 | We have algorithms experts, need domain depth |
+| Compensation fit | 10 | All close to the range |
 
 ### Step 4: Structured interview process
 
@@ -91,22 +94,24 @@ Each candidate got identical treatment:
 ### Step 5: Comparison matrix
 
 ```bash
-python scripts/search.py --matrix "Candidate A vs Candidate B vs Candidate C" \
-  -c "technical,domain,culture,growth,complement,references,compensation"
+python3 $DECIDE --matrix "Candidate A vs Candidate B vs Candidate C" \
+  -c "Technical skills:20,Domain expertise:30,Values and team add:20,Team complement:20,Compensation fit:10" \
+  --scores "Candidate A:5,2,3,2,3;Candidate B:4,5,5,5,5;Candidate C:5,3,4,3,1"
 ```
 
 **Scoring:**
 
 | Criterion | Weight | Candidate A | Candidate B | Candidate C |
 |-----------|--------|-------------|-------------|-------------|
-| **Technical Skills** | 20 | 5 (excellent) | 4 (strong) | 5 (excellent) |
-| **Domain Expertise** | 25 | 2 (weak) | **5** (expert) | 3 (basic) |
-| **Culture Fit** | 15 | 3 (corporate) | **5** (startup fit) | 4 (good) |
-| **Growth Potential** | 10 | 5 (high) | 4 (solid) | 5 (high) |
-| **Team Complement** | 20 | 2 (overlap) | **5** (fills gap) | 3 (some overlap) |
-| **References** | 5 | 4 | 5 | 5 |
-| **Compensation** | 5 | 3 ($180K) | **5** ($160K) | 1 ($200K) |
-| **TOTAL** | 100 | **3.3** | **4.7** ⭐ | **3.8** |
+| **Technical skills** | 20 | 5 (excellent) | 4 (strong) | 5 (excellent) |
+| **Domain expertise** | 30 | 2 (weak) | **5** (expert) | 3 (basic) |
+| **Values and team add** | 20 | 3 (corporate) | **5** (startup fit) | 4 (good) |
+| **Team complement** | 20 | 2 (overlap) | **5** (fills gap) | 3 (some overlap) |
+| **Compensation fit** | 10 | 3 ($180K) | **5** ($160K) | 1 ($200K) |
+| **Weighted (script)** | 100 | **2.90** | **4.80** ⭐ | **3.40** |
+
+The script names Candidate B the winner; only Technical skills at two thirds of the total weight
+would make Candidate C tie with it.
 
 ### Step 6: Group facilitation - Anonymous Input
 
@@ -120,8 +125,8 @@ Used **Nominal Group Technique:**
 **Post-discussion:** Candidate B (7 votes), Candidate A (1 vote)
 
 **What changed:**
-- **Team realized Candidate A = "mini-me"** — Same Google background as 3 team members (affinity bias)
-- **Halo effect exposed** — "Ex-FAANG" impressed people, but actual domain knowledge was weak
+- **Team realized Candidate A = "mini-me"**: the same Google background as 3 team members, who looked for evidence that confirmed their first impression (Confirmation Bias)
+- **The brand set the bar**: "Ex-FAANG" impressed people first (Anchoring Effect), but actual domain knowledge was weak
 - **Team complement became obvious** — We already have 4 Googlers; need payment expertise
 
 ---
@@ -149,12 +154,11 @@ Used **Nominal Group Technique:**
 ### Key Insight
 **Biases are strongest in hiring.** We documented multiple bias interventions:
 
-| Bias Detected | How It Manifested | Remedy Applied |
-|---------------|-------------------|----------------|
-| **Halo Effect** | "Ex-Google" impressed everyone | Blind resume review first, company names revealed later |
-| **Affinity Bias** | Googlers favored Candidate A | Anonymous voting before group discussion |
-| **Confirmation Bias** | First impressions stuck | Each interviewer used structured rubric |
-| **Anchoring** | First salary mentioned ($200K) made others seem cheap | Got all comp expectations up front, evaluated separately |
+| Bias | How It Manifested | Remedy Applied |
+|------|-------------------|----------------|
+| **Anchoring Effect** | "Ex-Google" impressed everyone; the first salary mentioned ($200K) made others seem cheap | Blind resume review first, company names revealed later; all comp expectations collected up front |
+| **Confirmation Bias** | Googlers favored Candidate A; first impressions stuck | Structured rubric per interviewer; anonymous voting before group discussion |
+| **Availability Heuristic** | One great whiteboard session dominated the debrief | Scores per criterion, written before the debrief |
 
 ### Pattern Recognition
 This is **Build vs. Buy talent:**
@@ -176,28 +180,29 @@ This is **Build vs. Buy talent:**
 
 ### Sensitivity Analysis
 
-**Question:** What if compensation weight was higher (15 instead of 5)?
+**Question:** What if compensation weight was higher (25 instead of 10)? Re-running the matrix:
 
 | Candidate | Original | High Comp Weight | Change |
 |-----------|----------|------------------|--------|
-| A | 3.3 | 3.1 | ⬇️ |
-| B | 4.7 | **4.6** | ⬇️ (still wins) |
-| C | 3.8 | 3.2 | ⬇️⬇️ (big drop) |
+| A | 2.90 | 2.91 | ➖ |
+| B | 4.80 | **4.83** | ⬆️ (still wins) |
+| C | 3.40 | 3.09 | ⬇️ (big drop) |
 
-**Insight:** Decision is robust. Candidate B wins across reasonable weight variations.
+**Insight:** Decision is robust. The script's sensitivity check agrees: only Technical skills at
+about two thirds of the total weight would bring Candidate C level with B.
 
 ### Retrospective Decision Documentation
 
 Created journal entry with explicit biases addressed:
 
 ```bash
-python scripts/search.py --journal "Senior backend engineer hire: Candidate B (payments expert)" \
+python3 $DECIDE --journal "Senior backend engineer hire: Candidate B (payments expert)" \
   -p "Q1 Hiring"
 ```
 
 **3-Month Update:**
 ```bash
-python scripts/search.py --journal --update "senior-backend-hire" \
+python3 $DECIDE --journal --update "senior-backend-hire" \
   --outcome "Candidate B exceeded expectations. Led payment idempotency redesign, mentored 2 juniors, prevented $200K fraud loss in month 2. Promotion to Staff Engineer recommended."
 ```
 

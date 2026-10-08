@@ -38,42 +38,53 @@
 
 ## 🔬 Process
 
+Commands run from the project root. `$DECIDE` is the skill's script, for a Claude Code install
+`DECIDE=.claude/skills/make-decision/scripts/search.py` (other tools: see the
+[User Guide](../USER-GUIDE.md#running-the-scripts-yourself)).
+
 ### Step 1: Generate decision plan
 
 ```bash
-python scripts/search.py "allocate 10 engineers across 5 competing projects with constraints" \
+python3 $DECIDE "allocate 10 engineers across 5 competing projects with constraints" \
   --plan -p "Q2 Resource Allocation"
 ```
 
-**Output:**
+**Output (shortened):**
 ```
-Decision Type: Resource Allocation (Strategic, Time-Pressured)
-Recommended Framework: Iterative Allocation
+Decision type: Resource Allocation (matched: allocate)
+Recommended framework: Expected Value Calculation
+  (alternatives: Sensitivity Analysis Decision, Weighted Criteria Matrix)
+Evaluation criteria (Investment / Resource Allocation): Expected return 25, Risk level 20,
+  Strategic alignment 20, Time to value 20, Opportunity cost 15
+Watch for: Budget splits look identical to last year. Every team gets the same percentage.
 ```
 
-**Key Recommendations:**
-- ⚠️ **Avoid "peanut butter" allocation** — Spreading evenly guarantees all projects fail
-- ✅ **Use hypothesis-driven approach** — Allocate → measure → re-allocate
-- ⚠️ **Watch for Planning Fallacy** — Projects take longer than estimated
+**Bias warnings** (from the plan, with how they applied here):
+- ⚠️ **Sunk Cost Fallacy** [High]: the Mobile Redesign already had 2 months of design work
+- ⚠️ **Status Quo Bias** [Medium]: last quarter's team split looked like the safe default
+- ⚠️ **Overconfidence** [High]: every estimate assumed nothing would go wrong (planning fallacy)
 
-### Step 2: Get resource allocation framework
+### Step 2: Expected value, then allocate in rounds
 
 ```bash
-python scripts/search.py "resource allocation iterative" --domain frameworks -n 2
+python3 $DECIDE "expected value iterative hypothesis testing" --domain frameworks -n 2
 ```
 
-**Framework: Iterative Allocation**
-1. Allocate subset of resources (50-70%)
-2. Run for 2-4 weeks, measure actual velocity/blockers
-3. Re-allocate based on evidence
-4. Repeat until resources fully assigned
+The search returns **Expected Value Calculation** (probability × value of each outcome, summed
+per option) and **Iterative Hypothesis Testing** (start with a best guess, run the cheapest test,
+update on evidence). We combined them:
+
+1. Rough expected value per project: what it is worth, and how likely it is to land this quarter
+2. Allocate a subset of the engineers (50-70%) to the highest-value projects
+3. Run for 2-4 weeks, measure actual velocity and blockers
+4. Re-allocate the rest based on evidence; repeat until everyone is assigned
 
 **Why:** Reduces planning risk, allows learning before full commitment
 
 ### Step 3: Identify opportunity costs
 
 ```bash
-python scripts/search.py "opportunity cost" --domain analysis
+python3 $DECIDE "opportunity cost" --domain analysis
 ```
 
 **Question for each project:** "What do we lose if we DON'T do this in Q2?"
@@ -91,7 +102,7 @@ python scripts/search.py "opportunity cost" --domain analysis
 Used **Dot Voting** technique:
 
 ```bash
-python scripts/search.py "dot voting priority" --domain facilitation
+python3 $DECIDE "dot voting priority" --domain facilitation
 ```
 
 **Process:**
@@ -215,13 +226,13 @@ This is **Capital Allocation** pattern applied to engineering:
 ### Decision Documentation
 
 ```bash
-python scripts/search.py --journal "Q2 resource allocation: iterative approach across 5 projects" \
+python3 $DECIDE --journal "Q2 resource allocation: iterative approach across 5 projects" \
   -p "Q2 Planning"
 ```
 
 **8-Week Retrospective:**
 ```bash
-python scripts/search.py --journal --update "q2-resource-allocation" \
+python3 $DECIDE --journal --update "q2-resource-allocation" \
   --outcome "Delivered 4/5 projects (API, Security, Data, Mobile partial). ML deferred to H2. Iterative approach prevented over-commitment and enabled data-driven re-allocation."
 ```
 
