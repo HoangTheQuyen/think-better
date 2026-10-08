@@ -184,7 +184,7 @@ class ProblemSolvingAdvisor:
         """Build the plan dict.
 
         Args:
-            query: Problem description (any length; English or Vietnamese)
+            query: Problem description (any length)
             project_name: Optional project name (default: the start of the query)
             depth: quick, standard, deep, or executive
             problem_type: Problem type (e.g. "Diagnostic"); auto-detected if None
@@ -570,7 +570,7 @@ def format_ascii_box(plan: dict) -> str:
     label = f" [{depth.upper()}]" if depth != "standard" else ""
 
     def row(text=""):
-        # Columns, not characters: accents (even typed as combining marks) and wide characters
+        # Columns, not characters: combining marks take none, wide characters take two
         return f"| {pad_display(text, inner)} |"
 
     def wrapped(text, indent=""):
