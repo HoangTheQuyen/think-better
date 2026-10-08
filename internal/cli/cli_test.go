@@ -276,8 +276,8 @@ func TestUninstallCommand(t *testing.T) {
 
 	e.mustRun(0, RunInit, "--ai", "claude", "--skill", "code-solving")
 	e.mustRun(1, RunUninstall, "--ai", "claude", "--skill", "code-solving")
-	if !strings.Contains(e.err.String(), "--force") {
-		t.Errorf("non-interactive uninstall should require --force:\n%s", e.err.String())
+	if !strings.Contains(e.err.String(), "--yes") {
+		t.Errorf("non-interactive uninstall should require --yes:\n%s", e.err.String())
 	}
 
 	dir := e.file(".claude", "skills", "code-solving")
