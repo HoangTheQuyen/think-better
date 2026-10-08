@@ -41,7 +41,7 @@ work from any folder inside the project.
 | problem-solving-pro | `/solve.quick` · `/solve` · `/solve.deep` · `/solve.exec` · `/solve.resume` |
 | code-solving | `/code` · `/code.deep` · `/code.debug` · `/code.feature` · `/code.refactor` · `/code.perf` · `/code.review` · `/code.test` · `/code.explain` · `/code.resume` |
 
-Add "save step-by-step" (or "lưu", "lưu lại", "lưu từng bước") to save a workspace; continue it with the
+Add "save step-by-step" to save a workspace; continue it with the
 `.resume` command (no text: the latest workspace). `/code.review` with no text reviews your current changes.
 You can also just describe the problem: every supported tool loads the skills by their
 description (GitHub Copilot in agent mode).
@@ -160,8 +160,6 @@ Bugs in code go here, not to `/solve`.
 # Continue a saved step-by-step workspace at the first open step:
 /solve.resume [which saved workspace, or nothing for the latest]
 
-# Vietnamese works too, with or without accents: /solve.quick doanh thu giảm 20% quý này
-
 # The 7 steps:
 # 1 Define  2 Disaggregate (issue/profitability tree)  3 Prioritize (80/20)
 # 4 Workplan  5 Analyze (test hypotheses)  6 Synthesize ("so what?")
@@ -270,7 +268,6 @@ python3 $CODE "keywords" --domain errors
 /decide.deep Choosing between [A], [B] and [C] for [purpose].
 /decide.exec Strategic analysis of [major decision] for the leadership meeting
 /decide.resume [which saved decision, or nothing for the latest]
-/decide Nên chọn [A] hay [B]?   (Vietnamese works too)
 
 ## For coding
 /code.debug [Error and stack trace]. Repro: [steps]. Started after [change].
