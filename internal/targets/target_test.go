@@ -86,7 +86,7 @@ func TestInstallDir(t *testing.T) {
 		expected string
 	}{
 		{"claude", "make-decision", ".claude/skills/make-decision/"},
-		{"copilot", "problem-solving-pro", ".github/prompts/problem-solving-pro/"},
+		{"copilot", "problem-solving-pro", ".github/skills/problem-solving-pro/"},
 		{"antigravity", "make-decision", ".agents/skills/make-decision/"},
 		{"opencode", "make-decision", ".opencode/skills/make-decision/"},
 		{"opencode", "problem-solving-pro", ".opencode/skills/problem-solving-pro/"},
@@ -171,17 +171,15 @@ func TestAdaptWorkflowCopilotPrompt(t *testing.T) {
 	}
 
 	src := "---\ndescription: Fix a bug.\n---\n// turbo\n```\npython3 .agents/skills/code-solving/scripts/search.py --stdin --plan <<'THINK_BETTER_EOF_7f3a'\n$ARGUMENTS\nTHINK_BETTER_EOF_7f3a\n```\n"
-	want := "---\nagent: agent\nargument-hint: Describe the task\ndescription: Fix a bug.\n---\n```\npython3 .github/prompts/code-solving/scripts/search.py --stdin --plan <<'THINK_BETTER_EOF_7f3a'\n${input:task}\nTHINK_BETTER_EOF_7f3a\n```\n"
+	want := "---\nagent: agent\nargument-hint: Describe the task\ndescription: Fix a bug.\n---\n```\npython3 .github/skills/code-solving/scripts/search.py --stdin --plan <<'THINK_BETTER_EOF_7f3a'\n${input:task}\nTHINK_BETTER_EOF_7f3a\n```\n"
 	if got := copilot.AdaptWorkflow(src); got != want {
 		t.Errorf("copilot AdaptWorkflow =\n%s\nwant:\n%s", got, want)
 	}
 }
 
 func TestGlobalScope(t *testing.T) {
-	if _, err := FindTarget("copilot").Global(); err == nil {
-		t.Error("copilot Global() should be unsupported")
-	}
 	cases := map[string]string{
+		"copilot":     "~/.copilot/skills/",
 		"claude":      "~/.claude/skills/",
 		"opencode":    "~/.config/opencode/skills/",
 		"antigravity": "~/.gemini/config/skills/",
@@ -205,5 +203,46 @@ func TestGlobalScope(t *testing.T) {
 	g, _ := FindTarget("antigravity").Global()
 	if got := g.AdaptWorkflow("// turbo\n.agents/skills/x/"); got != "// turbo\n~/.gemini/config/skills/x/" {
 		t.Errorf("antigravity global AdaptWorkflow = %q", got)
+	}
+}
+
+func TestCopilotSkillsLayout(t *testing.T) {
+	copilot := FindTarget("copilot")
+	if copilot.InstallDir("x") != ".github/skills/x/" || copilot.WorkflowDir() != ".github/prompts/" {
+		t.Errorf("copilot layout: skills %q, prompts %q", copilot.InstallDir("x"), copilot.WorkflowDir())
+	}
+	g, err := copilot.Global()
+	if err != nil {
+		t.Fatalf("copilot Global(): %v", err)
+	}
+	if g.InstallDir("x") != ".copilot/skills/x/" || g.HasWorkflows() {
+		t.Errorf("copilot global: skills %q, workflows %v (user prompt files are not supported)", g.InstallDir("x"), g.HasWorkflows())
+	}
+}
+
+func TestLegacy(t *testing.T) {
+	copilot := FindTarget("copilot")
+	legacy := copilot.Legacy()
+	if len(legacy) != 1 {
+		t.Fatalf("copilot Legacy() = %d variants, want 1", len(legacy))
+	}
+	l := legacy[0]
+	if !l.IsLegacy() || copilot.IsLegacy() || l.Name != "copilot" {
+		t.Errorf("IsLegacy wrong: legacy %v, project %v", l.IsLegacy(), copilot.IsLegacy())
+	}
+	if l.InstallDir("x") != ".github/prompts/x/" || l.WorkflowDir() != ".github/prompts/" {
+		t.Errorf("legacy dirs: %q, %q", l.InstallDir("x"), l.WorkflowDir())
+	}
+	if got := l.RewriteSkillPaths(".agents/skills/x/a.py"); got != ".github/prompts/x/a.py" {
+		t.Errorf("legacy RewriteSkillPaths = %q", got)
+	}
+	if len(l.Legacy()) != 0 {
+		t.Error("a legacy variant has no legacy variants of its own")
+	}
+	if g, _ := copilot.Global(); len(g.Legacy()) != 0 {
+		t.Error("global installs have no legacy locations")
+	}
+	if len(FindTarget("claude").Legacy()) != 0 {
+		t.Error("claude has no legacy locations")
 	}
 }

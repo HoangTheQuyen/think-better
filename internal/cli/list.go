@@ -40,6 +40,9 @@ type locationJSON struct {
 	Outdated bool     `json:"outdated"`
 	Modified []string `json:"modified"`
 	Missing  []string `json:"missing"`
+	// Legacy marks an install at a location used by an earlier release,
+	// which 'think-better update' moves.
+	Legacy bool `json:"legacy,omitempty"`
 }
 
 func toLocationJSON(loc skillLocation) locationJSON {
@@ -65,11 +68,13 @@ func toLocationJSON(loc skillLocation) locationJSON {
 		Outdated: st.Outdated,
 		Modified: display(st.Modified),
 		Missing:  display(st.Missing),
+		Legacy:   loc.Target.IsLegacy(),
 	}
 }
 
 const listUsage = `
-Show available decision-making frameworks and problem-solving skills.
+Show the available skills: decision-making frameworks, problem-solving
+methods and coding workflows (code-solving).
 
 Lists all bundled AI assistant skills with file counts, descriptions and
 where they are installed, in every AI tool, in this project and in your user
@@ -108,7 +113,7 @@ func RunList(args []string) int {
 			InstalledIn: []string{},
 			Locations:   []locationJSON{},
 		}
-		for _, loc := range findSkillLocations(skill, cwd, home) {
+		for _, loc := range append(findSkillLocations(skill, cwd, home), findLegacyLocations(skill, cwd)...) {
 			label := loc.Label
 			if loc.Status.Status != installer.StatusInstalled {
 				label += " [" + statusLabel(loc.Status) + "]"

@@ -97,6 +97,7 @@ func CheckStatus(skill *skills.SkillPackage, target *targets.AITarget, baseDir, 
 			return nil, err
 		}
 		wm := loadWorkflowManifest(filepath.Join(baseDir, filepath.FromSlash(wfDir), WorkflowManifestName))
+		wdesired = withoutExcluded(wdesired, wm, nil)
 		compare(st, baseDir, wfDir, wdesired, workflowEntries(wm, skill.Name), true)
 	}
 

@@ -33,6 +33,9 @@ type Options struct {
 	Force bool
 	// DryRun computes the changes without touching the disk.
 	DryRun bool
+	// ExcludeWorkflows, when not nil, replaces the workflow manifest's list
+	// of excluded workflow files (see exclude.go).
+	ExcludeWorkflows []string
 }
 
 // Action says what happens (or would happen, in a dry run) to one file.
@@ -380,6 +383,7 @@ func (inst *Installer) Install(skill *skills.SkillPackage, target *targets.AITar
 		if wm, err = readWorkflowManifest(base, res.WorkflowDir); err != nil {
 			return nil, fmt.Errorf("workflows for %q: %w", skill.Name, err)
 		}
+		wdesired = withoutExcluded(wdesired, wm, opts.ExcludeWorkflows)
 		if wops, err = planSync(base, res.WorkflowDir, wdesired, workflowEntries(wm, skill.Name), opts.Force); err != nil {
 			return nil, fmt.Errorf("workflows for %q: %w", skill.Name, err)
 		}

@@ -126,7 +126,7 @@ func printMergeHint(results []*installer.Result, dryRun bool) {
 		return
 	}
 	if kept > 0 {
-		_, _ = fmt.Fprintf(stdout, "\nNote: %s you modified %s kept. Compare each with its .new file and merge,\n"+
+		_, _ = fmt.Fprintf(stdout, "\nNote: %s you modified %s kept. See what changed with 'think-better diff' and merge,\n"+
 			"or rerun with --force to take the new versions (yours are saved as .bak).\n", plural(kept, "file", "files"), pick(kept == 1, "was", "were"))
 	}
 	if replaced > 0 {
