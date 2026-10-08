@@ -4,7 +4,7 @@ Make code changes the way a careful senior engineer does: define done before cod
 
 # code-solving
 
-A 7-step method (Define → Decompose → Prioritize → Plan → Execute → Verify → Communicate) applied to 8 task types: debug, feature, refactor, performance, flaky-test, incident, migration and review. Every step has a **gate**: a concrete piece of evidence that must exist before moving on. The knowledge base has 91 records: debugging techniques, change techniques (feature flags, expand-contract, strangler fig…), testing strategies, design principles, engineering biases, a review checklist and hand-off templates. The script also detects the project's own test, lint and build commands.
+A 7-step method (Define → Decompose → Prioritize → Plan → Execute → Verify → Communicate) applied to 12 task types: debug, feature, refactor, performance, flaky-test, incident, migration, review, test, explain, security and quick-fix. Every step has a **gate**: a concrete piece of evidence that must exist before moving on. The knowledge base has 149 records: debugging techniques, change techniques (feature flags, expand-contract, strangler fig…), testing strategies, design principles, engineering biases, a review checklist, hand-off templates and 44 common error messages across languages with their likely causes. The script also detects the project's own test, lint and build commands.
 
 ## Prerequisites
 
@@ -58,6 +58,10 @@ Pick the type yourself; you understand the request better than keyword matching.
 | `incident` | Production is broken and users are affected now |
 | `migration` | Upgrading a dependency or moving code/data to another system or version |
 | `review` | Assessing a change for defects and risks |
+| `test` | Writing tests for existing code or raising coverage |
+| `explain` | Understanding how existing code works, without changing it |
+| `security` | Fixing a vulnerability, an injection, a leaked secret or a vulnerable dependency |
+| `quick-fix` | A few-line change with an obvious result (typo, text, config value); the plan keeps only Define, Execute, Verify and Communicate |
 
 ### Step 2: Generate the Plan (REQUIRED)
 
@@ -80,6 +84,8 @@ The plan opens with **Context from the project**: facts the script found in the 
 Reviews include the diff automatically: uncommitted changes if there are any, else the branch against the default branch, else the last commit. Name a base with `--diff <base>` (a branch, tag or commit). Skip all lookups with `--no-context`. To see only the context: `python3 .agents/skills/code-solving/scripts/search.py --stdin --context` with the text on stdin.
 
 Treat the context as leads to verify, not conclusions: read the code at each location before relying on it.
+
+When the request contains a known error message (for example `Cannot read properties of undefined`, `nil pointer dereference`, `ModuleNotFoundError`), the plan adds a **Known error** section with its meaning, likely causes, what to check first and the root-cause fix. The likely causes pre-fill the hypothesis log of a saved workspace.
 
 Depth: `--depth quick` (Define, Execute, Verify only), `standard` (default), `deep` (pitfalls per step, extra techniques, full review checklist), `executive` (deep plus a stakeholder summary).
 
@@ -115,13 +121,14 @@ python3 .agents/skills/code-solving/scripts/search.py "<keywords>" --domain <dom
 
 | Domain | Contents |
 |--------|----------|
-| `debugging` | Read the error, minimal repro, recent changes, git bisect, divide and conquer, hypothesis log, tracing, differential diagnosis, stress and repeat, profiling… |
-| `changes` | Thin vertical slice, spike, feature flag, preparatory refactoring, Mikado, seams, expand-contract, strangler fig, branch by abstraction, codemods |
-| `testing` | Regression test first, TDD, acceptance tests, characterization, property-based, contract, snapshot, benchmark, hermetic tests, test pyramid |
-| `principles` | KISS, YAGNI, DRY (rule of three), SRP, separation of concerns, dependency direction, fail fast… |
-| `biases` | Anchoring, confirmation bias, streetlight effect, works on my machine, premature optimization, rewrite fallacy… |
+| `debugging` | Read the error, minimal repro, recent changes, git bisect, divide and conquer, hypothesis log, tracing, differential diagnosis, stress and repeat, profiling, read the tests… |
+| `changes` | Thin vertical slice, spike, feature flag, preparatory refactoring, Mikado, seams, expand-contract, strangler fig, branch by abstraction, codemods, dependency upgrade for a vulnerability |
+| `testing` | Regression test first, TDD, acceptance tests, characterization, property-based, contract, snapshot, benchmark, hermetic tests, test pyramid, mutation testing, coverage gap analysis |
+| `principles` | KISS, YAGNI, DRY (rule of three), SRP, separation of concerns, dependency direction, fail fast, validate at the boundary, least privilege… |
+| `biases` | Anchoring, confirmation bias, streetlight effect, works on my machine, premature optimization, rewrite fallacy, coverage theater, illusion of understanding… |
 | `review` | Correctness, edge cases, error handling, security, concurrency, performance, data safety, API compatibility, tests, readability, observability |
-| `artifacts` | PR description, commit message, ADR, postmortem, design doc, bug report, review report, status update |
+| `artifacts` | PR description, commit message, ADR, postmortem, design doc, bug report, review report, status update, code explanation, security fix note |
+| `errors` | 44 common error messages (JS/TS, Python, Go, Java, C#, Rust, SQL, infrastructure): meaning, likely causes, first checks, fix |
 | `steps`, `task-types` | The method itself |
 
 ### Step 5: Save a Workspace (optional)

@@ -16,7 +16,7 @@ from pathlib import Path
 
 from context import gather as gather_context
 from core import (
-    classify_task, detect_project_commands, find_named, load_csv, save_docs, search,
+    classify_task, detect_project_commands, find_named, load_csv, match_errors, save_docs, search,
     slugify, default_output_dir, task_type_names,
 )
 
@@ -36,11 +36,17 @@ DEPTH_CONFIG = {
 # Task types whose Execute step is a search for a cause, logged as hypotheses
 HYPOTHESIS_TYPES = {"debug", "flaky-test", "incident", "performance"}
 
+# Small tasks fold Decompose, Prioritize and Plan into Execute (quick and standard depth)
+LIGHT_STEPS = {"quick-fix": ["Define", "Execute", "Verify", "Communicate"]}
+
 HANDOFF_FILES = {
     "Pull Request Description": "06-PR.md",
     "Blameless Postmortem": "06-POSTMORTEM.md",
     "Design Doc (RFC)": "06-DESIGN-DOC.md",
     "Code Review Report": "06-REVIEW.md",
+    "Code Explanation": "06-EXPLANATION.md",
+    "Security Fix Note": "06-SECURITY-NOTE.md",
+    "Commit Message": "06-COMMIT.md",
 }
 
 
@@ -74,9 +80,12 @@ class CodeSolvingAdvisor:
         cfg = DEPTH_CONFIG[depth]
         task, source = classify_task(query, task_type)
 
+        wanted = cfg["steps"]
+        if task["Type"] in LIGHT_STEPS and depth in ("quick", "standard"):
+            wanted = LIGHT_STEPS[task["Type"]]
         steps = []
         for row in load_csv("steps"):
-            if cfg["steps"] and row["Name"] not in cfg["steps"]:
+            if wanted and row["Name"] not in wanted:
                 continue
             # A task type may state its own gate inline ("... Gate: ...")
             guidance, _, own_gate = task.get(row["Name"], "").partition("Gate:")
@@ -160,6 +169,11 @@ class CodeSolvingAdvisor:
             "escalate": task["Escalate"],
             "commands": [{"purpose": p, "command": c, "source": s} for p, c, s in commands],
             "context": ctx,
+            "errors": [
+                {"error": e["Error"], "language": e["Language"], "meaning": e["Meaning"],
+                 "causes": e["Likely Causes"], "checks": e["First Checks"], "fix": e["Fix"]}
+                for e in match_errors(query)
+            ],
         }
 
 
@@ -235,11 +249,23 @@ def _sections(plan: dict) -> list:
                     f"({', '.join(task_type_names())}).")
     head.append("Work the steps in order. Do not move on until the step's **Gate** is met "
                 "with evidence you actually produced (command output, test result).")
+    if task["type"] in LIGHT_STEPS and len(plan["steps"]) == len(LIGHT_STEPS[task["type"]]):
+        head.append("Small change: Decompose, Prioritize and Plan are folded into Execute. "
+                    "If it turns out to touch logic, re-run with `--type feature` or `--type debug`.")
     out.append(("", head))
 
     lines = _context_lines(plan.get("context", {}))
     if lines:
         out.append(("Context from the project", lines))
+
+    for e in plan.get("errors", []):
+        out.append((f"Known error: {e['error']} ({e['language']})", [
+            e["meaning"],
+            f"- **Likely causes:** {e['causes']}",
+            f"- **Check first:** {e['checks']}",
+            f"- **Fix at the root:** {e['fix']}",
+            "Treat the causes as hypotheses to test in Step 5, not as the answer.",
+        ]))
 
     for step in plan["steps"]:
         lines = [f"*{step['goal']}*", step["guidance"]]
@@ -436,8 +462,10 @@ def persist_step_by_step(plan: dict, output_dir: str = None, force: bool = False
 | 1 |  |  |  | ☐ |
 """
     if task["type"] in HYPOTHESIS_TYPES:
+        causes = [c.strip().rstrip(".") for e in plan.get("errors", [])[:1] for c in e["causes"].split(";")]
+        rows = "\n".join(f"| {i} | {c} |  |  |  |" for i, c in enumerate(causes, 1)) or "| 1 |  |  |  |  |"
         log_table = ("| # | Hypothesis | Prediction / check | Result | Verdict |\n"
-                     "|---|---|---|---|---|\n| 1 |  |  |  |  |")
+                     "|---|---|---|---|---|\n" + rows)
     else:
         log_table = "| # | Step | Tests after step | Commit |\n|---|---|---|---|\n| 1 |  |  |  |"
     files["04-LOG.md"] = f"""# 5. Execute: log

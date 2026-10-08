@@ -14,8 +14,9 @@ Usage:
     python3 search.py "<task>" --plan --type review --diff [base]   # review a diff (default: auto)
     python3 search.py "<keywords>" [--domain <domain>] [-n 3] [--json]
 
-Task types: debug, feature, refactor, performance, flaky-test, incident, migration, review
-Domains:    steps, task-types, debugging, changes, testing, principles, biases, review, artifacts
+Task types: debug, feature, refactor, performance, flaky-test, incident, migration, review,
+            test, explain, security, quick-fix
+Domains:    steps, task-types, debugging, changes, testing, principles, biases, review, artifacts, errors
 """
 
 import argparse

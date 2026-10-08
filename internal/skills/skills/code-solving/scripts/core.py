@@ -5,7 +5,7 @@ Code Solving Core - BM25 search over a coding knowledge base, task-type
 classification, and detection of a project's own test/lint/build commands.
 
 Domains: steps, task-types, debugging, changes, testing, principles,
-         biases, review, artifacts
+         biases, review, artifacts, errors
 """
 
 import csv
@@ -57,6 +57,10 @@ CSV_CONFIG = {
     "artifacts": {
         "file": "artifacts.csv", "name_col": "Artifact",
         "search_cols": ["Artifact", "Keywords", "When to Use"],
+    },
+    "errors": {
+        "file": "errors.csv", "name_col": "Error",
+        "search_cols": ["Error", "Language", "Keywords", "Meaning", "Likely Causes"],
     },
 }
 
@@ -154,6 +158,17 @@ def find_named(domain: str, names) -> list:
     col = CSV_CONFIG[domain]["name_col"]
     by_name = {row[col].lower(): row for row in load_csv(domain)}
     return [by_name[n.lower()] for n in names if n and n.lower() in by_name]
+
+
+def match_errors(text: str, limit: int = 3) -> list:
+    """Known errors whose message pattern appears in text, in the order they appear."""
+    hits = []
+    for row in load_csv("errors"):
+        m = re.search(row["Pattern"], text, flags=re.I)
+        if m:
+            hits.append((m.start(), row))
+    hits.sort(key=lambda hit: hit[0])
+    return [row for _, row in hits[:limit]]
 
 
 def split_identifiers(text: str) -> str:

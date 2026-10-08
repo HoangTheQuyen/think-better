@@ -75,14 +75,16 @@ python scripts/search.py "opportunity cost" --domain analysis
 
 ---
 
-### Coding (bugs, features, refactors, performance, reviews)
+### Coding (bugs, features, refactors, performance, reviews, tests, explanations)
 ```bash
 /code.debug [error message, repro steps, what changed]
 /code.feature [what users can do when it is done]
 /code.refactor [module and the change it should make easier]
 /code.perf [metric, current value, target]
 /code.review [PR or files]
-/code [anything else: flaky tests, incidents, migrations]
+/code.test [module or behavior to protect]
+/code.explain [what you want to understand]
+/code [anything else: flaky tests, incidents, migrations, security fixes, small changes]
 
 # Every step needs evidence before the next:
 # 1 Define: failing test or repro    2 Decompose: change map
@@ -232,6 +234,8 @@ python scripts/search.py "keywords" --domain facilitation
 /code.debug [Error]. Repro: [steps]. Started after [change].
 /code.feature [Feature] so that [user outcome]. Out of scope: [x].
 /code.review [PR link or files]
+/code.test [Module]: protect [behaviors]. Known bugs: [x].
+/code.explain How does [feature] work, from [entry point] to [result]?
 
 ## For Problem-Solving
 

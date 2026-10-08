@@ -146,7 +146,8 @@ AI:  → Detects: Opportunity Gap
 | | |
 |---|---|
 | **7 Steps with Gates** | Define → Decompose → Prioritize → Plan → Execute → Verify → Communicate; each step needs real evidence (failing test, change map, passing checks) before moving on |
-| **8 Task Types** | debug, feature, refactor, performance, flaky-test, incident, migration, review |
+| **12 Task Types** | debug, feature, refactor, performance, flaky-test, incident, migration, review, test, explain, security, quick-fix (a light plan for few-line changes) |
+| **Knows Common Errors** | 44 error messages across JS/TS, Python, Go, Java, C#, Rust, SQL and infrastructure, with likely causes and what to check first |
 | **Project-Aware** | Detects your test/lint/build commands (npm/pnpm/yarn, Make, Go, Cargo, pytest with uv/Poetry, Maven/Gradle, CI steps, …) and puts them in the Verify step |
 | **Reads Your Code First** | Maps stack-trace frames to project files and lines, finds where named symbols are defined, lists recent commits on those files; reviews get the diff and the risk areas it touches |
 | **Engineering Knowledge** | Git bisect, minimal repro, expand-contract, strangler fig, characterization tests, review checklist, bias warnings… |
@@ -157,6 +158,8 @@ AI:  → Detects: Opportunity Gap
 /code.refactor split the payment module
 /code.perf orders page takes 4s to load
 /code.review
+/code.test raise coverage of the pricing rules
+/code.explain how does a request reach the checkout handler?
 ```
 
 <br>
@@ -342,7 +345,8 @@ Nói chuyện với AI bình thường — Think Better tự kích hoạt:
 
 **`/code`** — Viết code có quy trình
 - 7 bước có "cổng kiểm tra": phải có test fail, chạy test thật, đủ bằng chứng mới qua bước
-- 8 loại việc: sửa bug, thêm tính năng, refactor, tối ưu, test chập chờn, sự cố production, nâng cấp, review code
+- 12 loại việc: sửa bug, thêm tính năng, refactor, tối ưu, test chập chờn, sự cố production, nâng cấp, review code, viết test, giải thích code, vá lỗ hổng bảo mật, sửa nhỏ
+- Nhận ra 44 thông báo lỗi hay gặp (JS/TS, Python, Go, Java, C#, Rust, SQL, hạ tầng): nguyên nhân thường gặp và cần kiểm tra gì trước
 - Tự tìm lệnh test/lint/build của project
 - Đọc code trước: map stack trace ra file:dòng trong project, tìm nơi định nghĩa hàm/class, commit gần đây; review thì lấy diff và chỉ ra vùng rủi ro
 

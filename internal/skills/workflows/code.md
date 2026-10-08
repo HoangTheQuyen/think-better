@@ -14,7 +14,8 @@ cat .agents/skills/code-solving/SKILL.md
 2. Generate the plan:
    Run from the project root (use `python` if `python3` is missing).
    Pick the task type yourself when you can: add `--type <type>` (debug, feature, refactor,
-   performance, flaky-test, incident, migration, review); otherwise it is auto-detected.
+   performance, flaky-test, incident, migration, review, test, explain, security, quick-fix);
+   otherwise it is auto-detected.
    Keep the request between the two `TASK` lines exactly as given: it is read from stdin, so
    quotes, backticks and `$` in it are safe. Never move it onto the command line or into quotes
    (PowerShell: see "Passing the user's text" in SKILL.md).
