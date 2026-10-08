@@ -186,7 +186,7 @@ func recordVersion(kh *knownHashes, v, dir string) error {
 		if ok, err := runInit(bin, project, filepath.Join(dir, "home-"+t.Name), "--ai", t.Name); err != nil {
 			return err
 		} else if ok {
-			collect(kh, v, project, t)
+			collect(kh, v, project, layout(project, t))
 		}
 		g, err := t.Global()
 		if err != nil {
@@ -200,6 +200,25 @@ func recordVersion(kh *knownHashes, v, dir string) error {
 		}
 	}
 	return nil
+}
+
+// layout returns the variant of project target t that matches what a
+// release wrote in base: releases from before a target's skills moved used
+// one of its legacy locations (e.g. Copilot's .github/prompts/<skill>/).
+func layout(base string, t *targets.AITarget) *targets.AITarget {
+	isDir := func(rel string) bool {
+		fi, err := os.Stat(filepath.Join(base, filepath.FromSlash(rel)))
+		return err == nil && fi.IsDir()
+	}
+	if isDir(t.SkillsRoot()) {
+		return t
+	}
+	for _, l := range t.Legacy() {
+		if isDir(l.SkillsRoot()) {
+			return l
+		}
+	}
+	return t
 }
 
 // extract writes the tree of tag v to dst.
