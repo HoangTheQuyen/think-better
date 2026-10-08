@@ -86,16 +86,25 @@ jobs:
     checks:
         name: CI
         needs: preflight
-        # Same jobs as on every push/PR: go vet + tests on 3 OSes, golangci-lint,
-        # Python skill smoke + engine tests.
+        # The same jobs as on every push and pull request, with the macOS jobs
+        # (pull requests skip them) and without the jobs that only test the
+        # already-published release.
         uses: ./.github/workflows/ci.yml
         with:
             release: true
         permissions:
             contents: read
 
+    nix:
+        name: Nix build
+        needs: preflight
+        # The same build as nix-build.yml on every pull request, gating the release.
+        uses: ./.github/workflows/nix-build.yml
+        permissions:
+            contents: read
+
     release:
-        needs: [preflight, checks]
+        needs: [preflight, checks, nix]
         if: github.event_name == 'push' || github.ref == 'refs/heads/main'
         runs-on: ubuntu-latest
         timeout-minutes: 30
