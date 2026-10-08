@@ -18,6 +18,7 @@ import re
 import sys
 import unicodedata
 from collections import Counter
+from functools import lru_cache
 from pathlib import Path
 
 # ============ PATHS ============
@@ -25,6 +26,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 SKILL_DIR = SCRIPT_DIR.parent
 DATA_DIR = SKILL_DIR / "data"
 MAX_RESULTS = 3
+# Folder name when a project name has nothing usable in it
+SLUG_FALLBACK = "decision"
 
 # ============ CSV CONFIGURATION ============
 CSV_CONFIG = {
@@ -61,7 +64,9 @@ CSV_CONFIG = {
 }
 
 
-# ============ TEXT PROCESSING ============
+# ============ SHARED TEXT HELPERS ============
+# Identical in the three skills' core.py: scripts/test_skill_engines.py compares
+# their source. Each skill is installed on its own, so each keeps a copy.
 STOPWORDS = {
     "a", "an", "and", "are", "as", "at", "be", "been", "but", "by", "can", "do", "does",
     "for", "from", "had", "has", "have", "how", "i", "if", "in", "into", "is", "it", "its",
@@ -100,12 +105,14 @@ def stem(word: str) -> str:
 
 
 def tokenize(text) -> list:
-    """Lowercase, strip punctuation, drop stopwords, stem. Keeps 2-letter tokens (AI, DB, UI)."""
+    """Lowercase, strip punctuation, drop stopwords, stem (for BM25 search).
+
+    Two-letter tokens are kept on purpose: CI, UI, DB, QA, PR, AI, ML matter.
+    """
     text = re.sub(r"[^\w\s]", " ", str(text).lower())
     return [stem(w) for w in text.split() if len(w) > 1 and w not in STOPWORDS]
 
 
-# ============ OUTPUT PATHS ============
 def fold(text) -> str:
     """Accent-insensitive form: 'Nên chọn' -> 'Nen chon', 'đ' -> 'd'.
 
@@ -117,19 +124,100 @@ def fold(text) -> str:
     return unicodedata.normalize("NFC", text.replace("đ", "d").replace("Đ", "D"))
 
 
+def has_accents(text) -> bool:
+    """True when text carries diacritics (e.g. Vietnamese typed with its accents)."""
+    text = unicodedata.normalize("NFC", str(text))
+    return fold(text) != text
+
+
+def match_tokens(text, folded: bool = True) -> list:
+    """Lowercased, stemmed words (accents folded unless folded=False) for phrase matching.
+
+    Unlike tokenize(), stopwords and one-letter words are kept, so keyword
+    phrases match only whole: 'how many' never matches 'too many', 'y tế'
+    (health) never matches 'kinh tế' (economy).
+    """
+    text = fold(text) if folded else unicodedata.normalize("NFC", str(text))
+    words = re.sub(r"[^\w\s]", " ", text.lower()).split()
+    return [stem(w) for w in words]
+
+
+@lru_cache(maxsize=64)
+def query_grams(query: str, longest: int = 6) -> tuple:
+    """(frozenset of the query's word n-grams, folded) for phrase matching.
+
+    Text typed with accents is matched exactly, so 'chi nhánh' (branch) never
+    meets 'nhanh' (fast); text typed without accents is matched against the
+    keywords with their accents folded away. Cached: classifiers call it once
+    per CSV row.
+    """
+    folded = not has_accents(query)
+    tokens = match_tokens(query, folded)
+    grams = set()
+    for n in range(1, longest + 1):
+        grams.update(tuple(tokens[i:i + n]) for i in range(len(tokens) - n + 1))
+    return frozenset(grams), folded
+
+
+@lru_cache(maxsize=4096)
+def phrase_tokens(phrase: str, folded: bool = True) -> tuple:
+    """The match_tokens() of one keyword phrase, cached (keyword lists are matched over and over)."""
+    return tuple(match_tokens(phrase, folded))
+
+
+def display_width(text) -> int:
+    """Columns text takes in a terminal: combining marks take none, wide (CJK, emoji) characters two."""
+    width = 0
+    for ch in unicodedata.normalize("NFC", str(text)):
+        if unicodedata.combining(ch):
+            continue
+        width += 2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1
+    return width
+
+
+def pad_display(text, width: int) -> str:
+    """text (NFC) padded with spaces to `width` terminal columns."""
+    text = unicodedata.normalize("NFC", str(text))
+    return text + " " * max(0, width - display_width(text))
+
+
+def wrap_display(text, width: int, indent: str = "", subsequent: str = None) -> list:
+    """Lines of at most `width` terminal columns, wrapped at spaces; over-long words are split."""
+    subsequent = indent if subsequent is None else subsequent
+    lines, current = [], ""
+    for word in unicodedata.normalize("NFC", str(text)).split():
+        if current and display_width(current) + 1 + display_width(word) <= width:
+            current += " " + word
+            continue
+        if current:
+            lines.append(current)
+        prefix = subsequent if lines else indent
+        current = prefix + word
+        while display_width(current) > width and len(current) > len(prefix) + 1:
+            cut = len(prefix) + 1
+            while cut < len(current) and display_width(current[:cut + 1]) <= width:
+                cut += 1
+            lines.append(current[:cut])
+            prefix = subsequent
+            current = prefix + current[cut:]
+    if current:
+        lines.append(current)
+    return lines
+
+
 def slugify(text: str, max_len: int = 50) -> str:
     """Filesystem-safe slug: no separators, no '..', never empty.
 
-    Vietnamese (and other accented Latin) text becomes plain ASCII, so a file
-    name never depends on how the OS normalizes Unicode (NFC vs NFD).
+    Vietnamese (and other accented Latin) text becomes plain ASCII, so a name
+    typed with or without accents, in NFC or NFD, gives the same folder.
     """
     slug = re.sub(r"[^\w\s-]", " ", fold(text).lower())
     slug = re.sub(r"[\s_-]+", "-", slug).strip("-")[:max_len].strip("-")
-    return slug or "decision"
+    return slug or SLUG_FALLBACK
 
 
 def default_output_dir() -> Path:
-    """Where plans and journals go when --output-dir is not given.
+    """Where plans (and journals) go when --output-dir is not given.
 
     Normally the current directory (the user's project). If the script is run
     from inside the installed skill folder (e.g. after `cd .../scripts`),
@@ -165,7 +253,7 @@ def save_docs(directory: Path, docs: dict, force: bool = False) -> tuple:
 
 
 def read_stdin_query(stream=None) -> str:
-    """The task text piped on stdin (--stdin), decoded as UTF-8.
+    """The text piped on stdin (--stdin), decoded as UTF-8.
 
     Slash commands pass the user's text this way (a quoted heredoc) so that
     quotes, backticks and $ in pasted error messages never reach a shell.
@@ -175,6 +263,11 @@ def read_stdin_query(stream=None) -> str:
     if isinstance(data, bytes):
         data = data.decode("utf-8", errors="replace")
     return data.lstrip("\ufeff").strip()
+
+
+def matched_phrases(grams: frozenset, folded: bool, phrases) -> list:
+    """The phrases (strings) whose words appear next to each other in the query grams."""
+    return [p for p in phrases if phrase_tokens(p, folded) and phrase_tokens(p, folded) in grams]
 
 
 # ============ BM25 ENGINE ============
@@ -220,7 +313,8 @@ class BM25:
 
     def score(self, query: str) -> list:
         """Score all documents against a query. Returns list of (index, score)."""
-        query_tokens = self.tokenize(query)
+        # Each query term counts once: repeating a word must not outweigh the rest
+        query_tokens = [t for t in dict.fromkeys(self.tokenize(query)) if t in self.idf]
         scores = []
 
         for idx in range(self.corpus_size):
@@ -229,8 +323,6 @@ class BM25:
             tf_doc = self.doc_freqs[idx]
 
             for token in query_tokens:
-                if token not in self.idf:
-                    continue
                 tf = tf_doc.get(token, 0)
                 idf = self.idf[token]
                 numerator = tf * (self.k1 + 1)
@@ -244,8 +336,14 @@ class BM25:
 
 
 # ============ DATA LOADING ============
+@lru_cache(maxsize=None)
+def _read_rows(filepath: Path) -> tuple:
+    with open(filepath, "r", encoding="utf-8") as f:
+        return tuple(row for row in csv.DictReader(f) if any(v.strip() for v in row.values()))
+
+
 def load_csv(domain: str) -> list:
-    """Load CSV data for a domain. Returns list of row dicts."""
+    """Load CSV data for a domain. Returns list of row dicts (copies: callers may change them)."""
     config = CSV_CONFIG.get(domain)
     if not config:
         return []
@@ -253,54 +351,23 @@ def load_csv(domain: str) -> list:
     filepath = DATA_DIR / config["file"]
     if not filepath.exists():
         return []
-
-    with open(filepath, "r", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        return [row for row in reader if any(v.strip() for v in row.values())]
+    return [dict(row) for row in _read_rows(filepath)]
 
 
 # ============ KEYWORD SIGNALS ============
 STRONG_WEIGHT = 3
 
 
-def has_accents(text) -> bool:
-    """True when text carries diacritics (e.g. Vietnamese typed with its accents)."""
-    text = unicodedata.normalize("NFC", str(text))
-    return fold(text) != text
-
-
-def match_tokens(text, folded: bool = True) -> list:
-    """Lowercased, stemmed words (accents folded unless folded=False); stopwords kept so
-    phrases like 'by friday' match."""
-    text = fold(text) if folded else unicodedata.normalize("NFC", str(text))
-    words = re.sub(r"[^\w\s]", " ", text.lower()).split()
-    return [stem(w) for w in words]
-
-
-def query_grams(query: str, longest: int = 6) -> tuple:
-    """(n-grams of the query's words, folded) for phrase matching.
-
-    Text typed with accents is matched exactly, so 'chi nhánh' (branch) never
-    meets 'nhanh' (fast); text typed without accents is matched against the
-    keywords with their accents folded away.
-    """
-    folded = not has_accents(query)
-    tokens = match_tokens(query, folded)
-    grams = set()
-    for n in range(1, longest + 1):
-        grams.update(tuple(tokens[i:i + n]) for i in range(len(tokens) - n + 1))
-    return grams, folded
-
-
-def _phrases(cell: str, folded: bool = True) -> list:
+@lru_cache(maxsize=1024)
+def _phrases(cell: str, folded: bool = True) -> tuple:
     """Comma-separated keyword phrases of a CSV cell as (token tuple, phrase), duplicates removed."""
     seen, phrases = set(), []
     for phrase in str(cell or "").split(","):
-        tokens = tuple(match_tokens(phrase, folded))
+        tokens = phrase_tokens(phrase, folded)
         if tokens and tokens not in seen:
             seen.add(tokens)
             phrases.append((tokens, phrase.strip()))
-    return phrases
+    return tuple(phrases)
 
 
 def signal_matches(query: str, row: dict) -> tuple:
@@ -424,16 +491,14 @@ DOMAIN_KEYWORDS = {
 
 
 def auto_detect_domains(query: str, top_n: int = 3) -> list:
-    """Detect most relevant domains for a query using keyword scoring."""
-    query_lower = fold(query).lower()
-    scores = {}
+    """Detect most relevant domains for a query using keyword scoring.
 
-    for domain, keywords in DOMAIN_KEYWORDS.items():
-        score = 0
-        for kw in keywords:
-            if fold(kw) in query_lower:
-                score += len(kw.split())  # Multi-word keywords score higher
-        scores[domain] = score
+    Keywords match whole words only ('team' is not in 'steam'); multi-word
+    keywords score higher.
+    """
+    grams, folded = query_grams(query)
+    scores = {domain: sum(len(kw.split()) for kw in matched_phrases(grams, folded, keywords))
+              for domain, keywords in DOMAIN_KEYWORDS.items()}
 
     # Sort by score descending, take top_n with positive scores
     ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)

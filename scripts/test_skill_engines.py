@@ -1566,5 +1566,110 @@ class MakeDecisionUpgradeTests(unittest.TestCase):
             self.assertNotEqual(core.stem("party"), core.stem("par"))
 
 
+class ClassificationRegressionTests(unittest.TestCase):
+    """Requests an audit found misclassified: keywords must match as whole phrases, each once,
+    with or without Vietnamese accents."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.cs, _ = load_skill("code-solving")
+        cls.ps, _ = load_skill("problem-solving-pro")
+        cls.md_core, cls.md = load_skill("make-decision")
+
+    def test_code_task_types(self):
+        traceback = ("Traceback (most recent call last):\n"
+                     "  File \"app/main.py\", line 12, in <module>\n    run()\n"
+                     "  File \"app/services/users.py\", line 40, in run\n    return user.name\n"
+                     "AttributeError: 'NoneType' object has no attribute 'name'")
+        cases = [
+            ("Add a logout button", "feature"),
+            ("Add pagination to the orders list", "feature"),
+            ("Add rate limiting to the public API", "feature"),
+            ("chuyen tu MySQL sang PostgreSQL", "migration"),
+            (traceback, "debug"),
+            ("Traceback (most recent call last):\n  File \"app/views.py\", line 88, in get_profile\n"
+             "    uid = request.session['user_id']\nKeyError: 'user_id'", "debug"),
+            ("The /search endpoint takes 4 seconds at p95, need it under 300ms", "performance"),
+            ("How is the JWT validated in this service?", "explain"),
+            ("Production API is returning 502s for all users since the 14:00 deploy", "incident"),
+            # Vietnamese typed without accents
+            ("sua loi dang nhap", "debug"),
+            ("toi uu truy van", "performance"),
+            ("nang cap React 17 len 18", "migration"),
+            ("lo hong bao mat", "security"),
+            ("doi mau nut", "quick-fix"),
+            ("loi dang nhap khong hoat dong sau khi doi mat khau", "debug"),
+            # one-syllable Vietnamese keywords without accents need Vietnamese around them
+            ("Migrate our SAP ERP to Odoo", "migration"),
+        ]
+        for query, expected in cases:
+            with self.subTest(query=query[:60]):
+                row, source = self.cs.classify_task(query)
+                self.assertEqual((row["Type"], source), (expected, "auto"))
+
+    def test_code_keywords_count_once_and_whole(self):
+        scores = self.cs.task_scores("test test test test the login bug")
+        self.assertEqual(scores["test"][0], 0)  # 'test' alone is not a keyword, however often it appears
+        self.assertNotIn("one line", self.cs.task_scores("error on line 5")["quick-fix"][1])
+        self.assertNotIn("on-call", self.cs.task_scores("Traceback (most recent call last):")["incident"][1])
+
+    def test_problem_keywords_keep_short_and_stop_words(self):
+        cases = [
+            ("Too many meetings are killing our productivity", "Diagnostic", "Organizational Change"),
+            ("Our US market share is falling", "Diagnostic", "Business Performance"),
+            ("Kinh tế khó khăn, cửa hàng vắng khách", "Diagnostic", "Business Performance"),
+            ("Our checkout conversion is 1.2% while the industry benchmark is 3%", "Diagnostic",
+             "Business Performance"),
+        ]
+        for query, ptype, category in cases:
+            with self.subTest(query=query):
+                self.assertEqual(self.ps.classify_problem_type(query).get("Problem Type"), ptype)
+                self.assertEqual(self.ps.classify_category(query), category)
+        self.assertNotEqual(self.ps.classify_problem_type("Too many meetings").get("Problem Type"), "Prediction")
+        self.assertNotEqual(self.ps.classify_category("Kinh tế khó khăn"), "Policy / Public Sector")
+
+    def test_decision_options_and_types(self):
+        parse = self.md.parse_options
+        self.assertEqual(parse("Which CRM: Salesforce, HubSpot and Pipedrive"), ["Salesforce", "HubSpot", "Pipedrive"])
+        self.assertEqual(parse("Chọn giữa ba nhà cung cấp phần mềm kế toán: MISA, Fast và Bravo"),
+                         ["MISA", "Fast", "Bravo"])
+        self.assertEqual(parse("Which cloud should we use?\n1. AWS\n2. GCP\n3. Azure"), ["AWS", "GCP", "Azure"])
+        self.assertEqual(parse("Pick one:\n- MacBook Pro\n- ThinkPad X1\n* Dell XPS"),
+                         ["MacBook Pro", "ThinkPad X1", "Dell XPS"])
+        self.assertEqual(parse("Context:\n- revenue down 20% in Q3\n- churn up\nShould we cut prices or invest "
+                               "in marketing?"), ["cut prices", "invest in marketing"])
+        self.assertEqual(parse("We need marketing, sales and R&D to align"), [])
+        cases = [
+            ("Chọn giữa ba nhà cung cấp phần mềm kế toán: MISA, Fast và Bravo", "Multi-Option Selection"),
+            ("We're not sure the market will recover; should we hire 10 more salespeople?",
+             "Decision Under Uncertainty"),
+            ("Should we move our daily standup from 9am to 10am?", "Operational / Tactical"),
+            ("Should we change our on-call rotation from weekly to bi-weekly?", "Operational / Tactical"),
+            ("Should we use Postgres or MySQL now", "Binary Choice"),
+        ]
+        for query, expected in cases:
+            with self.subTest(query=query):
+                self.assertEqual(self.md.DecisionAdvisor(query).classify()["row"]["Decision Type"], expected)
+        m = self.md.build_matrix("1. AWS\n2. GCP\n3. Azure", "Cost,Speed")
+        self.assertEqual([o["name"] for o in m["options"]], ["AWS", "GCP", "Azure"])
+
+    def test_matrix_scores_must_be_on_the_1_to_5_scale(self):
+        for scores in ("A:9,3;B:4,4", "A:0,3;B:4,4", "A:-1,3;B:4,4"):
+            with self.subTest(scores=scores), self.assertRaises(ValueError) as e:
+                self.md.build_matrix("A vs B", "X,Y", scores)
+            self.assertIn("from 1 to 5", str(e.exception))
+        self.assertEqual(self.md.build_matrix("A vs B", "X,Y", "A:1,5;B:2.5,3")["winner"], "A")
+
+    def test_search_domains_match_whole_words(self):
+        self.assertNotEqual(self.cs.detect_domain("catalog page is slow"), "debugging")
+        self.assertGreater(self.cs.search("catalog page is slow")["count"], 0)
+        self.assertEqual(self.cs.search("TypeError: Cannot read properties of undefined")["domain"], "errors")
+        self.assertEqual(self.cs.detect_domain("read the logs"), "debugging")
+        self.assertNotEqual(self.ps.detect_domain("our latest prototype got bad reviews"), "problem-types")
+        self.assertEqual(self.ps.detect_domain("what type of problem is this"), "problem-types")
+        self.assertEqual(self.md_core.auto_detect_domains("steam bias"), ["biases"])
+        self.assertIn("facilitation", self.md_core.auto_detect_domains("our team workshop"))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
