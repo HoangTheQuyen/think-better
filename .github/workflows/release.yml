@@ -21,10 +21,10 @@ jobs:
                   go-version-file: go.mod
 
             # Builds all platforms, writes checksums.txt, publishes the GitHub
-            # Release, and updates the Homebrew tap and Scoop bucket.
-            # TAP_GITHUB_TOKEN: a fine-grained PAT with "Contents: read & write"
-            # on HoangTheQuyen/homebrew-tap and HoangTheQuyen/scoop-bucket.
-            # Without it the release still ships; only tap/bucket updates are skipped.
+            # Release, and commits Formula/think-better.rb and
+            # bucket/think-better.json back to main (Homebrew tap + Scoop bucket).
+            # Uses the built-in GITHUB_TOKEN; if main is protected, allow
+            # github-actions to bypass the rule or the commit will be rejected.
             - uses: goreleaser/goreleaser-action@v6
               with:
                   distribution: goreleaser
@@ -32,4 +32,3 @@ jobs:
                   args: release --clean
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-                  TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}

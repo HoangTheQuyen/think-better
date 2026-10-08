@@ -41,10 +41,11 @@ curl -fsSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/ins
 irm https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.ps1 | iex
 
 # Homebrew (macOS / Linux)
-brew install HoangTheQuyen/tap/think-better
+brew tap HoangTheQuyen/think-better https://github.com/HoangTheQuyen/think-better
+brew install think-better
 
 # Scoop (Windows)
-scoop bucket add think-better https://github.com/HoangTheQuyen/scoop-bucket
+scoop bucket add think-better https://github.com/HoangTheQuyen/think-better
 scoop install think-better
 ```
 
@@ -280,11 +281,11 @@ Think Better tiêm framework tư duy vào prompt — biến AI thành Staff Engi
 ```bash
 # macOS / Linux
 curl -fsSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.sh | sh
-brew install HoangTheQuyen/tap/think-better      # hoặc Homebrew
+brew tap HoangTheQuyen/think-better https://github.com/HoangTheQuyen/think-better && brew install think-better   # hoặc Homebrew
 
 # Windows
 irm https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.ps1 | iex
-scoop bucket add think-better https://github.com/HoangTheQuyen/scoop-bucket; scoop install think-better   # hoặc Scoop
+scoop bucket add think-better https://github.com/HoangTheQuyen/think-better; scoop install think-better   # hoặc Scoop
 
 # Cài skill
 think-better init --ai claude
