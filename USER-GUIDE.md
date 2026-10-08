@@ -46,6 +46,7 @@ think-better init --ai claude --skill code-solving
 
 - **Claude:** Open Claude Code or VS Code with Claude extension
 - **Copilot:** Open VS Code, switch Copilot Chat to agent mode; the commands are prompt files in `.github/prompts/`
+- **OpenCode:** Run `opencode` in the project; the commands are in `.opencode/commands/`
 - **Antigravity:** Open your Antigravity-powered editor
 
 ### 4. Start Using

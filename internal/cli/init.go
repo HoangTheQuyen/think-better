@@ -162,6 +162,7 @@ Flags:`)
 				fmt.Printf("  - Skill %q is available in .opencode/skills/%s/\n", s.Name, s.Name)
 			}
 			fmt.Println("  - OpenCode will auto-discover skills via the native skill tool")
+			printSlashCommands("Slash commands installed", installed)
 		} else if len(skillsToInstall) == 1 {
 			fmt.Printf("  - Open your AI assistant and type /%s to start\n", skillsToInstall[0].Name)
 		} else {

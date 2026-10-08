@@ -47,7 +47,7 @@ var Targets = []AITarget{
 		Name:            "opencode",
 		DisplayName:     "OpenCode",
 		InstallPattern:  ".opencode/skills/{skill}/",
-		WorkflowPattern: "",
+		WorkflowPattern: ".opencode/commands/",
 	},
 }
 

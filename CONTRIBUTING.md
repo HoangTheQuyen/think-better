@@ -93,7 +93,8 @@ Most content contributions are rows in `.agents/skills/*/data/*.csv`.
 ## Adding or changing a workflow (slash command)
 
 Workflows live in `.agents/workflows/<command>.md` and are installed as slash
-commands for targets that support them: Antigravity and Claude Code as-is,
+commands for targets that support them: Antigravity, Claude Code and
+OpenCode (`.opencode/commands/`) as-is,
 GitHub Copilot as `<command>.prompt.md` prompt files (agent mode,
 `$ARGUMENTS` becomes `${input:task}`). A workflow belongs to the skill whose
 `.agents/skills/<skill>/` path it references: it is installed and uninstalled
