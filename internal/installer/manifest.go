@@ -70,6 +70,7 @@ type WorkflowManifest struct {
 	Version string                   `json:"version"`
 	Target  string                   `json:"target"`
 	Files   map[string]WorkflowEntry `json:"files"`
+	Exclude []string                 `json:"exclude,omitempty"` // workflows not to install (see exclude.go)
 }
 
 // hashBytes returns the hex SHA-256 of data.
