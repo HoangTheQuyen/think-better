@@ -4,7 +4,7 @@
 
 # Think Better
 
-**Structured thinking skills for your AI coding assistant.**<br>
+**Structured thinking for your AI coding assistant: decide with frameworks, solve with root causes, code with evidence.**<br>
 One CLI installs three skills and their slash commands so your AI decides with real frameworks,
 solves problems with a proven method, and changes code with evidence instead of guesses.
 
@@ -55,13 +55,16 @@ Add `--global` to install once for every project (Claude Code, OpenCode, Antigra
 `--skill code-solving` to install a single skill with its commands. The skills need **Python 3**
 (standard library only); run `think-better check` to verify.
 
+After upgrading the binary, run `think-better update` to refresh every install; files you edited
+are kept (see [Updating](#updating)).
+
 <details>
 <summary>Pin a version, Nix, source, manual download</summary>
 
 ```bash
 # Pin a release and pick the directory (no sudo needed)
 curl -fsSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.sh \
-  | THINK_BETTER_VERSION=v1.3.0 INSTALL_DIR="$HOME/bin" sh
+  | THINK_BETTER_VERSION=v1.4.0 INSTALL_DIR="$HOME/bin" sh
 
 # Nix
 nix run github:HoangTheQuyen/think-better -- init --ai claude
@@ -77,17 +80,21 @@ and check it against `checksums.txt`.
 
 ## 30 seconds per skill
 
-Talk to your AI as usual (each skill activates on its own trigger phrases) or type a slash command.
+Type a slash command, or just describe the problem: in Claude Code, OpenCode and Antigravity the
+AI also picks the skill from its trigger phrases (see [How a skill is picked](#how-a-skill-is-picked)).
+The samples below are real script output for these requests, shortened.
 
 **`/decide`: choose between options**
 
 ```
 /decide Postgres vs MongoDB vs DynamoDB for our order service
 
-→ Decision type: Multi-Option Selection
+→ Decision type: Multi-Option Selection · Options: Postgres | MongoDB | DynamoDB
 → Framework: Weighted Criteria Matrix (criteria and weights before scoring)
-→ Bias warning: Framing Effect; remedy: reframe as gains and as losses
-→ Checklist, then next steps: /decide.deep, /decide.exec, /solve
+→ Criteria (Tech Stack / Framework Choice): team expertise 25, ecosystem 20, performance 20,
+  maintainability 20, cost and licensing 15
+→ Bias warnings: Anchoring Effect, Availability Heuristic, Confirmation Bias, each with a remedy
+→ A scoring command, a checklist, then next steps: /decide.deep, /decide.exec
 ```
 
 **`/solve`: get to the root of a business or product problem**
@@ -95,20 +102,25 @@ Talk to your AI as usual (each skill activates on its own trigger phrases) or ty
 ```
 /solve Signups dropped 15% after the pricing change
 
-→ Type: Wicked · Context: Business Performance
-→ Process: Define → Profitability tree → Pareto prioritize → Hypothesis-driven analysis
-→ Tools: Sensitivity Analysis, Benchmarking; communicate with the Pyramid Principle
-→ Bias warnings: Status Quo Bias, Sunk Cost Fallacy
+→ Type: Diagnostic · Context: Business Performance
+→ Process: Define precisely → Profitability tree → Pareto prioritize → Hypothesis-driven analysis
+→ Decomposition: Profitability Tree · Prioritize: Sensitivity Analysis · Analysis: Benchmarking
+→ Bias warnings: Confirmation Bias, Narrative Fallacy, Availability Heuristic
+→ Communicate with the Pyramid Principle; next steps: /solve.deep, /solve.exec, /decide
 ```
 
 **`/code`: change code in 7 gated steps**
 
 ```
-/code.debug Checkout throws "TypeError: Cannot read properties of undefined (reading 'id')"
-            after yesterday's deploy. Repro: add a gift card, then pay.
+/code.debug Checkout throws after yesterday's deploy when paying with a gift card:
+            TypeError: Cannot read properties of undefined (reading 'id')
+                at orderTotal (src/checkout/total.js:10:33)
+                at payHandler (src/checkout/handler.js:4:17)
 
-→ Context from the project: src/checkout/total.js:10  const discount = cart.coupon.id ? ...
-→ Known error: likely causes, what to check first, the root-cause fix
+→ Context from the project: src/checkout/total.js:10   const discount = cart.coupon.id ? ...
+                            src/checkout/handler.js:4  const total = orderTotal(req.session.cart);
+→ Known error: TypeError: Cannot read properties of undefined/null (likely causes, what to
+  check first, the root-cause fix)
 → Steps: Define (a failing test) → Decompose → Prioritize → Plan → Execute → Verify → Communicate
 → Project checks found: npm run test, npm run lint, npm run build
 ```
@@ -160,9 +172,36 @@ Depth: `.quick` is a fast scan, the plain command is the default, `.deep` adds a
 for high-stakes work, `.exec` adds a summary for leadership. `/code` auto-detects the task type;
 `/code.deep` is the same with more techniques and the full review checklist.
 
-Add *"save step-by-step"* to any request to get a Markdown workspace with one file per step
+Add *"save step-by-step"* (Vietnamese: *"lưu từng bước"*) to any request to get a Markdown workspace with one file per step
 (`solving-plans/`, `decision-plans/` or `coding-plans/`). Saving again keeps the files you
 already filled in.
+
+## Why not just prompt?
+
+You can ask any AI "should we use Postgres or MongoDB?" and get a tidy pros-and-cons list. The
+skills add what a prompt alone does not:
+
+- **Structured steps.** Every request runs through a fixed method (7 steps for problems and code,
+  a decision plan for choices), so the AI does not jump from symptom to fix.
+- **Gates.** `/code` does not move on without evidence: a failing test before the fix, the
+  project's own test/lint/build output after it.
+- **A knowledge base.** 323 records (frameworks, cognitive biases with remedies, criteria
+  templates, 44 known error messages, ...) are searched locally and put into the answer, so the
+  advice is specific and the same request gets the same method every time.
+- **Saved, resumable workspaces.** Say "save step-by-step" and the work is written to Markdown
+  files in your project; `/solve.resume`, `/decide.resume` or `/code.resume` continues at the
+  first open step in a later session.
+
+## How a skill is picked
+
+| AI tool | Natural language ("Revenue dropped 20%, why?") | Slash commands |
+|---------|-----------------------------------------------|----------------|
+| Claude Code | Yes: skills in `.claude/skills/` are picked by their trigger phrases | `.claude/commands/` |
+| OpenCode | Yes: skills in `.opencode/skills/` are found by OpenCode's skill tool | `.opencode/commands/` |
+| Antigravity | Yes: skills in `.agents/skills/` | `.agents/workflows/` |
+| GitHub Copilot | No, use the slash commands: the skill files under `.github/prompts/<skill>/` are only run by them | Prompt files in `.github/prompts/` (agent mode) |
+
+Slash commands work in every tool and set the depth for you.
 
 ## How it works
 
@@ -191,24 +230,70 @@ the scripts run locally with no network calls, accounts or API keys.
 ## CLI
 
 ```bash
-think-better init        # Install skills and slash commands (--ai, --skill, --global, --force)
-think-better list        # Skills and where they are installed (every AI tool, project + global)
-think-better check       # Verify prerequisites (Python 3)
-think-better uninstall   # Remove a skill and its slash commands (--skill, --global)
-think-better version     # Show version
+think-better init        # Install skills and slash commands; re-running it updates the install
+think-better update      # Update every install (this project and --global) after upgrading the binary
+think-better check       # Python 3, and each install: installed / outdated / modified / incomplete
+think-better list        # Skills and where they are installed (every AI tool, project and global)
+think-better uninstall   # Remove a skill and its slash commands (keeps files you modified)
+think-better version     # Show version (also -v, --version)
 ```
 
-`THINK_BETTER_AI=claude` sets the default for `--ai`.
+| Flag | Commands | What it does |
+|------|----------|--------------|
+| `--ai <tool>` | init, update, uninstall | `claude`, `copilot`, `antigravity` or `opencode`. Without it `init` and `uninstall` ask (or use `THINK_BETTER_AI`); `update` updates every tool |
+| `--skill <name>` | init, update, uninstall | One skill: `make-decision`, `problem-solving-pro` or `code-solving` (default: all; required by `uninstall`) |
+| `--global` | init, update, uninstall | Your user account (every project) instead of the current project; Claude Code, OpenCode and Antigravity |
+| `--force` | init, update | Replace files you modified, after saving yours as `<file>.bak` |
+| `--force` | uninstall | Do not ask for confirmation (required without a terminal) |
+| `--dry-run` | init, update, uninstall | Show what would change without writing anything |
+| `--json` | check, list | Machine-readable output |
+| `--strict` | check | Also exit 1 when an install is outdated |
+
+`THINK_BETTER_AI=claude` sets the default for `--ai`. `think-better help <command>` shows a
+command's help.
+
+### Updating
+
+```bash
+think-better update --dry-run   # what would change
+think-better update             # apply
+```
+
+Each install records what it wrote (`.think-better.json` in the skill folder,
+`.think-better-workflows.json` next to the slash commands). On `update`, or `init` over an
+existing install:
+
+- files you have not modified are replaced with the new version;
+- files you modified are kept, and the new version is written next to them as `<file>.new`
+  (compare the two, merge what you want, delete the `.new`);
+- `--force` replaces them instead, after saving yours as `<file>.bak`;
+- files no longer part of a skill are removed, unless you modified them.
+
+`uninstall` likewise deletes only files you have not modified.
 
 ## Documentation
 
-- [User Guide](USER-GUIDE.md): every skill, workflow and script option in detail
+- [User Guide](USER-GUIDE.md): every skill, workflow and script option in detail, plus
+  [Troubleshooting](USER-GUIDE.md#troubleshooting) and [FAQ](USER-GUIDE.md#faq)
 - [Quick Reference](QUICK-REFERENCE.md): one-page cheat sheet
 - [Examples](examples/README.md): worked decisions, problems and a debugging session
 - [Changelog](CHANGELOG.md): what changed in each release
 - [Contributing](CONTRIBUTING.md): add a skill, knowledge records, a slash command or an AI tool
   (`make check` runs the same checks as CI)
 - [Security](SECURITY.md): report a vulnerability
+- Questions and ideas: [Discussions](https://github.com/HoangTheQuyen/think-better/discussions);
+  bugs: [Issues](https://github.com/HoangTheQuyen/think-better/issues)
+
+## Roadmap
+
+Directions we are exploring, in no particular order and without dates. Tell us what matters to
+you in [Discussions](https://github.com/HoangTheQuyen/think-better/discussions).
+
+- More AI tools, as they add support for skills or custom commands
+- Native skills for GitHub Copilot, so it can pick a skill from natural language too
+- More knowledge records (frameworks, known errors, criteria templates) and better
+  classification of requests, in English and Vietnamese
+- More worked [examples](examples/README.md), including ones from the community
 
 ---
 
@@ -216,7 +301,7 @@ think-better version     # Show version
 
 # 🇻🇳 Tiếng Việt
 
-**Kỹ năng tư duy có cấu trúc cho AI lập trình của bạn.**
+**Tư duy có cấu trúc cho trợ lý AI lập trình: quyết định bằng framework, giải quyết vấn đề tận gốc, sửa code có bằng chứng.**
 
 </div>
 
@@ -246,6 +331,23 @@ think-better init --ai claude --global   # một lần cho mọi project (không
 
 Cần **Python 3** (chỉ dùng thư viện chuẩn). Kiểm tra bằng `think-better check`.
 
+Sau khi nâng cấp CLI, chạy `think-better update` (thêm `--dry-run` để xem trước) để cập nhật mọi nơi
+đã cài. File bạn đã sửa được giữ nguyên, bản mới nằm ngay cạnh với đuôi `.new`; với `--force`, file
+được thay bằng bản mới và bản của bạn được lưu thành `.bak`.
+
+### Lệnh CLI
+
+```bash
+think-better init        # Cài skill và lệnh slash; chạy lại để cập nhật
+think-better update      # Cập nhật mọi bản cài (project này và --global)
+think-better check       # Kiểm tra Python 3 và trạng thái từng bản cài
+think-better list        # Skill nào đang được cài ở đâu
+think-better uninstall   # Gỡ một skill (--skill), giữ lại file bạn đã sửa
+think-better version     # Xem phiên bản
+```
+
+Cờ dùng chung: `--ai`, `--skill`, `--global`, `--force`, `--dry-run` (chi tiết ở mục [CLI](#cli)).
+
 ### 3 skill
 
 **`/decide`** — Ra quyết định · `make-decision` · 63 bản ghi
@@ -272,6 +374,9 @@ Cần **Python 3** (chỉ dùng thư viện chuẩn). Kiểm tra bằng `think-b
 
 `.quick` quét nhanh, lệnh gốc là mặc định, `.deep` phân tích sâu cho việc quan trọng, `.exec` thêm tóm tắt cho lãnh đạo.
 
+Với Claude Code, OpenCode và Antigravity, bạn cứ nói tự nhiên ("Doanh thu giảm 20%, tại sao?"), AI sẽ tự
+chọn skill. Với GitHub Copilot, hãy dùng lệnh slash (prompt file trong `.github/prompts/`, chế độ agent).
+
 ```
 /decide.deep Nên dùng AWS hay Azure hay GCP?
 /solve.quick Lượt đăng ký giảm 15% sau khi đổi giá
@@ -279,11 +384,23 @@ Cần **Python 3** (chỉ dùng thư viện chuẩn). Kiểm tra bằng `think-b
 /code.feature Thêm xuất file CSV cho trang báo cáo
 ```
 
-Thêm *"save step-by-step"* (lưu từng bước) vào yêu cầu để có workspace Markdown mỗi bước một file.
+Thêm *"lưu"*, *"lưu lại"* hoặc *"lưu từng bước"* (hoặc *"save step-by-step"*) vào yêu cầu để có workspace Markdown, mỗi bước một
+file; ở phiên sau, dùng `/solve.resume`, `/decide.resume` hoặc `/code.resume` để làm tiếp.
+
+### Vì sao không chỉ viết prompt?
+
+- **Quy trình cố định:** mọi yêu cầu đi qua các bước rõ ràng, AI không nhảy thẳng từ triệu chứng sang cách sửa.
+- **Cổng kiểm tra:** `/code` chỉ qua bước khi có bằng chứng (test fail trước khi sửa, test/lint/build pass sau khi sửa).
+- **Knowledge base:** 323 bản ghi kiến thức (framework, thiên kiến kèm cách khắc phục, mẫu tiêu chí, lỗi hay gặp) được tìm ngay trên máy và đưa vào câu trả lời.
+- **Workspace lưu lại được:** làm dở thì phiên sau làm tiếp từ bước còn dang dở.
 
 ### Lưu ý
 
-- Knowledge base bằng tiếng Anh: AI tự dịch từ khóa trước khi tìm kiếm.
+- Skill hiểu tiếng Việt trực tiếp, có dấu hay không dấu đều được ("Nên chọn React hay Vue?", "doanh thu giam 20%").
+  AI trả lời bằng tiếng Việt và dịch kế hoạch (script in ra bằng tiếng Anh).
+- Mọi thứ chạy trên máy bạn: script không gọi mạng, không cần tài khoản hay API key.
+- Gặp lỗi? Xem [Troubleshooting](USER-GUIDE.md#troubleshooting) và [FAQ](USER-GUIDE.md#faq) trong User Guide.
+- Lộ trình: thêm công cụ AI, skill gốc cho Copilot, thêm bản ghi kiến thức và ví dụ (xem [Roadmap](#roadmap)).
 - Tài liệu chi tiết: [User Guide](USER-GUIDE.md) · [Quick Reference](QUICK-REFERENCE.md) · [Ví dụ](examples/README.md)
 - Muốn đóng góp skill/framework mới? Xem [CONTRIBUTING.md](CONTRIBUTING.md) (PR bằng tiếng Việt cũng được).
 
