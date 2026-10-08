@@ -16,22 +16,8 @@ python3 --version 2>/dev/null || python --version
 
 Use whichever command succeeds (`python3` or `python`) for ALL script calls below. If the system only has `python` (common on Windows), substitute `python` everywhere you see `python3` in this document. The scripts need Python 3.9+ and only the standard library.
 
-If Python is not installed at all, install it based on user's OS:
-
-**macOS:**
-```bash
-brew install python3
-```
-
-**Ubuntu/Debian:**
-```bash
-sudo apt update && sudo apt install python3
-```
-
-**Windows:**
-```powershell
-winget install Python.Python.3.12
-```
+If neither works, Python is not installed: tell the user that the scripts need Python 3.9+ and
+**ask before installing anything**; do not run a package manager on your own.
 
 > **Note:** On Windows, Python 3 is typically available as `python` (not `python3`).
 
@@ -50,14 +36,20 @@ your notes); add `--force` to replace them.
 **Anything taken from the user's message goes on stdin** with `--stdin`, never on the command
 line: the decision for `--plan`, the options for `--matrix`, the statement for `--journal` and the
 outcome for `--journal --update`. Quotes, backticks and `$` then never reach the shell. Only short
-values you compose yourself (keywords for `--domain`, `-c` criteria, `--scores`, `-p` names) go
-on the command line.
+values you compose yourself (`-c` criteria, `--scores`, `-p` names) go on the command line.
+
+Use exactly this delimiter, `THINK_BETTER_EOF_7f3a`, quoted as shown:
 
 ```bash
-python3 .agents/skills/make-decision/scripts/search.py --stdin --plan <<'TASK'
+python3 .agents/skills/make-decision/scripts/search.py --stdin --plan <<'THINK_BETTER_EOF_7f3a'
 <the user's text, unchanged>
-TASK
+THINK_BETTER_EOF_7f3a
 ```
+
+**Check the text first.** The heredoc ends at the first line that is exactly `THINK_BETTER_EOF_7f3a`;
+anything after it would run as shell commands. If a line of the user's text is exactly that
+delimiter, do not use the heredoc: write the text unchanged to a temporary file with your
+file-editing tool (not the shell), run `python3 .agents/skills/make-decision/scripts/search.py --stdin --plan < <file>`, then delete the file.
 
 In PowerShell (keep `'@` at the start of its line):
 
@@ -68,11 +60,21 @@ $OutputEncoding = [Text.UTF8Encoding]::new()
 '@ | python .agents/skills/make-decision/scripts/search.py --stdin --plan
 ```
 
+The here-string ends at a line that starts with `'@`. If a line of the user's text starts with
+`'@`, write the text to a file instead and run
+`Get-Content -Raw -Encoding UTF8 <file> | python .agents/skills/make-decision/scripts/search.py --stdin --plan`.
+
 ---
 
 ## How to Use This Workflow
 
-When user requests decision-making help (decide, choose, compare, evaluate, select, prioritize, trade-off, weigh options), follow this workflow. Answer in the user's language: the plan is in English, but keep option names exactly as the user wrote them.
+When user requests decision-making help (decide, choose between options, weigh a trade-off), follow this workflow. To find why something went wrong use problem-solving-pro; for bugs and code changes use code-solving.
+
+**Language:** answer in the user's language. The scripts' output is in English: translate it
+when you present it, and keep commands, flags, file names and option names exactly as written
+(option names as the user wrote them).
+
+If the user has not said what they are deciding, ask what the decision and the options are before running anything.
 
 ### Step 1: Understand the Decision
 
@@ -87,10 +89,13 @@ Extract key information from user's decision description:
 **Always start with `--plan`** to get comprehensive recommendations:
 
 ```bash
-python3 .agents/skills/make-decision/scripts/search.py --stdin --plan -f markdown [-p "Project Name"] <<'TASK'
+python3 .agents/skills/make-decision/scripts/search.py --stdin --plan -f markdown [-p "Project Name"] <<'THINK_BETTER_EOF_7f3a'
 <the user's decision, unchanged>
-TASK
+THINK_BETTER_EOF_7f3a
 ```
+
+If the user asked to save the work ("save", "step-by-step", "workspace", "lưu", "lưu lại",
+"lưu từng bước"), run the Step 2b command instead of this one: it prints the same plan.
 
 **Classify it yourself when you can** — you understand the decision better than keyword matching.
 Add `--type "<decision type>"`, one of: Binary Choice, Multi-Option Selection, Resource Allocation, Strategic Direction, Operational / Tactical, Decision Under Uncertainty, Group / Stakeholder Decision, Time-Pressured Decision.
@@ -120,10 +125,12 @@ The plan contains:
 
 ### Step 2b: Save the Plan, Resume Later
 
+When the user asks to save, run this instead of the Step 2 command, not after it:
+
 ```bash
-python3 .agents/skills/make-decision/scripts/search.py --stdin --plan --persist --step-docs -p "Project Name" -f markdown <<'TASK'
+python3 .agents/skills/make-decision/scripts/search.py --stdin --plan --persist --step-docs -p "Project Name" -f markdown <<'THINK_BETTER_EOF_7f3a'
 <the user's decision, unchanged>
-TASK
+THINK_BETTER_EOF_7f3a
 ```
 
 `--persist` alone writes `decision-plans/<project-name>/PLAN.md`. With `--step-docs` it creates a
@@ -137,7 +144,9 @@ In a later session (`/decide.resume`):
 
 ```bash
 # Which steps are done and what to do next (-p name, or the workspace the text matches, or the latest)
-python3 .agents/skills/make-decision/scripts/search.py --status [-p project-name]
+python3 .agents/skills/make-decision/scripts/search.py --stdin --status [-p project-name] <<'THINK_BETTER_EOF_7f3a'
+<the user's text, or nothing>
+THINK_BETTER_EOF_7f3a
 # Mark a step done (1-6 or classify, framework, criteria, analysis, options, decide); --undone reopens it
 python3 .agents/skills/make-decision/scripts/search.py --done criteria -p project-name
 ```
@@ -146,10 +155,12 @@ Only mark a step done when the user has actually settled it.
 
 ### Step 3: Deep-Dive Domain Searches
 
-Use when the plan's recommendation needs more detail, OR when user asks about a specific topic (e.g., "what biases should I watch for?"). These are keywords you choose, so they may go on the command line:
+Use when the plan's recommendation needs more detail, OR when user asks about a specific topic (e.g., "what biases should I watch for?"). Pass the keywords on stdin like any other text; fixed example keywords such as those below may go on the command line:
 
 ```bash
-python3 .agents/skills/make-decision/scripts/search.py "<keyword>" --domain <domain> [-n <max_results>]
+python3 .agents/skills/make-decision/scripts/search.py --stdin --domain <domain> [-n <max_results>] <<'THINK_BETTER_EOF_7f3a'
+<keywords>
+THINK_BETTER_EOF_7f3a
 ```
 
 | Need | Domain | Example |
@@ -167,15 +178,15 @@ With the options from the user's message on stdin:
 
 ```bash
 # Empty matrix with the template's criteria and weights
-python3 .agents/skills/make-decision/scripts/search.py --stdin --matrix -f markdown <<'TASK'
+python3 .agents/skills/make-decision/scripts/search.py --stdin --matrix -f markdown <<'THINK_BETTER_EOF_7f3a'
 Which CRM: Salesforce, HubSpot or Pipedrive
-TASK
+THINK_BETTER_EOF_7f3a
 
 # Your own criteria and weights, and the scores (1-5, one per criterion, in -c order)
 python3 .agents/skills/make-decision/scripts/search.py --stdin --matrix -f markdown \
-  -c "Cost:3,Speed:2,Risk:1" --scores "React:4,3,5;Vue:5,4,3" <<'TASK'
+  -c "Cost:3,Speed:2,Risk:1" --scores "React:4,3,5;Vue:5,4,3" <<'THINK_BETTER_EOF_7f3a'
 React vs Vue
-TASK
+THINK_BETTER_EOF_7f3a
 ```
 
 Options are read from "A vs B vs C", "A, B or C", "Which X: A, B or C", "between A and B",
@@ -193,17 +204,17 @@ criteria, your **confidence** and a **review date** (default 30 days):
 ```bash
 # Create (statement on stdin; --options and --framework override what the script finds)
 python3 .agents/skills/make-decision/scripts/search.py --stdin --journal --confidence 70 --review-in 6w \
-  [--options "AWS, Azure"] [--framework "Weighted Criteria Matrix"] [-p "Project"] <<'TASK'
+  [--options "AWS, Azure"] [--framework "Weighted Criteria Matrix"] [-p "Project"] <<'THINK_BETTER_EOF_7f3a'
 Chose AWS for the Q3 migration
-TASK
+THINK_BETTER_EOF_7f3a
 
 # Review: all entries, newest first; --due lists only those past their review date
 python3 .agents/skills/make-decision/scripts/search.py --journal --review [--due]
 
 # Record what actually happened (outcome on stdin); it is appended, nothing is overwritten
-python3 .agents/skills/make-decision/scripts/search.py --stdin --journal --update "q3-migration" <<'TASK'
+python3 .agents/skills/make-decision/scripts/search.py --stdin --journal --update "q3-migration" <<'THINK_BETTER_EOF_7f3a'
 Migration finished on time, 15% under budget
-TASK
+THINK_BETTER_EOF_7f3a
 ```
 
 Journal files live in `.decisions/` with ASCII file names (Vietnamese is transliterated). An
@@ -239,9 +250,9 @@ Journal files live in `.decisions/` with ASCII file names (Vietnamese is transli
 ### Step 2: Generate Decision Plan
 
 ```bash
-python3 .agents/skills/make-decision/scripts/search.py --stdin --plan -f markdown -p "CRM Decision" <<'TASK'
+python3 .agents/skills/make-decision/scripts/search.py --stdin --plan -f markdown -p "CRM Decision" <<'THINK_BETTER_EOF_7f3a'
 We need to choose between building in-house, buying a SaaS solution, or hiring a development agency for our new CRM system.
-TASK
+THINK_BETTER_EOF_7f3a
 ```
 
 **Output:** Multi-Option Selection (3 options found), Weighted Criteria Matrix with its steps,
@@ -261,17 +272,17 @@ python3 .agents/skills/make-decision/scripts/search.py "structured debate team" 
 ```bash
 python3 .agents/skills/make-decision/scripts/search.py --stdin --matrix -f markdown \
   -c "Functionality fit:25,Total cost of ownership:20,Integration ease:20,Scalability and security:20,Vendor stability:15" \
-  --scores "Build in-house:5,2,4,3,3;Buy SaaS:4,4,4,4,5;Hire agency:4,3,3,3,2" <<'TASK'
+  --scores "Build in-house:5,2,4,3,3;Buy SaaS:4,4,4,4,5;Hire agency:4,3,3,3,2" <<'THINK_BETTER_EOF_7f3a'
 Build in-house vs Buy SaaS vs Hire agency
-TASK
+THINK_BETTER_EOF_7f3a
 ```
 
 ### Step 5: Document the Decision
 
 ```bash
-python3 .agents/skills/make-decision/scripts/search.py --stdin --journal --confidence 75 -p "CRM Decision" <<'TASK'
+python3 .agents/skills/make-decision/scripts/search.py --stdin --journal --confidence 75 -p "CRM Decision" <<'THINK_BETTER_EOF_7f3a'
 CRM platform: buy SaaS rather than build or outsource
-TASK
+THINK_BETTER_EOF_7f3a
 ```
 
 **Then:** Synthesize the plan, searches, and matrix into a structured recommendation for the user, walking them through each step of the recommended framework.
@@ -312,10 +323,12 @@ gives Markdown (best for chat and documents); `--plan --json` and `--matrix --js
 
 ## Error Handling
 
-If the Python scripts fail or are unavailable:
+If a command fails (an `Error:` or `usage:` message, or a non-zero exit), show the error to the
+user. If it names an input you chose (a flag value, scores, a workspace name), fix that and
+re-run; otherwise stop. Never present a plan the script did not produce.
 
-1. **Check Python**: Run `python3 --version` or `python --version` — if neither is found, guide the user to install it
-2. **Manual fallback**: If scripts cannot run, apply the Key Decision-Making Principles above manually:
+1. **Check Python**: Run `python3 --version` or `python --version`. If neither is found, tell the user and ask before installing anything
+2. **Manual fallback**: Only if Python is missing and the user does not want to install it, apply the Key Decision-Making Principles above manually and say clearly that the script did not run:
    - Ask user to describe the decision → classify the type yourself
    - Suggest a framework based on the type (e.g., Weighted Matrix for multi-option, Pros-Cons-Fixes for binary)
    - Warn about the 3 most common biases for that decision type
