@@ -154,6 +154,9 @@ jobs:
                     grep -q "  think-better-$asset\$" dist/checksums.txt || { echo "::error::think-better-$asset missing from checksums.txt"; exit 1; }
                   done
                   test "$(find dist -maxdepth 1 -name '*.sbom.json' | wc -l)" -eq 6
+                  # The Release workflow commits these to Formula/ and bucket/.
+                  test -s dist/homebrew/Formula/think-better.rb
+                  test -s dist/scoop/bucket/think-better.json
                   ./dist/think-better_linux_amd64_v1/think-better version
 
             - name: Check the build is reproducible
