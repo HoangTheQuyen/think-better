@@ -154,9 +154,9 @@ what it is not for and points you to the right one: bugs and code changes go to 
 choices between options to `/decide*`, business and other non-code problems to `/solve*`. The plan
 the script prints is in English.
 
-Add *"save step-by-step"* to any request to get a Markdown
-workspace with one file per step: `decision-plans/<name>/`, `solving-plans/<name>/` or
-`coding-plans/<name>/`. Saving again keeps the files you already filled in.
+Add *"save step-by-step"* to any request to get a Markdown workspace with one file per step:
+`decision-plans/<name>/`, `solving-plans/<name>/` or `coding-plans/<name>/`. Saving again keeps the
+files you already filled in.
 
 ---
 
@@ -295,10 +295,10 @@ python3 $SOLVE "root cause 5 whys" --domain analysis
 ```
 
 Add `--type` and `--category` when you know them (e.g. `--type Diagnostic --category "Business
-Performance"`); the plan shows which **Type** and **Context** it used. `/solve.exec` adds an executive summary (SCR), key risks and the decision
-needed. Say "save step-by-step" to get a `solving-plans/<name>/` workspace with one file per step;
-in a later session, `/solve.resume` (or `$SOLVE --status`) shows which steps are done and
-continues at the first open one.
+Performance"`); the plan shows which **Type** and **Context** it used. `/solve.exec` adds an
+executive summary (SCR), key risks and the decision needed. Say "save step-by-step" to get a
+`solving-plans/<name>/` workspace with one file per step; in a later session, `/solve.resume` (or
+`$SOLVE --status`) shows which steps are done and continues at the first open one.
 
 ### Skill 3: code-solving
 
