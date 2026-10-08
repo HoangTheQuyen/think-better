@@ -41,10 +41,8 @@ work from any folder inside the project.
 | problem-solving-pro | `/solve.quick` · `/solve` · `/solve.deep` · `/solve.exec` · `/solve.resume` |
 | code-solving | `/code` · `/code.deep` · `/code.debug` · `/code.feature` · `/code.refactor` · `/code.perf` · `/code.review` · `/code.test` · `/code.explain` · `/code.resume` |
 
-Add "save step-by-step" (or "lưu", "lưu lại", "lưu từng bước") to save a workspace; continue it with the
-`.resume` command (no text: the latest workspace). `/code.review` reviews the local git diff: your
-uncommitted changes, or else this branch against the default branch. Name a branch, tag or commit to
-compare against (`/code.review main`); it does not fetch pull request links, so check the PR out first.
+Add "save step-by-step" to save a workspace; continue it with the
+`.resume` command (no text: the latest workspace). `/code.review` with no text reviews your current changes.
 You can also just describe the problem: every supported tool loads the skills by their
 description (GitHub Copilot in agent mode).
 
@@ -130,7 +128,7 @@ python3 $DECIDE "opportunity cost" --domain analysis
 /code.feature [what users can do when it is done]
 /code.refactor [module and the change it should make easier]
 /code.perf [metric, current value, target]
-/code.review [base branch, tag or commit to compare against; nothing = your changes]
+/code.review [PR or files]
 /code.test [module or behavior to protect]
 /code.explain [what you want to understand]
 /code.deep [high-stakes change: more techniques, full review checklist]
@@ -161,8 +159,6 @@ Bugs in code go here, not to `/solve`.
 
 # Continue a saved step-by-step workspace at the first open step:
 /solve.resume [which saved workspace, or nothing for the latest]
-
-# Vietnamese works too, with or without accents: /solve.quick doanh thu giảm 20% quý này
 
 # The 7 steps:
 # 1 Define  2 Disaggregate (issue/profitability tree)  3 Prioritize (80/20)
@@ -272,12 +268,11 @@ python3 $CODE "keywords" --domain errors
 /decide.deep Choosing between [A], [B] and [C] for [purpose].
 /decide.exec Strategic analysis of [major decision] for the leadership meeting
 /decide.resume [which saved decision, or nothing for the latest]
-/decide Nên chọn [A] hay [B]?   (Vietnamese works too)
 
 ## For coding
 /code.debug [Error and stack trace]. Repro: [steps]. Started after [change].
 /code.feature [Feature] so that [user outcome]. Out of scope: [x].
-/code.review [base branch, e.g. main; nothing = your changes]
+/code.review [PR link or files]
 /code.test [Module]: protect [behaviors]. Known bugs: [x].
 /code.explain How does [feature] work, from [entry point] to [result]?
 

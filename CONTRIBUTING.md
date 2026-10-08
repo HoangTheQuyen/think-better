@@ -4,7 +4,7 @@ Thanks for helping make AI assistants think better! This guide gets you from
 clone to merged PR, and explains how to add the things people contribute most:
 **skills**, **slash-command workflows**, **knowledge records**, and **AI targets**.
 
-> Tiếng Việt: PR và issue bằng tiếng Việt hay tiếng Anh đều được chào đón.
+> Please write issues and pull requests in English.
 
 ## TL;DR
 
@@ -59,7 +59,7 @@ scripts/test_doc_samples.py  the sample outputs in the docs match a real run
 the website no longer matches the CSV files, workflows or AI targets; update the number it
 names. It also runs `scripts/test_doc_samples.py`, which re-runs the requests shown as samples
 (README, website, examples): if you change a knowledge base or the classification and a sample
-changes, re-run the request, update the sample in the docs it names (English and Vietnamese)
+changes, re-run the request, update the sample in the docs it names
 and the expected values in `scripts/test_doc_samples.py`.
 
 The mirror in `internal/skills/` is committed so `go install` works without a
@@ -78,7 +78,7 @@ Skills are discovered automatically — **no Go code changes are needed**.
    name: <skill-name>            # must equal the directory name
    description: |
      One-sentence summary shown by `think-better list`. Use when user says
-     "trigger phrase", "another phrase", "cụm từ tiếng Việt", ...
+     "trigger phrase", "another phrase", ...
    ---
    ```
 

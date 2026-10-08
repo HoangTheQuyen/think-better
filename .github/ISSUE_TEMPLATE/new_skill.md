@@ -18,7 +18,7 @@ What it is and which problems or decisions it helps with.
 
 ## Trigger phrases
 
-What would a user say that should activate it? (English and/or Vietnamese)
+What would a user say that should activate it? (in English)
 
 ## Sources
 

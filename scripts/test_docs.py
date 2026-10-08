@@ -55,15 +55,15 @@ TARGET_DISPLAY = {
 # "<number> <phrase>" in README.md must equal the rows of this CSV.
 # (regex for the phrase, skill, CSV file in that skill's data/)
 NAMED_COUNTS = [
-    (r"decision frameworks|framework quyết định", "make-decision", "decision-frameworks.csv"),
-    (r"cognitive biases|thiên kiến nhận thức", "make-decision", "cognitive-biases.csv"),
-    (r"decomposition frameworks|framework phân tách", "problem-solving-pro", "decomposition.csv"),
-    (r"mental models|mô hình tư duy", "problem-solving-pro", "heuristics.csv"),
-    (r"communication patterns|mẫu trình bày", "problem-solving-pro", "communication.csv"),
-    (r"task types|loại việc", "code-solving", "task-types.csv"),
-    (r"(?:common )?error messages|thông báo lỗi(?: hay gặp)?", "code-solving", "errors.csv"),
-    (r"decision types|loại quyết định", "make-decision", "decision-types.csv"),
-    (r"criteria templates|mẫu tiêu chí", "make-decision", "criteria-templates.csv"),
+    (r"decision frameworks", "make-decision", "decision-frameworks.csv"),
+    (r"cognitive biases", "make-decision", "cognitive-biases.csv"),
+    (r"decomposition frameworks", "problem-solving-pro", "decomposition.csv"),
+    (r"mental models", "problem-solving-pro", "heuristics.csv"),
+    (r"communication patterns", "problem-solving-pro", "communication.csv"),
+    (r"task types", "code-solving", "task-types.csv"),
+    (r"(?:common )?error messages", "code-solving", "errors.csv"),
+    (r"decision types", "make-decision", "decision-types.csv"),
+    (r"criteria templates", "make-decision", "criteria-templates.csv"),
     (r"analysis techniques", "make-decision", "analysis-techniques.csv"),
     (r"facilitation techniques", "make-decision", "facilitation.csv"),
 ]
@@ -181,18 +181,18 @@ def check_counts(path, text, records, commands, target_names, full, required=Tru
     total = sum(sum(c.values()) for c in records.values())
 
     expect_all("knowledge records", where,
-               numbers(r"(\d+)\s+(?:knowledge records|bản ghi kiến thức)", text), total, required)
+               numbers(r"(\d+)\s+knowledge records", text), total, required)
 
     # Any other "<n> records" must be the total or one skill's count.
     allowed = {total} | {sum(c.values()) for c in records.values()}
-    for n in numbers(r"(\d+)\s+(?:[a-z-]+\s+)?(?:records|bản ghi)\b", text):
+    for n in numbers(r"(\d+)\s+(?:[a-z-]+\s+)?records\b", text):
         if n not in allowed:
             fail(f"{where}: says {n} records, the repository has {total} "
                  f"(per skill: {sorted(allowed - {total})})")
 
     for skill, counts in records.items():
         found = numbers(
-            rf"{re.escape(skill)}(?:`|</code>)?[\s`·:—–\-]*(\d+)\s+(?:records|bản ghi)", text)
+            rf"{re.escape(skill)}(?:`|</code>)?[\s`·:—–\-]*(\d+)\s+records", text)
         expect_all(f"records for {skill}", where, found, sum(counts.values()), required)
 
     for name, display in ((t, TARGET_DISPLAY.get(t)) for t in target_names):
@@ -211,9 +211,9 @@ def check_counts(path, text, records, commands, target_names, full, required=Tru
         return
 
     expect_all("slash commands", where,
-               numbers(r"(\d+)\s+(?:slash commands|lệnh slash)", text), len(commands), required)
+               numbers(r"(\d+)\s+slash commands", text), len(commands), required)
     expect_all("AI tools", where,
-               numbers(r"(\d+)\s+(?:AI tools|công cụ AI)", text), len(target_names), required)
+               numbers(r"(\d+)\s+AI tools", text), len(target_names), required)
     expect_all("skills", where, numbers(r"\b(\d+)\s+skills?\b", text), len(records), required)
 
     for phrase, skill, csv_name in NAMED_COUNTS:
@@ -225,7 +225,7 @@ def check_counts(path, text, records, commands, target_names, full, required=Tru
                    numbers(rf"(\d+)\s+(?:{phrase})\b", text), want, required=False)
 
     steps = {records[s].get("steps.csv") for s in records if "steps.csv" in records[s]}
-    for n in numbers(r"\b(\d+)[- ](?:steps?|bước)\b", text):
+    for n in numbers(r"\b(\d+)[- ]steps?\b", text):
         if n not in steps:
             fail(f"{where}: says {n} steps, the skills have {sorted(steps)}")
     # Table rows like "| **7-Step Method** | A → B → ... |" must list that many steps.
