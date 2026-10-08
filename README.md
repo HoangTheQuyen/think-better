@@ -9,7 +9,7 @@ Think Better injects structured decision frameworks directly into your AI prompt
 
 [![Go 1.25](https://img.shields.io/badge/Go-1.25-00ADD8?style=flat-square&logo=go&logoColor=white)](https://golang.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
-[![2 AI Skills](https://img.shields.io/badge/AI_Skills-2-blueviolet?style=flat-square)](.)
+[![3 AI Skills](https://img.shields.io/badge/AI_Skills-3-blueviolet?style=flat-square)](.)
 [![10+ Frameworks](https://img.shields.io/badge/Frameworks-10+-orange?style=flat-square)](.)  
 [![15 Decomposition](https://img.shields.io/badge/Decomposition-15-teal?style=flat-square)](.)
 [![12 Biases](https://img.shields.io/badge/Biases-12-red?style=flat-square)](.)
@@ -106,7 +106,7 @@ AI:  → Detects: Opportunity Gap
 
 <br>
 
-## Two Skills
+## Three Skills
 
 ### `/decide` — For Choices
 
@@ -121,7 +121,7 @@ AI:  → Detects: Opportunity Gap
 
 ### `/solve` — For Problems
 
-> *"solve", "debug", "root cause", "I'm stuck", "tại sao bị vậy", "không biết làm sao"*
+> *"solve", "root cause", "I'm stuck", "tại sao bị vậy", "không biết làm sao"*
 
 | | |
 |---|---|
@@ -129,6 +129,25 @@ AI:  → Detects: Opportunity Gap
 | **15 Decomposition Frameworks** | Issue Tree, MECE, Hypothesis Tree, Profitability Tree, Systems Map... |
 | **12 Mental Models** | First Principles, Inversion, Bayesian Updating, Pareto... |
 | **10 Communication Patterns** | Pyramid Principle, BLUF, SCR, Action Titles... |
+
+### `/code` — For Code Changes
+
+> *"fix this bug", "implement", "refactor", "slow", "flaky test", "upgrade", "review my code", "sửa lỗi", "thêm tính năng", "tối ưu"*
+
+| | |
+|---|---|
+| **7 Steps with Gates** | Define → Decompose → Prioritize → Plan → Execute → Verify → Communicate; each step needs real evidence (failing test, change map, passing checks) before moving on |
+| **8 Task Types** | debug, feature, refactor, performance, flaky-test, incident, migration, review |
+| **Project-Aware** | Detects your test/lint/build commands (npm/pnpm/yarn, Make, Go, Cargo, pytest, Maven/Gradle, …) and puts them in the Verify step |
+| **Engineering Knowledge** | Git bisect, minimal repro, expand-contract, strangler fig, characterization tests, review checklist, bias warnings… |
+
+```
+/code.debug TypeError in checkout after the last deploy
+/code.feature add CSV export to the reports page
+/code.refactor split the payment module
+/code.perf orders page takes 4s to load
+/code.review
+```
 
 <br>
 
@@ -221,7 +240,8 @@ think-better/
 ├── .agents/                     # ✏️  Source of truth — edit skills & workflows here
 │   ├── skills/
 │   │   ├── make-decision/       # Decision skill (SKILL.md, scripts, CSVs)
-│   │   └── problem-solving-pro/ # Problem-solving skill
+│   │   ├── problem-solving-pro/ # Problem-solving skill
+│   │   └── code-solving/        # Coding workflow skill
 │   └── workflows/               # Slash commands (/solve, /decide, ...)
 ├── cmd/think-better/            # CLI entry point (Go)
 ├── internal/
@@ -302,13 +322,18 @@ Nói chuyện với AI bình thường — Think Better tự kích hoạt:
 | *"Tại sao doanh thu giảm?"* | `problem-solving-pro` → Issue Tree, Root Cause Analysis |
 | *"Bị kẹt, không biết làm sao"* | 7 bước: Định nghĩa → Phân tách → Ưu tiên → Phân tích |
 
-### 2 Skill
+### 3 Skill
 
 **`/decide`** — Chọn lựa
 - 10 framework · 12 bias · So sánh đa tiêu chí · Nhật ký quyết định
 
 **`/solve`** — Giải quyết vấn đề
 - 7 bước McKinsey · 15 framework phân tách · 12 mô hình tư duy
+
+**`/code`** — Viết code có quy trình
+- 7 bước có "cổng kiểm tra": phải có test fail, chạy test thật, đủ bằng chứng mới qua bước
+- 8 loại việc: sửa bug, thêm tính năng, refactor, tối ưu, test chập chờn, sự cố production, nâng cấp, review code
+- Tự tìm lệnh test/lint/build của project
 
 ### Slash Commands
 
@@ -322,6 +347,8 @@ Nói chuyện với AI bình thường — Think Better tự kích hoạt:
 ```
 /solve.quick API chậm sau deploy
 /decide.deep Nên dùng AWS hay Azure hay GCP?
+/code.debug Đăng nhập bị lỗi 500 sau khi deploy
+/code.feature Thêm xuất file CSV cho trang báo cáo
 ```
 
 ### Lưu Ý

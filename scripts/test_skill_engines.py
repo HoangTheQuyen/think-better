@@ -16,6 +16,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
+# Importing skill modules must not leave __pycache__ inside the skill folders
+sys.dont_write_bytecode = True
+
 ROOT = Path(__file__).resolve().parent.parent
 SKILLS = ROOT / ".agents" / "skills"
 MODULES = ("core", "advisor", "search")
@@ -161,6 +164,130 @@ class MakeDecisionTests(unittest.TestCase):
             self.plan("anything", decision_type="Nope")
 
 
+class CodeSolvingTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.core, cls.advisor = load_skill("code-solving")
+        cls.engine = cls.advisor.CodeSolvingAdvisor()
+
+    def test_task_type_references_resolve(self):
+        """Every technique, test, principle, bias, review area and artifact a type names exists."""
+        core = self.core
+        for row in core.load_csv("task-types"):
+            for col, domains in (("Techniques", ["debugging", "changes"]), ("Testing", ["testing"]),
+                                 ("Principles", ["principles"]), ("Biases", ["biases"]),
+                                 ("Review Focus", ["review"]), ("Artifact", ["artifacts"])):
+                names = [n.strip() for n in row[col].split(";") if n.strip()]
+                found = sum(len(core.find_named(d, names)) for d in domains)
+                with self.subTest(type=row["Type"], column=col):
+                    self.assertEqual(found, len(names), f"unresolved names in {names}")
+
+    def test_classification(self):
+        cases = [
+            ("TypeError in checkout after the last deploy, users see a blank page", "debug"),
+            ("NullPointerException in OrderService", "debug"),
+            ("sửa lỗi đăng nhập bị lỗi", "debug"),
+            ("add a settings page so users can change their email", "feature"),
+            ("implement OAuth login with Google", "feature"),
+            ("refactor the payment module", "refactor"),
+            ("API latency spiked after deploy", "performance"),
+            ("Postgres query is slow on the orders page", "performance"),
+            ("memory leak in node worker", "performance"),
+            ("tối ưu trang chậm", "performance"),
+            ("test sometimes fails in CI", "flaky-test"),
+            ("site is down, 500s for all users", "incident"),
+            ("upgrade React 17 to 18", "migration"),
+            ("nâng cấp thư viện", "migration"),
+            ("review my PR", "review"),
+            ("review giúp code này", "review"),
+        ]
+        for query, expected in cases:
+            with self.subTest(query=query):
+                row, source = self.core.classify_task(query)
+                self.assertEqual(row["Type"], expected)
+                self.assertEqual(source, "auto")
+
+    def test_unmatched_query_says_so(self):
+        row, source = self.core.classify_task("zzz qqq")
+        self.assertEqual(source, "default")
+        plan = self.engine.generate("zzz qqq")
+        self.assertIn("--type", self.advisor.format_markdown(plan))
+
+    def test_explicit_type(self):
+        plan = self.engine.generate("anything", task_type="Incident")
+        self.assertEqual(plan["task"]["type"], "incident")
+        self.assertEqual(plan["task"]["source"], "explicit")
+        self.assertEqual(plan["artifact"]["name"], "Blameless Postmortem")
+        with self.assertRaises(ValueError):
+            self.engine.generate("anything", task_type="nope")
+
+    def test_every_step_has_guidance_and_gate(self):
+        for task_type in self.core.task_type_names():
+            plan = self.engine.generate("x", task_type=task_type)
+            with self.subTest(type=task_type):
+                self.assertEqual([s["name"] for s in plan["steps"]],
+                                 ["Define", "Decompose", "Prioritize", "Plan", "Execute", "Verify", "Communicate"])
+                for step in plan["steps"]:
+                    self.assertTrue(step["guidance"], step["name"])
+                    self.assertTrue(step["gate"], step["name"])
+                    self.assertNotIn("Gate:", step["guidance"])
+
+    def test_quick_depth_keeps_define_and_verify(self):
+        plan = self.engine.generate("fix bug", task_type="debug", depth="quick")
+        self.assertEqual([s["name"] for s in plan["steps"]], ["Define", "Execute", "Verify"])
+
+    def test_both_formats_render(self):
+        for depth in ("quick", "standard", "deep", "executive"):
+            plan = self.engine.generate("API latency spiked", depth=depth)
+            self.assertIn("Gate", self.advisor.format_markdown(plan))
+            self.assertNotIn("**", self.advisor.format_text(plan))
+
+    def test_split_identifiers(self):
+        self.assertEqual(self.core.split_identifiers("NullPointerException in getUserId"),
+                         "Null Pointer Exception in get User Id")
+
+    def test_detect_project_commands(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.assertEqual(self.core.detect_project_commands(root), [])
+            (root / "package.json").write_text('{"scripts": {"test": "vitest", "lint": "eslint .", "build": "vite build"}}')
+            (root / "pnpm-lock.yaml").write_text("")
+            (root / "go.mod").write_text("module x\n")
+            (root / "Makefile").write_text("VERSION := 1\ntest:\n\tgo test ./...\nbuild: deps\n\tgo build\n")
+            commands = [c for _, c, _ in self.core.detect_project_commands(root)]
+            for expected in ("pnpm test", "pnpm lint", "pnpm build", "make test", "make build", "go test ./..."):
+                self.assertIn(expected, commands)
+            self.assertNotIn("make VERSION", commands)
+            self.assertEqual(len(commands), len(set(commands)))
+
+    def test_step_docs_workspace(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            plan = self.engine.generate("site is down", project_name="../checkout outage", task_type="incident")
+            plan_dir, files = self.advisor.persist_step_by_step(plan, tmp)
+            self.assertIn(Path(tmp).resolve(), Path(plan_dir).resolve().parents)
+            self.assertIn("06-POSTMORTEM.md", files)
+            self.assertEqual(len(files), 7)
+            log = (Path(plan_dir) / "04-LOG.md").read_text(encoding="utf-8")
+            self.assertIn("Hypothesis", log)
+
+
+class SharedHelperTests(unittest.TestCase):
+    """The skills each ship their own copy of the text helpers; they must behave the same."""
+
+    def test_tokenize_and_slugify_agree_across_skills(self):
+        samples = ["Revenue dropped 20% despite growth", "CI is red on DB migrations",
+                   "nên chọn AWS hay GCP", "Refactoring the checkout's pricing rules"]
+        cores = {name: load_skill(name)[0] for name in ("problem-solving-pro", "make-decision", "code-solving")}
+        reference = cores["problem-solving-pro"]
+        for name, core in cores.items():
+            for text in samples:
+                with self.subTest(skill=name, text=text):
+                    self.assertEqual(core.tokenize(text), reference.tokenize(text))
+            for bad in ("../../x", "a/b", ".."):
+                self.assertNotIn("/", core.slugify(bad))
+                self.assertNotEqual(core.slugify(bad), "..")
+
+
 class OutputLocationTests(unittest.TestCase):
     """Plans and journals must land in the project even when the AI cd's into the skill."""
 
@@ -168,7 +295,7 @@ class OutputLocationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp)
             (project / ".git").mkdir()
-            for name in ("problem-solving-pro", "make-decision"):
+            for name in ("problem-solving-pro", "make-decision", "code-solving"):
                 shutil.copytree(SKILLS / name, project / ".claude" / "skills" / name,
                                 ignore=shutil.ignore_patterns("__pycache__"))
 
@@ -184,6 +311,12 @@ class OutputLocationTests(unittest.TestCase):
             self.assertTrue(list((project / ".decisions").glob("*.md")))
             self.assertFalse((md / ".decisions").exists())
 
+            cs = project / ".claude/skills/code-solving/scripts"
+            r = run_script(cs / "search.py", ["fix login bug", "--plan", "--persist", "--step-docs", "-p", "login"], cwd=cs)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertTrue((project / "coding-plans/login/01-DEFINE.md").exists())
+            self.assertFalse((cs / "coding-plans").exists())
+
     def test_cli_rejects_unknown_type(self):
         with tempfile.TemporaryDirectory() as tmp:
             r = run_script(SKILLS / "problem-solving-pro/scripts/search.py",
@@ -194,6 +327,10 @@ class OutputLocationTests(unittest.TestCase):
                            ["x", "--plan", "--type", "Nope"], cwd=tmp)
             self.assertNotEqual(r.returncode, 0)
             self.assertIn("unknown decision type", r.stderr)
+            r = run_script(SKILLS / "code-solving/scripts/search.py",
+                           ["x", "--plan", "--type", "Nope"], cwd=tmp)
+            self.assertNotEqual(r.returncode, 0)
+            self.assertIn("unknown task type", r.stderr)
 
 
 if __name__ == "__main__":

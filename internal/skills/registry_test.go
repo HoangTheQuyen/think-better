@@ -55,6 +55,7 @@ func TestSkillNames(t *testing.T) {
 	}
 
 	expected := map[string]bool{
+		"code-solving":        true,
 		"make-decision":       true,
 		"problem-solving-pro": true,
 	}
