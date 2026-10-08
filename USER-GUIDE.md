@@ -140,6 +140,11 @@ The skill will guide you through:
 
 Add `--type` and `--category` when you know them (e.g. `--type Diagnostic --category "Business Performance"`);
 the plan shows which **Type** and **Context** it used.
+Requests can be in English or Vietnamese (accents optional). `/solve.quick`, `/solve`, `/solve.deep` and
+`/solve.exec` give increasingly detailed plans; `/solve.exec` adds an executive summary (SCR), key risks and
+the decision needed. Say "save step-by-step" to get a `solving-plans/<name>/` workspace with one file per
+step; in a later session, `/solve.resume` (or `search.py --status`) shows which steps are done and continues
+at the first open one.
 
 ### Skill 3: code-solving
 

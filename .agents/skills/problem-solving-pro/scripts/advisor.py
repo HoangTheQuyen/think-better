@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Problem Solving Pro Advisor - Generates comprehensive problem-solving plans
-by aggregating multi-domain search results and applying reasoning rules.
+Problem Solving Pro Advisor - Generates problem-solving plans by combining the
+problem type, the reasoning rule for the business context, and multi-domain search.
 
 Usage:
     from advisor import generate_solving_plan
@@ -13,18 +13,20 @@ Usage:
 """
 
 import json
-import re
+import textwrap
+import unicodedata
 from datetime import datetime
 from pathlib import Path
 from core import (
-    search, load_reasoning, classify_category, problem_type_names, category_names,
-    resolve_choice, slugify, default_output_dir, save_docs, _load_csv, DATA_DIR, CSV_CONFIG,
+    search, load_reasoning, classify_category, classify_problem_type, problem_type_names, category_names,
+    resolve_choice, slugify, default_output_dir, save_docs, find_record, split_names, _load_csv,
+    DATA_DIR, CSV_CONFIG,
 )
+from workspace import progress_table, record_state
 
 
 # ============ CONFIGURATION ============
 SEARCH_CONFIG = {
-    "problem-types": {"max_results": 1},
     "decomposition": {"max_results": 3},
     "analysis": {"max_results": 3},
     "prioritization": {"max_results": 2},
@@ -32,38 +34,73 @@ SEARCH_CONFIG = {
     "heuristics": {"max_results": 3},
     "biases": {"max_results": 2},
     "team": {"max_results": 2},
-    "steps": {"max_results": 7}
 }
 
-# Depth levels control how many results and which sections are included
+# What each depth shows. quick is a one-screen scan; deep adds alternatives, more
+# mental models and biases, pitfalls per step; executive adds an executive summary
+# (SCR), key risks and the decision needed on top of deep.
 DEPTH_CONFIG = {
-    "quick": {
-        "multiplier": 0.5,
-        "sections": ["problem_type", "decomposition", "bias_warnings"],
-        "show_alternatives": False,
-        "appendix": False,
-    },
-    "standard": {
-        "multiplier": 1.0,
-        "sections": "all",
-        "show_alternatives": False,
-        "appendix": False,
-    },
-    "deep": {
-        "multiplier": 1.7,
-        "sections": "all",
-        "show_alternatives": True,
-        "appendix": False,
-    },
-    "executive": {
-        "multiplier": 2.5,
-        "sections": "all",
-        "show_alternatives": True,
-        "appendix": True,
-    },
+    "quick": {"multiplier": 0.5, "alternatives": 0, "models": 2, "biases": 2, "team": 0,
+              "steps": False, "details": False, "checklist": False, "executive": False},
+    "standard": {"multiplier": 1.0, "alternatives": 2, "models": 3, "biases": 3, "team": 2,
+                 "steps": True, "details": False, "checklist": True, "executive": False},
+    "deep": {"multiplier": 1.7, "alternatives": 4, "models": 5, "biases": 4, "team": 3,
+             "steps": True, "details": True, "checklist": True, "executive": False},
+    "executive": {"multiplier": 2.5, "alternatives": 4, "models": 5, "biases": 4, "team": 3,
+                  "steps": True, "details": True, "checklist": True, "executive": True},
 }
 
 VALID_DEPTHS = list(DEPTH_CONFIG.keys())
+
+DEFAULT_RULE = {
+    "steps_focus": "Define > Disaggregate > Prioritize > Analyze > Synthesize > Communicate",
+    "decomposition_style": ["Issue Tree"],
+    "analysis_priority": ["Benchmarking", "Root Cause Analysis"],
+    "communication_style": ["Pyramid Principle"],
+    "key_heuristics": ["First Principles Thinking", "Pareto Principle"],
+    "key_biases": ["Confirmation Bias", "Anchoring"],
+    "decision_rules": {},
+    "anti_patterns": "",
+    "severity": "MEDIUM",
+}
+DEFAULT_TEAM = ["Hypothesis-Driven Teamwork", "Red Team / Devils Advocate", "Progress Sharing (Frequent Checkpoints)"]
+REQUEST_PREVIEW = 600
+
+
+def _short_name(text: str, limit: int = 60) -> str:
+    """First `limit` characters of text, cut at a word boundary."""
+    text = " ".join(str(text).split())
+    if len(text) <= limit:
+        return text
+    cut = text[:limit].rsplit(" ", 1)[0]
+    return cut or text[:limit]
+
+
+def _preview(text: str, limit: int = REQUEST_PREVIEW) -> str:
+    """The request on one line, shortened for display (the full text is kept in saved files)."""
+    text = " ".join(str(text).split())
+    return text if len(text) <= limit else _short_name(text, limit) + " …"
+
+
+def load_steps() -> list:
+    """The 7 steps in order, as dicts."""
+    rows = _load_csv(DATA_DIR / CSV_CONFIG["steps"]["file"])
+    return [{
+        "number": i, "name": r.get("Step", ""), "phase": r.get("Phase", ""),
+        "description": r.get("Description", ""), "activities": r.get("Key Activities", ""),
+        "pitfalls": r.get("Common Pitfalls", ""), "outputs": r.get("Output Artifacts", ""),
+        "time": r.get("Time Allocation", ""), "gate": r.get("Quality Gate", ""), "tips": r.get("Tips", ""),
+    } for i, r in enumerate(rows, 1)]
+
+
+def _interleave(*lists) -> list:
+    """[a1, b1, a2, b2, ...] without duplicates."""
+    out = []
+    for i in range(max((len(x) for x in lists), default=0)):
+        for x in lists:
+            if i < len(x) and x[i] not in out:
+                out.append(x[i])
+    return out
 
 
 # ============ ADVISOR ENGINE ============
@@ -73,212 +110,158 @@ class ProblemSolvingAdvisor:
     def __init__(self):
         self.reasoning_data = load_reasoning()
 
-    def _multi_domain_search(self, query: str, focus_domains: list = None, depth: str = "standard") -> dict:
+    def _multi_domain_search(self, query: str, depth: str = "standard") -> dict:
         """Execute searches across multiple domains, scaled by depth."""
-        depth_cfg = DEPTH_CONFIG.get(depth, DEPTH_CONFIG["standard"])
-        multiplier = depth_cfg["multiplier"]
-        results = {}
-        for domain, config in SEARCH_CONFIG.items():
-            if focus_domains and domain not in focus_domains:
-                continue
-            max_r = max(1, int(config["max_results"] * multiplier))
-            results[domain] = search(query, domain, max_r)
-        return results
+        multiplier = DEPTH_CONFIG.get(depth, DEPTH_CONFIG["standard"])["multiplier"]
+        return {domain: search(query, domain, max(1, int(config["max_results"] * multiplier)))
+                for domain, config in SEARCH_CONFIG.items()}
 
     def _find_reasoning_rule(self, category: str) -> dict:
-        """Find matching reasoning rule for a problem category."""
+        """Find the reasoning rule for a problem category (exact, then partial match)."""
         category_lower = category.lower()
-
-        # Try exact match first
         for rule in self.reasoning_data:
             if rule.get("Problem_Category", "").lower() == category_lower:
                 return rule
-
-        # Try partial match
         for rule in self.reasoning_data:
             cat = rule.get("Problem_Category", "").lower()
             if cat in category_lower or category_lower in cat:
                 return rule
-
-        # Try keyword match
         for rule in self.reasoning_data:
-            cat = rule.get("Problem_Category", "").lower()
-            keywords = cat.replace("/", " ").replace("-", " ").split()
+            keywords = rule.get("Problem_Category", "").lower().replace("/", " ").replace("-", " ").split()
             if any(kw in category_lower for kw in keywords if len(kw) > 3):
                 return rule
-
         return {}
 
     def _apply_reasoning(self, category: str) -> dict:
-        """Apply reasoning rules to identify best approach."""
+        """The reasoning rule for the category, parsed; generic defaults when there is none."""
         rule = self._find_reasoning_rule(category) if category else {}
-
         if not rule:
-            return {
-                "steps_focus": "Define > Disaggregate > Prioritize > Analyze > Synthesize > Communicate",
-                "decomposition_style": ["Issue Tree"],
-                "analysis_priority": ["Benchmarking", "Root Cause Analysis"],
-                "communication_style": ["Pyramid Principle"],
-                "key_heuristics": ["First Principles", "Pareto 80/20"],
-                "decision_rules": {},
-                "anti_patterns": "",
-                "severity": "MEDIUM"
-            }
-
-        # Parse decision rules JSON
-        decision_rules = {}
+            return dict(DEFAULT_RULE)
         try:
-            decision_rules = json.loads(rule.get("Decision_Rules", "{}"))
+            decision_rules = json.loads(rule.get("Decision_Rules", "") or "{}")
         except json.JSONDecodeError:
-            pass
-
+            decision_rules = {}
         return {
             "steps_focus": rule.get("Recommended_Steps_Focus", ""),
-            "decomposition_style": [s.strip() for s in rule.get("Decomposition_Style", "").split("+")],
-            "analysis_priority": [s.strip() for s in rule.get("Analysis_Priority", "").split("+")],
-            "communication_style": [s.strip() for s in rule.get("Communication_Style", "").split("+")],
-            "key_heuristics": [s.strip() for s in rule.get("Key_Heuristics", "").split(";")],
+            "decomposition_style": split_names(rule.get("Decomposition_Style", "")),
+            "analysis_priority": split_names(rule.get("Analysis_Priority", "")),
+            "communication_style": split_names(rule.get("Communication_Style", "")),
+            "key_heuristics": split_names(rule.get("Key_Heuristics", "")),
+            "key_biases": split_names(rule.get("Key_Biases", "")),
             "decision_rules": decision_rules,
             "anti_patterns": rule.get("Anti_Patterns", ""),
-            "severity": rule.get("Severity", "MEDIUM")
+            "severity": rule.get("Severity", "MEDIUM"),
         }
 
-    def _select_best_match(self, results: list, priority_keywords: list) -> dict:
-        """Select best matching result based on priority keywords."""
-        if not results:
-            return {}
-        if not priority_keywords:
-            return results[0]
-
-        scored = []
-        for result in results:
-            result_str = str(result).lower()
-            score = 0
-            for kw in priority_keywords:
-                kw_lower = kw.lower().strip()
-                if kw_lower in result_str:
-                    score += 1
-            scored.append((score, result))
-
-        scored.sort(key=lambda x: x[0], reverse=True)
-        return scored[0][1] if scored and scored[0][0] > 0 else results[0]
-
-    def _pick_named(self, domain: str, name_col: str, names: list, results: list) -> dict:
-        """Prefer the frameworks a reasoning rule names, even if search ranked them low.
-
-        Walks `names` in order and returns the first row of the domain's CSV
-        whose name matches (ignoring parentheticals such as "(5 Whys)").
-        Falls back to the best keyword match among `results`.
-        """
-        def norm(text):
-            return re.sub(r"\(.*?\)", "", str(text)).strip().lower()
-
-        rows = _load_csv(DATA_DIR / CSV_CONFIG[domain]["file"])
+    @staticmethod
+    def _pick_named(domain: str, names: list, results: list) -> dict:
+        """The first of `names` that is a record of the domain; else the top search result."""
         for name in names:
-            wanted = norm(name)
-            if len(wanted) < 4:
-                continue
-            for row in rows:
-                have = norm(row.get(name_col, ""))
-                if not have:
-                    continue
-                if have == wanted or have.startswith(wanted) or wanted.startswith(have):
-                    return row
-        return self._select_best_match(results, names)
+            row = find_record(domain, name)
+            if row:
+                return row
+        return results[0] if results else {}
+
+    @staticmethod
+    def _pick_many(domain: str, names: list, results: list, limit: int) -> list:
+        """Records named first (in order), then search results, up to limit, no duplicates."""
+        name_col = {"heuristics": "Mental Model", "biases": "Bias", "team": "Pattern"}[domain]
+        out, seen = [], set()
+        for row in [find_record(domain, n) for n in names] + list(results):
+            key = row.get(name_col) if row else None
+            if key and key not in seen:
+                seen.add(key)
+                out.append(row)
+            if len(out) >= limit:
+                break
+        return out
 
     @staticmethod
     def _alternatives(results: list, name_col: str, primary: str, limit: int) -> list:
-        return [r.get(name_col, "") for r in results if r.get(name_col) != primary][:limit]
-
-    def _extract_results(self, search_result: dict) -> list:
-        """Extract results list from search result dict."""
-        return search_result.get("results", [])
+        return [r.get(name_col, "") for r in results if r.get(name_col) and r.get(name_col) != primary][:limit]
 
     def generate(self, query: str, project_name: str = None, depth: str = "standard",
                  problem_type: str = None, category: str = None) -> dict:
-        """Generate comprehensive problem-solving plan.
+        """Build the plan dict.
 
         Args:
-            query: Problem description
-            project_name: Optional project name
-            depth: Analysis depth - quick, standard, deep, or executive
+            query: Problem description (any length; English or Vietnamese)
+            project_name: Optional project name (default: the start of the query)
+            depth: quick, standard, deep, or executive
             problem_type: Problem type (e.g. "Diagnostic"); auto-detected if None
             category: Reasoning category (e.g. "Business Performance"); auto-detected if None
 
         Raises:
-            ValueError: if problem_type or category is not a known value.
+            ValueError: if depth, problem_type or category is not a known value.
         """
-        depth_cfg = DEPTH_CONFIG.get(depth, DEPTH_CONFIG["standard"])
+        if depth not in DEPTH_CONFIG:
+            raise ValueError(f"unknown depth {depth!r}; choose one of: {', '.join(VALID_DEPTHS)}")
+        cfg = DEPTH_CONFIG[depth]
+        query = unicodedata.normalize("NFC", str(query)).strip()
 
         # Step 1: Problem type (how the problem is shaped) — explicit beats auto-detect
-        type_source = "auto"
-        problem_type_info = {}
         if problem_type:
             name = resolve_choice(problem_type, problem_type_names(), "problem type")
             rows = _load_csv(DATA_DIR / CSV_CONFIG["problem-types"]["file"])
-            problem_type_info = next(r for r in rows if r["Problem Type"] == name)
+            type_info = next(r for r in rows if r["Problem Type"] == name)
             type_source = "explicit"
         else:
-            type_results = search(query, "problem-types", 1).get("results", [])
-            if type_results:
-                problem_type_info = type_results[0]
-        type_name = problem_type_info.get("Problem Type", "General")
+            type_info = classify_problem_type(query)
+            type_source = type_info.pop("_source", "default") if type_info else "default"
+        type_name = type_info.get("Problem Type", "General")
 
         # Step 2: Category (business context) selects the reasoning rule
-        category_source = "auto"
         if category:
             category = resolve_choice(category, category_names(), "category")
             category_source = "explicit"
         else:
             category = classify_category(query)
+            category_source = "auto" if category else "default"
         reasoning = self._apply_reasoning(category)
-        type_result = {"results": [problem_type_info] if problem_type_info else []}
 
         # Step 3: Multi-domain search (scaled by depth)
-        search_results = self._multi_domain_search(query, depth=depth)
-        search_results["problem-types"] = type_result
+        found = {d: r.get("results", []) for d, r in self._multi_domain_search(query, depth).items()}
 
-        # Step 4: Select best matches per domain
-        decomp_results = self._extract_results(search_results.get("decomposition", {}))
-        analysis_results = self._extract_results(search_results.get("analysis", {}))
-        prioritization_results = self._extract_results(search_results.get("prioritization", {}))
-        comm_results = self._extract_results(search_results.get("communication", {}))
-        heuristic_results = self._extract_results(search_results.get("heuristics", {}))
-        bias_results = self._extract_results(search_results.get("biases", {}))
-        team_results = self._extract_results(search_results.get("team", {}))
-        steps_results = self._extract_results(search_results.get("steps", {}))
+        # Step 4: the category rule decides first, the problem type's own
+        # recommendations next, keyword search ranking last.
+        type_approach = split_names(type_info.get("Recommended Approach", ""), ";")
+        type_analysis = split_names(type_info.get("Analysis Methods", ""), ";")
+        type_decomp = split_names(type_info.get("Decomposition Style", ""), ";")
+        rule_decomp = reasoning["decomposition_style"] if category else []
+        rule_analysis = reasoning["analysis_priority"] if category else []
+        rule_comm = reasoning["communication_style"] if category else []
 
-        # The category rule decides first; the problem type's own recommendations
-        # come next; keyword search ranking is the last resort.
-        def split(text):
-            return [part.strip() for part in str(text).split(";") if part.strip()]
+        best_decomp = self._pick_named("decomposition", rule_decomp + type_decomp + type_approach + ["Issue Tree"],
+                                       found["decomposition"])
+        best_analysis = self._pick_named("analysis", rule_analysis + type_approach + type_analysis + ["Benchmarking"],
+                                         found["analysis"])
+        best_prior = self._pick_named("prioritization", rule_decomp + rule_analysis + type_analysis
+                                      + ["Impact-Feasibility Matrix"], found["prioritization"])
+        best_comm = self._pick_named("communication", rule_comm + ["Pyramid Principle"], found["communication"])
 
-        type_approach = split(problem_type_info.get("Recommended Approach", ""))
-        type_analysis = split(problem_type_info.get("Analysis Methods", ""))
-        type_decomp = split(problem_type_info.get("Decomposition Style", ""))
-        rule_decomp = reasoning.get("decomposition_style", []) if category else []
-        rule_analysis = reasoning.get("analysis_priority", []) if category else []
-        rule_comm = reasoning.get("communication_style", []) if category else []
+        model_names = _interleave(reasoning["key_heuristics"], split_names(type_info.get("Mental Models", ""), ";"))
+        bias_names = _interleave(reasoning["key_biases"], split_names(type_info.get("Key Biases", ""), ";"))
+        models = self._pick_many("heuristics", model_names, found["heuristics"], cfg["models"])
+        biases = self._pick_many("biases", bias_names, found["biases"], cfg["biases"])
+        team = self._pick_many("team", [], found["team"] + [find_record("team", n) for n in DEFAULT_TEAM],
+                               cfg["team"]) if cfg["team"] else []
 
-        best_decomp = self._pick_named("decomposition", "Framework",
-                                       rule_decomp + type_decomp + type_approach, decomp_results)
-        best_analysis = self._pick_named("analysis", "Tool",
-                                         rule_analysis + type_approach + type_analysis, analysis_results)
-        best_prioritization = self._pick_named("prioritization", "Technique",
-                                               rule_decomp + rule_analysis + type_analysis,
-                                               prioritization_results)
-        best_comm = self._pick_named("communication", "Pattern", rule_comm, comm_results)
+        decomp_alts = [find_record("decomposition", n).get("Framework") for n in rule_decomp + type_decomp]
+        decomp_alts += [r.get("Framework") for r in found["decomposition"]]
+        analysis_alts = [find_record("analysis", n).get("Tool") for n in rule_analysis + type_analysis]
+        analysis_alts += [r.get("Tool") for r in found["analysis"]]
 
-        # Depth-aware result slicing
-        show_alts = depth_cfg.get("show_alternatives", False)
-        max_models = 5 if depth in ("deep", "executive") else 3
-        max_biases = 4 if depth in ("deep", "executive") else 2
-        max_team = 3 if depth in ("deep", "executive") else 2
-        steps_count = 7 if depth != "quick" else 3
+        def alternatives(names, primary):
+            out = []
+            for n in names:
+                if n and n != primary and n not in out:
+                    out.append(n)
+            return out[:cfg["alternatives"]]
 
-        return {
+        plan = {
+            "query": query,
             "depth": depth,
-            "project_name": project_name or query.upper(),
+            "project_name": project_name or _short_name(query) or "plan",
             "problem_category": category or "General",
             "classification": {
                 "type_source": type_source,
@@ -287,368 +270,356 @@ class ProblemSolvingAdvisor:
             },
             "problem_type": {
                 "name": type_name,
-                "complexity": problem_type_info.get("Complexity", "Medium"),
-                "characteristics": problem_type_info.get("Characteristics", ""),
-                "recommended_approach": problem_type_info.get("Recommended Approach", ""),
-                "time_frame": problem_type_info.get("Time Frame", ""),
-                "team_size": problem_type_info.get("Team Size", "")
+                "complexity": type_info.get("Complexity", "Medium"),
+                "characteristics": type_info.get("Characteristics", ""),
+                "recommended_approach": type_info.get("Recommended Approach", ""),
+                "common_mistakes": type_info.get("Common Mistakes", ""),
+                "time_frame": type_info.get("Time Frame", ""),
+                "team_size": type_info.get("Team Size", ""),
             },
             "methodology": {
-                "steps_focus": reasoning.get("steps_focus", ""),
-                "steps_detail": steps_results[:steps_count]
+                "steps_focus": reasoning["steps_focus"],
+                "steps": load_steps(),
             },
             "decomposition": {
                 "primary": best_decomp.get("Framework", "Issue Tree"),
                 "type": best_decomp.get("Type", ""),
+                "description": best_decomp.get("Description", ""),
                 "structure": best_decomp.get("Structure Pattern", ""),
+                "example": best_decomp.get("Example Application", ""),
                 "mece_test": best_decomp.get("MECE Test", ""),
-                "alternatives": self._alternatives(decomp_results, "Framework", best_decomp.get("Framework"), 4 if show_alts else 2)
+                "mistakes": best_decomp.get("Common Mistakes", ""),
+                "alternatives": alternatives(decomp_alts, best_decomp.get("Framework")),
             },
             "prioritization": {
-                "technique": best_prioritization.get("Technique", "Impact-Feasibility Matrix"),
-                "how_to": best_prioritization.get("How to Apply", ""),
-                "output": best_prioritization.get("Output Format", "")
+                "technique": best_prior.get("Technique", "Impact-Feasibility Matrix"),
+                "how_to": best_prior.get("How to Apply", ""),
+                "output": best_prior.get("Output Format", ""),
+                "pitfalls": best_prior.get("Pitfalls", ""),
             },
             "analysis": {
                 "primary_tool": best_analysis.get("Tool", "Benchmarking"),
                 "how_to": best_analysis.get("How to Apply", ""),
                 "data_needed": best_analysis.get("Data Requirements", ""),
-                "alternatives": self._alternatives(analysis_results, "Tool", best_analysis.get("Tool"), 4 if show_alts else 2)
+                "strengths": best_analysis.get("Strengths", ""),
+                "limitations": best_analysis.get("Limitations", ""),
+                "alternatives": alternatives(analysis_alts, best_analysis.get("Tool")),
             },
             "communication": {
-                "pattern": best_comm.get("Pattern", "Pyramid Principle"),
+                "pattern": best_comm.get("Pattern", "Pyramid Principle (Answer First)"),
                 "structure": best_comm.get("Structure", ""),
-                "audience": best_comm.get("Audience", "")
+                "audience": best_comm.get("Audience", ""),
             },
             "mental_models": [
-                {"name": h.get("Mental Model", ""), "application": h.get("Application to Problem Solving", "")}
-                for h in heuristic_results[:max_models]
+                {"name": h.get("Mental Model", ""), "application": h.get("Application to Problem Solving", ""),
+                 "description": h.get("Description", ""), "danger": h.get("Danger Zone", "")}
+                for h in models
             ],
             "bias_warnings": [
-                {"bias": b.get("Bias", ""), "debiasing": b.get("Debiasing Strategy", "")}
-                for b in bias_results[:max_biases]
+                {"bias": b.get("Bias", ""), "debiasing": b.get("Debiasing Strategy", ""),
+                 "detect": b.get("How to Detect", ""), "severity": b.get("Severity", "")}
+                for b in biases
             ],
             "team_recommendations": [
-                {"pattern": t.get("Pattern", ""), "how": t.get("How to Facilitate", "")}
-                for t in team_results[:max_team]
+                {"pattern": t.get("Pattern", ""), "how": t.get("How to Facilitate", "")} for t in team
             ],
-            "anti_patterns": reasoning.get("anti_patterns", ""),
-            "decision_rules": reasoning.get("decision_rules", {}),
-            "severity": reasoning.get("severity", "MEDIUM")
+            "anti_patterns": reasoning["anti_patterns"],
+            "decision_rules": reasoning["decision_rules"],
+            "severity": reasoning["severity"],
         }
+        plan["hints"] = fallback_hints(plan)
+        return plan
 
 
-# ============ OUTPUT FORMATTERS ============
-BOX_WIDTH = 90
-
-def _should_include(plan: dict, section: str) -> bool:
-    """Check if a section should be included based on depth."""
-    depth = plan.get("depth", "standard")
-    depth_cfg = DEPTH_CONFIG.get(depth, DEPTH_CONFIG["standard"])
-    sections = depth_cfg.get("sections", "all")
-    if sections == "all":
-        return True
-    return section in sections
+# ============ RENDERING ============
+def _first(text: str, n: int = 2, sep: str = ";") -> str:
+    """The first n items of a 'a; b; c' list, joined back."""
+    return "; ".join(split_names(text, sep)[:n])
 
 
-def format_ascii_box(plan: dict) -> str:
-    """Format problem-solving plan as ASCII box."""
-    project = plan.get("project_name", "PROJECT")
-    depth = plan.get("depth", "standard")
-    problem = plan.get("problem_type", {})
-    methodology = plan.get("methodology", {})
-    decomp = plan.get("decomposition", {})
-    prioritization = plan.get("prioritization", {})
-    analysis = plan.get("analysis", {})
-    comm = plan.get("communication", {})
-    models = plan.get("mental_models", [])
-    biases = plan.get("bias_warnings", [])
-    team = plan.get("team_recommendations", [])
-    anti_patterns = plan.get("anti_patterns", "")
+def _sentence(text: str) -> str:
+    """The first sentence of text."""
+    text = str(text).strip()
+    cut = text.find(". ")
+    return text if cut < 0 else text[:cut + 1]
 
-    def wrap_text(text: str, prefix: str, width: int) -> list:
-        if not text:
-            return []
-        words = text.split()
+
+def _rule_text(key: str, value: str) -> str:
+    """'if_revenue_problem', 'decompose-price-x-volume' -> 'If revenue problem: decompose price x volume'."""
+    cond = key.replace("_", " ").strip()
+    cond = cond[3:] if cond.lower().startswith("if ") else cond
+    return f"If {cond}: {str(value).replace('-', ' ')}"
+
+
+def fallback_hints(plan: dict) -> list:
+    """What to tell the AI when auto-detection found nothing (or only a weak match)."""
+    cls = plan["classification"]
+    hints = []
+    if cls["type_source"] == "default":
+        hints.append("No problem type matched clearly. Re-run with `--type` "
+                     f"({', '.join(problem_type_names())}).")
+    elif cls["type_source"] == "text":
+        hints.append(f"The problem type ({plan['problem_type']['name']}) is a weak guess: no keyword matched. "
+                     f"If it is wrong, re-run with `--type` ({', '.join(problem_type_names())}).")
+    if cls["category_source"] == "default":
+        names = ", ".join(f'"{c}"' for c in category_names())
+        hints.append("No context matched clearly, so generic defaults are used. "
+                     f"Re-run with `--category` ({names}).")
+    return hints
+
+
+def _source(src: str) -> str:
+    return {"explicit": "set by you", "auto": "auto-detected", "text": "weak guess", "default": "no match"}.get(src, src)
+
+
+def _sections(plan: dict) -> list:
+    """The plan as (heading, [lines]) pairs, lines in light markdown. Depth decides what is in it."""
+    cfg = DEPTH_CONFIG[plan["depth"]]
+    problem, cls = plan["problem_type"], plan["classification"]
+    decomp, prior, analysis, comm = plan["decomposition"], plan["prioritization"], plan["analysis"], plan["communication"]
+    out = []
+
+    head = [f"**Request:** {_preview(plan['query'])}"] if plan.get("query") else []
+    head += [f"> {h}" for h in plan.get("hints", fallback_hints(plan))]
+    out.append(("", head))
+
+    if cfg["executive"]:
+        out.append(("Executive Summary (SCR)", _executive_summary(plan)))
+
+    lines = [f"- **Type:** {problem['name']} ({_source(cls['type_source'])}), complexity {problem['complexity']}",
+             f"- **Context:** {plan['problem_category']} ({_source(cls['category_source'])}), "
+             f"stakes {plan.get('severity', 'MEDIUM')}"]
+    if plan["depth"] != "quick":
+        if problem.get("time_frame"):
+            lines.append(f"- **Time frame:** {problem['time_frame']}; **team:** {problem.get('team_size') or 'n/a'}")
+        if problem.get("recommended_approach"):
+            lines.append(f"- **Approach:** {problem['recommended_approach']}")
+    if cfg["details"] and problem.get("common_mistakes"):
+        lines.append(f"- **Common mistakes with this type:** {problem['common_mistakes']}")
+    out.append(("Problem Classification", lines))
+
+    out.append(("Recommended Process", [plan["methodology"]["steps_focus"]]))
+
+    if cfg["steps"]:
         lines = []
-        current_line = prefix
-        for word in words:
-            if len(current_line) + len(word) + 1 <= width - 2:
-                current_line += (" " if current_line != prefix else "") + word
-            else:
-                if current_line != prefix:
-                    lines.append(current_line)
-                current_line = prefix + word
-        if current_line != prefix:
-            lines.append(current_line)
-        return lines
+        for s in plan["methodology"]["steps"]:
+            acts = s["activities"] if cfg["details"] else _first(s["activities"], 3)
+            lines.append(f"{s['number']}. **{s['name']}** ({s['time']}): {acts}")
+            lines.append(f"   - Done when: {s['gate']}")
+            if cfg["details"]:
+                lines.append(f"   - Pitfalls: {s['pitfalls']}")
+        out.append(("The 7 Steps", lines))
+
+    lines = [f"- **Structure:** {decomp['structure']}"] if decomp.get("structure") else []
+    if plan["depth"] != "quick" and decomp.get("mece_test"):
+        lines.append(f"- **MECE test:** {decomp['mece_test']}")
+    if cfg["details"] and decomp.get("example"):
+        lines.append(f"- **Example:** {decomp['example']}")
+    if cfg["details"] and decomp.get("mistakes"):
+        lines.append(f"- **Mistakes:** {decomp['mistakes']}")
+    if decomp.get("alternatives"):
+        lines.append(f"- **Alternatives:** {', '.join(decomp['alternatives'])}")
+    out.append((f"Decomposition: {decomp['primary']}", lines))
+
+    if plan["depth"] != "quick":
+        lines = [f"- **How:** {prior['how_to']}"] if prior.get("how_to") else []
+        if cfg["details"] and prior.get("output"):
+            lines.append(f"- **Output:** {prior['output']}")
+        if cfg["details"] and prior.get("pitfalls"):
+            lines.append(f"- **Pitfalls:** {prior['pitfalls']}")
+        out.append((f"Prioritization: {prior['technique']}", lines))
 
     lines = []
-    w = BOX_WIDTH - 1
-    depth_label = f" [{depth.upper()}]" if depth != "standard" else ""
+    if cfg["details"] and analysis.get("how_to"):
+        lines.append(f"- **How:** {analysis['how_to']}")
+    if analysis.get("data_needed"):
+        data = analysis["data_needed"] if plan["depth"] != "quick" else _first(analysis["data_needed"], 3)
+        lines.append(f"- **Data needed:** {data}")
+    if cfg["details"] and analysis.get("strengths"):
+        lines.append(f"- **Strengths:** {analysis['strengths']}")
+        lines.append(f"- **Limitations:** {analysis['limitations']}")
+    if analysis.get("alternatives"):
+        lines.append(f"- **Also consider:** {', '.join(analysis['alternatives'])}")
+    out.append((f"Analysis: {analysis['primary_tool']}", lines))
 
-    lines.append("+" + "=" * w + "+")
-    lines.append(f"|  PROBLEM-SOLVING PLAN: {project}{depth_label}".ljust(BOX_WIDTH) + "|")
-    lines.append("+" + "=" * w + "+")
-    lines.append("|" + " " * BOX_WIDTH + "|")
+    if plan["depth"] != "quick" and plan.get("decision_rules"):
+        out.append(("Decision Rules", ["Pick the branch that fits the situation:"]
+                    + [f"- {_rule_text(k, v)}" for k, v in plan["decision_rules"].items()]))
 
-    # Problem Classification (always included)
-    lines.append(f"|  PROBLEM TYPE: {problem.get('name', '')}".ljust(BOX_WIDTH) + "|")
-    lines.append(f"|     Context: {plan.get('problem_category', 'General')}".ljust(BOX_WIDTH) + "|")
-    lines.append(f"|     Complexity: {problem.get('complexity', '')}".ljust(BOX_WIDTH) + "|")
-    if problem.get("time_frame"):
-        lines.append(f"|     Time Frame: {problem.get('time_frame', '')}".ljust(BOX_WIDTH) + "|")
-    if problem.get("team_size"):
-        lines.append(f"|     Recommended Team: {problem.get('team_size', '')}".ljust(BOX_WIDTH) + "|")
-    if problem.get("recommended_approach"):
-        for line in wrap_text(f"Approach: {problem.get('recommended_approach', '')}", "|     ", BOX_WIDTH):
-            lines.append(line.ljust(BOX_WIDTH) + "|")
-    lines.append("|" + " " * BOX_WIDTH + "|")
-
-    # Methodology
-    if _should_include(plan, "methodology"):
-        lines.append("|  RECOMMENDED PROCESS:".ljust(BOX_WIDTH) + "|")
-        if methodology.get("steps_focus"):
-            for line in wrap_text(methodology.get("steps_focus", ""), "|     ", BOX_WIDTH):
-                lines.append(line.ljust(BOX_WIDTH) + "|")
-        lines.append("|" + " " * BOX_WIDTH + "|")
-
-    # Decomposition
-    if _should_include(plan, "decomposition"):
-        lines.append(f"|  DECOMPOSITION: {decomp.get('primary', '')}".ljust(BOX_WIDTH) + "|")
-        if decomp.get("structure"):
-            for line in wrap_text(f"Structure: {decomp.get('structure', '')}", "|     ", BOX_WIDTH):
-                lines.append(line.ljust(BOX_WIDTH) + "|")
-        if decomp.get("mece_test"):
-            for line in wrap_text(f"MECE Test: {decomp.get('mece_test', '')}", "|     ", BOX_WIDTH):
-                lines.append(line.ljust(BOX_WIDTH) + "|")
-        if decomp.get("alternatives"):
-            alts = [a for a in decomp["alternatives"] if a]
-            if alts:
-                lines.append(f"|     Alternatives: {', '.join(alts)}".ljust(BOX_WIDTH) + "|")
-        lines.append("|" + " " * BOX_WIDTH + "|")
-
-    # Prioritization
-    if _should_include(plan, "prioritization"):
-        lines.append(f"|  PRIORITIZATION: {prioritization.get('technique', '')}".ljust(BOX_WIDTH) + "|")
-        if prioritization.get("how_to"):
-            for line in wrap_text(prioritization.get("how_to", ""), "|     ", BOX_WIDTH):
-                lines.append(line.ljust(BOX_WIDTH) + "|")
-        lines.append("|" + " " * BOX_WIDTH + "|")
-
-    # Analysis
-    if _should_include(plan, "analysis"):
-        lines.append(f"|  PRIMARY ANALYSIS: {analysis.get('primary_tool', '')}".ljust(BOX_WIDTH) + "|")
-        if analysis.get("data_needed"):
-            for line in wrap_text(f"Data Needed: {analysis.get('data_needed', '')}", "|     ", BOX_WIDTH):
-                lines.append(line.ljust(BOX_WIDTH) + "|")
-        if analysis.get("alternatives"):
-            alts = [a for a in analysis["alternatives"] if a]
-            if alts:
-                lines.append(f"|     Also Consider: {', '.join(alts)}".ljust(BOX_WIDTH) + "|")
-        lines.append("|" + " " * BOX_WIDTH + "|")
-
-    # Communication
-    if _should_include(plan, "communication"):
-        lines.append(f"|  COMMUNICATION: {comm.get('pattern', '')}".ljust(BOX_WIDTH) + "|")
-        if comm.get("structure"):
-            for line in wrap_text(f"Structure: {comm.get('structure', '')}", "|     ", BOX_WIDTH):
-                lines.append(line.ljust(BOX_WIDTH) + "|")
+    if plan["depth"] != "quick":
+        lines = [f"- **Structure:** {comm['structure']}"] if comm.get("structure") else []
         if comm.get("audience"):
-            lines.append(f"|     Audience: {comm.get('audience', '')}".ljust(BOX_WIDTH) + "|")
-        lines.append("|" + " " * BOX_WIDTH + "|")
+            lines.append(f"- **Audience:** {comm['audience']}")
+        out.append((f"Communication: {comm['pattern']}", lines))
 
-    # Mental Models
-    if models and _should_include(plan, "mental_models"):
-        lines.append("|  KEY MENTAL MODELS:".ljust(BOX_WIDTH) + "|")
+    models = plan.get("mental_models", [])
+    if models:
+        lines = []
         for m in models:
-            if m.get("name"):
-                lines.append(f"|     - {m['name']}".ljust(BOX_WIDTH) + "|")
-                # In deep/executive, also show application
-                if depth in ("deep", "executive") and m.get("application"):
-                    for line in wrap_text(m["application"], "|       ", BOX_WIDTH):
-                        lines.append(line.ljust(BOX_WIDTH) + "|")
-        lines.append("|" + " " * BOX_WIDTH + "|")
+            what = m["description"] if plan["depth"] != "quick" else _sentence(m["description"])
+            lines.append(f"- **{m['name']}**: {what}")
+            if cfg["details"] and m.get("application"):
+                lines.append(f"  - Helps: {m['application']}")
+            if cfg["details"] and m.get("danger"):
+                lines.append(f"  - Danger zone: {m['danger']}")
+        out.append(("Mental Models", lines))
 
-    # Bias Warnings (always included)
+    biases = plan.get("bias_warnings", [])
     if biases:
-        lines.append("|  BIAS WARNINGS:".ljust(BOX_WIDTH) + "|")
+        lines = []
         for b in biases:
-            if b.get("bias"):
-                lines.append(f"|     ! {b['bias']}".ljust(BOX_WIDTH) + "|")
-                if b.get("debiasing"):
-                    for line in wrap_text(f"  Remedy: {b['debiasing']}", "|       ", BOX_WIDTH):
-                        lines.append(line.ljust(BOX_WIDTH) + "|")
-        lines.append("|" + " " * BOX_WIDTH + "|")
+            remedy = b["debiasing"] if plan["depth"] != "quick" else _first(b["debiasing"], 1)
+            lines.append(f"- **{b['bias']}**: {remedy}")
+            if cfg["details"] and b.get("detect"):
+                lines.append(f"  - Warning signs: {b['detect']}")
+        out.append(("Bias Warnings", lines))
 
-    # Team Recommendations
-    if team and _should_include(plan, "team_recommendations"):
-        lines.append("|  TEAM RECOMMENDATIONS:".ljust(BOX_WIDTH) + "|")
-        for t in team:
-            if t.get("pattern"):
-                lines.append(f"|     - {t['pattern']}".ljust(BOX_WIDTH) + "|")
-        lines.append("|" + " " * BOX_WIDTH + "|")
+    team = plan.get("team_recommendations", [])
+    if team:
+        out.append(("Team", [f"- **{t['pattern']}**: {t['how'] if cfg['details'] else _first(t['how'], 2)}"
+                             for t in team]))
 
-    # Anti-patterns
-    if anti_patterns and _should_include(plan, "anti_patterns"):
-        lines.append("|  AVOID (Anti-patterns):".ljust(BOX_WIDTH) + "|")
-        for line in wrap_text(anti_patterns, "|     ", BOX_WIDTH):
-            lines.append(line.ljust(BOX_WIDTH) + "|")
-        lines.append("|" + " " * BOX_WIDTH + "|")
+    if plan.get("anti_patterns"):
+        anti = plan["anti_patterns"] if plan["depth"] != "quick" else _first(plan["anti_patterns"], 3)
+        out.append(("Avoid", [anti]))
 
-    # Checklist
-    if depth != "quick":
-        lines.append("|  PROBLEM-SOLVING CHECKLIST:".ljust(BOX_WIDTH) + "|")
-        checklist_items = [
-            "[ ] Problem statement is specific, bounded, and measurable",
-            "[ ] Logic tree is MECE (Mutually Exclusive, Collectively Exhaustive)",
-            "[ ] Top 2-3 priority issues identified (80/20 applied)",
-            "[ ] Each priority issue has a testable hypothesis",
-            "[ ] Analyses are linked to specific hypotheses",
-            "[ ] Day 1 answer stated with confidence level",
-            "[ ] Findings pass the 'so what?' test",
-            "[ ] Recommendation leads the communication (answer first)",
-            "[ ] Counterarguments addressed directly",
-            "[ ] Next steps are specific with owners and dates"
-        ]
-        for item in checklist_items:
-            lines.append(f"|     {item}".ljust(BOX_WIDTH) + "|")
-        lines.append("|" + " " * BOX_WIDTH + "|")
+    if cfg["executive"]:
+        out.append(("Key Risks", _key_risks(plan)))
+        out.append(("Decision Needed", _decision_needed(plan)))
 
-    lines.append("+" + "=" * w + "+")
+    if cfg["checklist"]:
+        out.append(("Problem-Solving Checklist", [f"- [ ] {item}" for item in CHECKLIST]))
+    else:
+        out.append(("First Move", [
+            "Write the problem as one specific, measurable sentence and your best-guess answer (Day 1 answer); "
+            "then check the two branches most likely to prove it wrong."]))
+    return out
 
-    return "\n".join(lines)
+
+CHECKLIST = [
+    "Problem statement is specific, bounded, and measurable",
+    "Logic tree is MECE",
+    "Top 2-3 priority issues identified (80/20 applied)",
+    "Each priority issue has a testable hypothesis",
+    "Analyses linked to specific hypotheses",
+    "Day 1 answer stated with confidence level",
+    "Findings pass the 'so what?' test",
+    "Recommendation leads the communication",
+    "Counterarguments addressed",
+    "Next steps specific with owners and dates",
+]
+
+
+def _executive_summary(plan: dict) -> list:
+    problem = plan["problem_type"]
+    decomp, analysis, comm = plan["decomposition"], plan["analysis"], plan["communication"]
+    traits = _first(problem.get("characteristics", ""), 2)
+    trap = _first(plan.get("anti_patterns", "") or problem.get("common_mistakes", ""), 1)
+    return [
+        f"- **Situation:** \"{_preview(plan['query'], 240)}\": a {problem['name'].lower()} problem "
+        f"in {plan['problem_category']}, stakes {plan.get('severity', 'MEDIUM')}.",
+        f"- **Complication:** {traits}." + (f" The usual trap: {trap.lower()}." if trap else ""),
+        f"- **Resolution (approach):** {plan['methodology']['steps_focus']}. Break it down with {decomp['primary']}, "
+        f"test the top hypotheses with {analysis['primary_tool']}, present with {comm['pattern']}.",
+        "- Replace the approach with the answer once the analysis is done: lead with the recommendation, "
+        "then the three reasons, then the ask.",
+    ]
+
+
+def _key_risks(plan: dict) -> list:
+    risks = split_names(plan.get("anti_patterns", ""), ";")[:3]
+    risks += split_names(plan["problem_type"].get("common_mistakes", ""), ";")[:2]
+    lines = [f"- {r}" for r in risks]
+    lines += [f"- {b['bias']} in the team's judgment: {_first(b['debiasing'], 1)}"
+              for b in plan.get("bias_warnings", [])[:2]]
+    return lines
+
+
+def _decision_needed(plan: dict) -> list:
+    lines = ["- Agree the problem statement, the success metric and the deadline.",
+             f"- Fund the {plan['analysis']['primary_tool']} work and name its owner "
+             f"({plan['problem_type'].get('team_size') or 'a small team'}, {(plan['problem_type'].get('time_frame') or 'time-boxed').lower()})."]
+    rules = plan.get("decision_rules") or {}
+    if rules:
+        lines.append("- Confirm which situation applies, because it sets the first analysis: "
+                     + "; ".join(_rule_text(k, v) for k, v in rules.items()) + ".")
+    lines.append("- Set the checkpoint where leadership sees the Day 1 answer and decides go / change course / stop.")
+    return lines
 
 
 def format_markdown(plan: dict) -> str:
     """Format problem-solving plan as markdown."""
-    project = plan.get("project_name", "PROJECT")
-    problem = plan.get("problem_type", {})
-    methodology = plan.get("methodology", {})
-    decomp = plan.get("decomposition", {})
-    prioritization = plan.get("prioritization", {})
-    analysis = plan.get("analysis", {})
-    comm = plan.get("communication", {})
-    models = plan.get("mental_models", [])
-    biases = plan.get("bias_warnings", [])
-    team = plan.get("team_recommendations", [])
-    anti_patterns = plan.get("anti_patterns", "")
+    depth = plan.get("depth", "standard")
+    label = f" [{depth.upper()}]" if depth != "standard" else ""
+    out = [f"## Problem-Solving Plan: {plan['project_name']}{label}", ""]
+    for heading, lines in _sections(plan):
+        if heading:
+            out.append(f"### {heading}")
+        out += [line for line in lines if line is not None]
+        out.append("")
+    return "\n".join(out)
 
-    lines = []
-    lines.append(f"## Problem-Solving Plan: {project}")
-    lines.append("")
 
-    lines.append("### Problem Classification")
-    lines.append(f"- **Type:** {problem.get('name', '')}")
-    lines.append(f"- **Context:** {plan.get('problem_category', 'General')}")
-    lines.append(f"- **Complexity:** {problem.get('complexity', '')}")
-    if problem.get("time_frame"):
-        lines.append(f"- **Time Frame:** {problem.get('time_frame', '')}")
-    if problem.get("team_size"):
-        lines.append(f"- **Recommended Team:** {problem.get('team_size', '')}")
-    if problem.get("recommended_approach"):
-        lines.append(f"- **Approach:** {problem.get('recommended_approach', '')}")
-    lines.append("")
+BOX_WIDTH = 90
 
-    lines.append("### Recommended Process")
-    if methodology.get("steps_focus"):
-        lines.append(f"{methodology['steps_focus']}")
-    lines.append("")
 
-    lines.append("### Decomposition Framework")
-    lines.append(f"- **Primary:** {decomp.get('primary', '')}")
-    if decomp.get("structure"):
-        lines.append(f"- **Structure:** {decomp.get('structure', '')}")
-    if decomp.get("mece_test"):
-        lines.append(f"- **MECE Test:** {decomp.get('mece_test', '')}")
-    if decomp.get("alternatives"):
-        alts = [a for a in decomp["alternatives"] if a]
-        if alts:
-            lines.append(f"- **Alternatives:** {', '.join(alts)}")
-    lines.append("")
+def format_ascii_box(plan: dict) -> str:
+    """Format problem-solving plan as an ASCII box; every line is BOX_WIDTH characters."""
+    inner = BOX_WIDTH - 4
+    depth = plan.get("depth", "standard")
+    label = f" [{depth.upper()}]" if depth != "standard" else ""
 
-    lines.append("### Prioritization")
-    lines.append(f"- **Technique:** {prioritization.get('technique', '')}")
-    if prioritization.get("how_to"):
-        lines.append(f"- **How:** {prioritization.get('how_to', '')}")
-    lines.append("")
+    def row(text=""):
+        return f"| {text.ljust(inner)} |"
 
-    lines.append("### Analysis Toolkit")
-    lines.append(f"- **Primary:** {analysis.get('primary_tool', '')}")
-    if analysis.get("data_needed"):
-        lines.append(f"- **Data Needed:** {analysis.get('data_needed', '')}")
-    if analysis.get("alternatives"):
-        alts = [a for a in analysis["alternatives"] if a]
-        if alts:
-            lines.append(f"- **Also Consider:** {', '.join(alts)}")
-    lines.append("")
+    def wrapped(text, indent=""):
+        text = text.replace("**", "").replace("`", "")
+        lead = len(text) - len(text.lstrip())
+        first = " " * lead
+        return [row(line) for line in textwrap.wrap(text.strip(), inner, initial_indent=first,
+                                                     subsequent_indent=first + "  " + indent,
+                                                     break_long_words=True, break_on_hyphens=False)] or [row()]
 
-    lines.append("### Communication Strategy")
-    lines.append(f"- **Pattern:** {comm.get('pattern', '')}")
-    if comm.get("structure"):
-        lines.append(f"- **Structure:** {comm.get('structure', '')}")
-    if comm.get("audience"):
-        lines.append(f"- **Audience:** {comm.get('audience', '')}")
-    lines.append("")
-
-    if models:
-        lines.append("### Key Mental Models")
-        for m in models:
-            if m.get("name"):
-                lines.append(f"- **{m['name']}**: {m.get('application', '')}")
-        lines.append("")
-
-    if biases:
-        lines.append("### Bias Warnings")
-        for b in biases:
-            if b.get("bias"):
-                lines.append(f"- **{b['bias']}**: {b.get('debiasing', '')}")
-        lines.append("")
-
-    if team:
-        lines.append("### Team Recommendations")
-        for t in team:
-            if t.get("pattern"):
-                lines.append(f"- **{t['pattern']}**: {t.get('how', '')}")
-        lines.append("")
-
-    if anti_patterns:
-        lines.append("### Avoid (Anti-patterns)")
-        lines.append(f"{anti_patterns}")
-        lines.append("")
-
-    lines.append("### Problem-Solving Checklist")
-    checklist = [
-        "Problem statement is specific, bounded, and measurable",
-        "Logic tree is MECE",
-        "Top 2-3 priority issues identified (80/20 applied)",
-        "Each priority issue has a testable hypothesis",
-        "Analyses linked to specific hypotheses",
-        "Day 1 answer stated with confidence level",
-        "Findings pass the 'so what?' test",
-        "Recommendation leads the communication",
-        "Counterarguments addressed",
-        "Next steps specific with owners and dates"
-    ]
-    for item in checklist:
-        lines.append(f"- [ ] {item}")
-    lines.append("")
-
+    border = "+" + "=" * (BOX_WIDTH - 2) + "+"
+    lines = [border]
+    lines += wrapped(f"PROBLEM-SOLVING PLAN: {plan['project_name']}{label}")
+    lines.append(border)
+    for heading, body in _sections(plan):
+        lines.append(row())
+        if heading:
+            lines += wrapped(heading.upper())
+        for text in body:
+            lines += wrapped(text)
+    lines += [row(), border]
     return "\n".join(lines)
+
+
+# ============ PERSISTENCE ============
+def _plan_dir(plan: dict, output_dir: str = None) -> Path:
+    base = Path(output_dir) if output_dir else default_output_dir()
+    plan_dir = base / "solving-plans" / slugify(plan.get("project_name", "default"))
+    plan_dir.mkdir(parents=True, exist_ok=True)
+    return plan_dir
 
 
 def persist_plan(plan: dict, output_dir: str = None, force: bool = False):
     """Save the plan as PLAN.md; returns (path, written). An existing PLAN.md is kept unless force."""
-    project_slug = slugify(plan.get("project_name", "default"))
-    base_dir = Path(output_dir) if output_dir else default_output_dir()
-    plan_dir = base_dir / "solving-plans" / project_slug
-
-    plan_dir.mkdir(parents=True, exist_ok=True)
-
-    # Write plan
-    content = format_markdown(plan) + f"\n---\n*Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}*\n"
+    plan_dir = _plan_dir(plan, output_dir)
+    content = format_markdown(plan)
+    if len(" ".join(plan["query"].split())) > REQUEST_PREVIEW:
+        content += "\n### Full Request\n\n" + _quote(plan["query"]) + "\n"
+    content += f"\n---\n*Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}*\n"
     written, _ = save_docs(plan_dir, {"PLAN.md": content}, force)
     return str(plan_dir / "PLAN.md"), bool(written)
+
+
+def _quote(text: str) -> str:
+    return "\n".join(f"> {line}".rstrip() for line in str(text).splitlines()) or ">"
+
+
+def _guide(step: dict) -> str:
+    return (f"> {step['description']}\n>\n> **Do:** {step['activities']}\n>\n"
+            f"> **Done when:** {step['gate']}\n>\n> **Tip:** {_first(step['tips'], 2)}")
 
 
 def persist_step_by_step(plan: dict, output_dir: str = None, force: bool = False):
@@ -656,64 +627,48 @@ def persist_step_by_step(plan: dict, output_dir: str = None, force: bool = False
 
     Files that already exist hold the user's notes and are kept unless force is set.
     """
-    project_slug = slugify(plan.get("project_name", "default"))
-    base_dir = Path(output_dir) if output_dir else default_output_dir()
-    plan_dir = base_dir / "solving-plans" / project_slug
-    plan_dir.mkdir(parents=True, exist_ok=True)
-
-    project = plan.get("project_name", "PROJECT")
-    depth = plan.get("depth", "standard")
-    problem = plan.get("problem_type", {})
-    methodology = plan.get("methodology", {})
-    decomp = plan.get("decomposition", {})
-    prioritization = plan.get("prioritization", {})
-    analysis = plan.get("analysis", {})
-    comm = plan.get("communication", {})
-    models = plan.get("mental_models", [])
-    biases = plan.get("bias_warnings", [])
-    team = plan.get("team_recommendations", [])
-    anti_patterns = plan.get("anti_patterns", "")
-    ts = datetime.now().strftime('%Y-%m-%d %H:%M')
-
+    plan_dir = _plan_dir(plan, output_dir)
+    project = plan["project_name"]
+    problem = plan["problem_type"]
+    decomp, prior, analysis, comm = plan["decomposition"], plan["prioritization"], plan["analysis"], plan["communication"]
+    steps = {s["number"]: s for s in plan["methodology"]["steps"]}
+    models, biases = plan.get("mental_models", []), plan.get("bias_warnings", [])
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M")
     docs = {}
 
-    # 00-OVERVIEW.md
-    overview = f"""# Problem-Solving Plan: {project}
+    docs["00-OVERVIEW.md"] = f"""# Problem-Solving Plan: {project}
 
-**Depth:** {depth} | **Generated:** {ts}
+**Problem:** {problem['name']} | **Context:** {plan['problem_category']} | **Depth:** {plan['depth']} | **Generated:** {ts}
+**Request:** {_preview(plan['query'], 300)}
+
+Work the steps in order. Tick a step's **Done?** box only when its quality gate is met
+(the AI does this with `search.py --done <step>`); `/solve.resume` continues at the first open step.
+
+{progress_table()}
+
+Also: [BIAS-WARNINGS.md](./BIAS-WARNINGS.md) (biases and mental models to watch),
+[DECISION-LOG.md](./DECISION-LOG.md) (decisions made along the way).
 
 ## Problem Classification
-- **Type:** {problem.get('name', '')}
-- **Context:** {plan.get('problem_category', 'General')}
-- **Complexity:** {problem.get('complexity', '')}
-- **Time Frame:** {problem.get('time_frame', 'N/A')}
-- **Recommended Team:** {problem.get('team_size', 'N/A')}
-- **Approach:** {problem.get('recommended_approach', 'N/A')}
-
-## Files in This Plan
-- [01-PROBLEM-DEFINITION.md](./01-PROBLEM-DEFINITION.md) — Define the problem
-- [02-DECOMPOSITION.md](./02-DECOMPOSITION.md) — Break it down MECE
-- [03-PRIORITIZATION.md](./03-PRIORITIZATION.md) — Focus on what matters
-- [04-ANALYSIS-PLAN.md](./04-ANALYSIS-PLAN.md) — Plan the analyses
-- [05-FINDINGS.md](./05-FINDINGS.md) — Record findings (template)
-- [06-SYNTHESIS.md](./06-SYNTHESIS.md) — Synthesize insights
-- [07-RECOMMENDATION.md](./07-RECOMMENDATION.md) — Final recommendation
-- [BIAS-WARNINGS.md](./BIAS-WARNINGS.md) — Cognitive bias alerts
-- [DECISION-LOG.md](./DECISION-LOG.md) — Track decisions made
+- **Type:** {problem['name']} ({_source(plan['classification']['type_source'])}), complexity {problem['complexity']}
+- **Context:** {plan['problem_category']} ({_source(plan['classification']['category_source'])}), stakes {plan.get('severity', 'MEDIUM')}
+- **Time frame:** {problem.get('time_frame') or 'n/a'}; **team:** {problem.get('team_size') or 'n/a'}
+- **Approach:** {problem.get('recommended_approach') or 'n/a'}
+- **Recommended process:** {plan['methodology']['steps_focus']}
 """
-    docs["00-OVERVIEW.md"] = overview
 
-    # 01-PROBLEM-DEFINITION.md
-    step1 = f"""# Step 1: Define the Problem
+    docs["01-PROBLEM-DEFINITION.md"] = f"""# Step 1: Define the Problem
+
+{_guide(steps[1])}
+
+## Request (as given)
+{_quote(plan['query'])}
 
 ## Problem Statement
-<!-- Write a specific, bounded, actionable, measurable problem statement -->
+<!-- Rewrite the request as one specific, bounded, measurable sentence -->
 
-**Type:** {problem.get('name', '')}
+**Type:** {problem['name']}
 **Characteristics:** {problem.get('characteristics', '')}
-
-## Recommended Process
-{methodology.get('steps_focus', '')}
 
 ## Success Criteria
 <!-- What does "solved" look like? -->
@@ -730,24 +685,20 @@ def persist_step_by_step(plan: dict, output_dir: str = None, force: bool = False
 |-------------|------|---------------|
 | | | |
 """
-    docs["01-PROBLEM-DEFINITION.md"] = step1
 
-    # 02-DECOMPOSITION.md
-    alts = [a for a in decomp.get('alternatives', []) if a]
-    alts_str = ', '.join(alts) if alts else 'N/A'
-    step2 = f"""# Step 2: Decompose the Problem
+    alts = ", ".join(decomp.get("alternatives", [])) or "n/a"
+    docs["02-DECOMPOSITION.md"] = f"""# Step 2: Decompose the Problem
 
-## Primary Framework: {decomp.get('primary', 'Issue Tree')}
-**Type:** {decomp.get('type', '')}
+{_guide(steps[2])}
 
-### Structure Pattern
-{decomp.get('structure', '')}
+## Primary Framework: {decomp['primary']}
+{decomp.get('description', '')}
 
-### MECE Test
-{decomp.get('mece_test', '')}
+**Structure:** {decomp.get('structure', '')}
 
-### Alternative Frameworks
-{alts_str}
+**MECE test:** {decomp.get('mece_test', '')}
+
+**Alternatives:** {alts}
 
 ## Your Decomposition
 <!-- Build your logic tree here -->
@@ -769,18 +720,15 @@ Root Problem
 - [ ] Branches are collectively exhaustive (nothing missing)
 - [ ] Each leaf is specific enough to analyze
 """
-    docs["02-DECOMPOSITION.md"] = step2
 
-    # 03-PRIORITIZATION.md
-    step3 = f"""# Step 3: Prioritize Issues
+    docs["03-PRIORITIZATION.md"] = f"""# Step 3: Prioritize Issues
 
-## Technique: {prioritization.get('technique', 'Impact-Feasibility Matrix')}
+{_guide(steps[3])}
 
-### How to Apply
-{prioritization.get('how_to', '')}
+## Technique: {prior['technique']}
+**How to apply:** {prior.get('how_to', '')}
 
-### Expected Output
-{prioritization.get('output', '')}
+**Expected output:** {prior.get('output', '')}
 
 ## Priority Matrix
 | Branch | Impact (1-5) | Feasibility (1-5) | Priority |
@@ -800,75 +748,56 @@ Root Problem
    - Why it matters:
    - Hypothesis:
 """
-    docs["03-PRIORITIZATION.md"] = step3
 
-    # 04-ANALYSIS-PLAN.md
-    analysis_alts = [a for a in analysis.get('alternatives', []) if a]
-    analysis_alts_str = ', '.join(analysis_alts) if analysis_alts else 'N/A'
-    step4 = f"""# Step 4: Analysis Plan
+    analysis_alts = ", ".join(analysis.get("alternatives", [])) or "n/a"
+    rules = "\n".join(f"- {_rule_text(k, v)}" for k, v in (plan.get("decision_rules") or {}).items())
+    docs["04-ANALYSIS-PLAN.md"] = f"""# Step 4: Analysis Plan
 
-## Primary Tool: {analysis.get('primary_tool', 'Benchmarking')}
+{_guide(steps[4])}
 
-### How to Apply
-{analysis.get('how_to', '')}
+## Primary Tool: {analysis['primary_tool']}
+**How to apply:** {analysis.get('how_to', '')}
 
-### Data Requirements
-{analysis.get('data_needed', '')}
+**Data requirements:** {analysis.get('data_needed', '')}
 
-### Also Consider
-{analysis_alts_str}
-
+**Also consider:** {analysis_alts}
+{chr(10) + "## Decision Rules" + chr(10) + rules + chr(10) if rules else ""}
 ## Workplan
-| Priority Issue | Analysis Method | Data Source | Owner | Deadline |
-|---------------|----------------|-------------|-------|----------|
-| | | | | |
-| | | | | |
-| | | | | |
+| Priority Issue | Hypothesis | Analysis Method | Data Source | Owner | Deadline |
+|---------------|-----------|----------------|-------------|-------|----------|
+| | | | | | |
+| | | | | | |
+| | | | | | |
 """
-    docs["04-ANALYSIS-PLAN.md"] = step4
 
-    # 05-FINDINGS.md
-    step5 = """# Step 5: Findings
+    finding = """### Finding {n}
+- **Branch:**
+- **Data:**
+- **Insight:**
+- **So what?**
+- **Confidence:** High / Medium / Low
+"""
+    docs["05-FINDINGS.md"] = f"""# Step 5: Findings
+
+{_guide(steps[5])}
 
 ## Analysis Results
 
-### Finding 1
-- **Branch:** 
-- **Data:** 
-- **Insight:** 
-- **So what?** 
-- **Confidence:** High / Medium / Low
-
-### Finding 2
-- **Branch:** 
-- **Data:** 
-- **Insight:** 
-- **So what?** 
-- **Confidence:** High / Medium / Low
-
-### Finding 3
-- **Branch:** 
-- **Data:** 
-- **Insight:** 
-- **So what?** 
-- **Confidence:** High / Medium / Low
-
+{chr(10).join(finding.format(n=n) for n in (1, 2, 3))}
 ## Surprises / Unexpected Results
 <!-- Document anything that challenged your hypothesis -->
-
 """
-    docs["05-FINDINGS.md"] = step5
 
-    # 06-SYNTHESIS.md
-    step6 = f"""# Step 6: Synthesis
+    docs["06-SYNTHESIS.md"] = f"""# Step 6: Synthesis
 
-## Communication Pattern: {comm.get('pattern', 'Pyramid Principle')}
+{_guide(steps[6])}
+
+## Communication Pattern: {comm['pattern']}
 **Structure:** {comm.get('structure', '')}
 **Audience:** {comm.get('audience', '')}
 
 ## Governing Thought
 <!-- One sentence that answers the original problem -->
-
 
 ## Key Themes
 ### Theme 1: [Name]
@@ -888,18 +817,16 @@ Root Problem
 |------|-----------|--------|------------|
 | | | | |
 """
-    docs["06-SYNTHESIS.md"] = step6
 
-    # 07-RECOMMENDATION.md
-    step7 = """# Step 7: Recommendation
+    docs["07-RECOMMENDATION.md"] = f"""# Step 7: Recommendation
+
+{_guide(steps[7])}
 
 ## Executive Summary
-<!-- One paragraph: problem + recommendation + key evidence -->
-
+<!-- Situation, complication, resolution: the problem, why it matters now, what to do -->
 
 ## Recommendation
 <!-- Clear, actionable recommendation -->
-
 
 ## Supporting Arguments
 1. **Argument 1:**
@@ -910,8 +837,8 @@ Root Problem
    - Evidence:
 
 ## Counterarguments Addressed
-- **Objection:** 
-  **Response:** 
+- **Objection:**
+  **Response:**
 
 ## Next Steps
 | Action | Owner | Deadline | Status |
@@ -919,33 +846,30 @@ Root Problem
 | | | | |
 | | | | |
 """
-    docs["07-RECOMMENDATION.md"] = step7
 
-    # BIAS-WARNINGS.md
-    bias_content = "# Bias Warnings\n\n"
-    bias_content += "These cognitive biases are most likely to affect this analysis.\n\n"
+    bias_content = "# Bias Warnings\n\nThese cognitive biases are most likely to affect this analysis.\n\n"
     for i, b in enumerate(biases, 1):
         bias_content += f"## {i}. {b.get('bias', 'Unknown')}\n"
+        if b.get("detect"):
+            bias_content += f"**Warning signs:** {b['detect']}\n\n"
         bias_content += f"**Remedy:** {b.get('debiasing', 'N/A')}\n\n"
-    if anti_patterns:
-        bias_content += f"## Anti-Patterns to Avoid\n{anti_patterns}\n\n"
+    if plan.get("anti_patterns"):
+        bias_content += f"## Anti-Patterns to Avoid\n{plan['anti_patterns']}\n\n"
     if models:
         bias_content += "## Recommended Mental Models\n"
         for m in models:
-            if m.get("name"):
-                bias_content += f"- **{m['name']}**: {m.get('application', '')}\n"
+            bias_content += f"- **{m['name']}**: {m.get('application', '')}\n"
     docs["BIAS-WARNINGS.md"] = bias_content
 
-    # DECISION-LOG.md
-    decision_log = f"""# Decision Log: {project}
+    docs["DECISION-LOG.md"] = f"""# Decision Log: {project}
 
 | # | Date | Decision | Rationale | Confidence | Status |
 |---|------|----------|-----------|------------|--------|
 | 1 | {ts[:10]} | | | | Open |
 """
-    docs["DECISION-LOG.md"] = decision_log
 
     written, kept = save_docs(plan_dir, docs, force)
+    record_state(plan_dir, plan, {name: docs[name] for name in written})
     return str(plan_dir), written, kept
 
 
@@ -968,6 +892,7 @@ NEXT_STEPS = {
 | `/solve.deep` | Deeper analysis with more frameworks & mental models |
 | `/solve.exec` | Executive summary for leadership |
 | `/decide` | Compare options & make a decision |
+| Add "save step-by-step" | Create a markdown workspace, one file per step |
 """,
     "deep": """
 ---
@@ -976,7 +901,7 @@ NEXT_STEPS = {
 |---------|-------------|
 | `/solve.exec` | Executive summary for stakeholders |
 | `/decide.deep` | Detailed option comparison from this analysis |
-| Add "save step-by-step" | Create markdown workspace for each step |
+| Add "save step-by-step" | Create a markdown workspace, one file per step |
 """,
     "executive": """
 ---
@@ -984,10 +909,11 @@ NEXT_STEPS = {
 | Command | Description |
 |---------|-------------|
 | `/decide.exec` | Executive-level decision from this analysis |
-| Add "save step-by-step" | Create full markdown workspace |
+| Add "save step-by-step" | Create a full markdown workspace |
 | `/decide` | Standard-depth option comparison |
 """,
 }
+RESUME_STEP = "| `/solve.resume` | Continue this workspace later at the first open step |\n"
 
 
 # ============ PUBLIC API ============
@@ -996,7 +922,7 @@ def generate_solving_plan(query: str, project_name: str = None, output_format: s
                           depth: str = "standard", step_docs: bool = False,
                           problem_type: str = None, category: str = None,
                           force: bool = False) -> str:
-    """Generate a comprehensive problem-solving plan.
+    """Generate a formatted problem-solving plan; optionally save it.
 
     Args:
         query: Problem description
@@ -1010,37 +936,40 @@ def generate_solving_plan(query: str, project_name: str = None, output_format: s
         problem_type: Problem type override (see --type)
         category: Reasoning category override (see --category)
 
-    Returns:
-        Formatted problem-solving plan
+    Raises:
+        ValueError: for unknown depth, type or category.
     """
-    advisor = ProblemSolvingAdvisor()
-    plan = advisor.generate(query, project_name, depth=depth,
-                            problem_type=problem_type, category=category)
-
-    if output_format == "markdown":
-        result = format_markdown(plan)
-    else:
-        result = format_ascii_box(plan)
+    plan = ProblemSolvingAdvisor().generate(query, project_name, depth=depth,
+                                            problem_type=problem_type, category=category)
+    result = format_markdown(plan) if output_format == "markdown" else format_ascii_box(plan)
+    next_steps = NEXT_STEPS[depth]
 
     if persist:
+        result += "\n" + save_report(plan, output_dir, step_docs, force)
         if step_docs:
-            plan_dir, files, kept = persist_step_by_step(plan, output_dir, force)
-            result += f"\n\nStep-by-step plan saved to: {plan_dir}/"
-            result += f"\n  Files created: {len(files)}"
-            for f in files:
-                result += f"\n    {f}"
-            if kept:
-                result += f"\n  Kept {len(kept)} existing files with your notes (add --force to replace them):"
-                for f in kept:
-                    result += f"\n    {f}"
-        else:
-            path, written = persist_plan(plan, output_dir, force)
-            if written:
-                result += f"\n\nPlan saved to: {path}"
-            else:
-                result += f"\n\nKept the existing plan at {path} (add --force to replace it)."
+            next_steps += RESUME_STEP
+    return result + next_steps
 
-    # Append next-step suggestions
-    result += NEXT_STEPS.get(depth, NEXT_STEPS["standard"])
 
-    return result
+def save_plan(plan: dict, output_dir: str = None, step_docs: bool = False, force: bool = False) -> dict:
+    """Persist the plan; returns {"path", "written", "kept"}."""
+    if step_docs:
+        plan_dir, written, kept = persist_step_by_step(plan, output_dir, force)
+        return {"path": plan_dir, "written": written, "kept": kept}
+    path, written = persist_plan(plan, output_dir, force)
+    return {"path": path, "written": ["PLAN.md"] if written else [], "kept": [] if written else ["PLAN.md"]}
+
+
+def save_report(plan: dict, output_dir: str = None, step_docs: bool = False, force: bool = False) -> str:
+    """Persist the plan and describe what was written."""
+    saved = save_plan(plan, output_dir, step_docs, force)
+    if not step_docs:
+        if saved["written"]:
+            return f"\nPlan saved to: {saved['path']}"
+        return f"\nKept the existing plan at {saved['path']} (add --force to replace it)."
+    out = f"\nStep-by-step plan saved to: {saved['path']}/\n  Files created: {len(saved['written'])}"
+    out += "".join(f"\n    {f}" for f in saved["written"])
+    if saved["kept"]:
+        out += f"\n  Kept {len(saved['kept'])} existing files with your notes (add --force to replace them):"
+        out += "".join(f"\n    {f}" for f in saved["kept"])
+    return out

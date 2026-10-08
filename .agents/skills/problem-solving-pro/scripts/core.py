@@ -9,6 +9,7 @@ cognitive biases, communication patterns, mental models, and team dynamics.
 import csv
 import re
 import sys
+import unicodedata
 from pathlib import Path
 from math import log
 from collections import defaultdict
@@ -166,6 +167,63 @@ class BM25:
         return sorted(scores, key=lambda x: x[1], reverse=True)
 
 
+class TermBM25(BM25):
+    """BM25 over ready-made term lists (see phrase_terms), so phrases can be matched."""
+
+    def tokenize(self, text):
+        return list(text) if isinstance(text, (list, tuple)) else phrase_terms(text)
+
+
+# ============ MULTILINGUAL MATCHING ============
+def fold_accents(text) -> str:
+    """Drop diacritics so Vietnamese typed without accents still matches: 'giảm' -> 'giam'."""
+    text = unicodedata.normalize("NFD", str(text))
+    text = "".join(ch for ch in text if unicodedata.category(ch) != "Mn")
+    return text.replace("đ", "d").replace("Đ", "D")
+
+
+def phrase_terms(text) -> list:
+    """Tokens plus their adjacent pairs ('mua lại' -> mua, lại, mua_lại).
+
+    Vietnamese words are several syllables and the tokenizer splits on spaces, so
+    single syllables are ambiguous ('lại' = again, 'mua lại' = acquire); the pairs
+    let a whole phrase outweigh a stray syllable. English phrases gain the same way.
+    """
+    tokens = tokenize(text)
+    return tokens + [f"{a}_{b}" for a, b in zip(tokens, tokens[1:])]
+
+
+def keyword_terms(keywords) -> list:
+    """Terms of a comma/semicolon separated keyword list; pairs never cross a separator."""
+    terms = []
+    for keyword in re.split(r"[,;]", str(keywords)):
+        tokens = tokenize(keyword)
+        terms += tokens if len(tokens) < 2 else [f"{a}_{b}" for a, b in zip(tokens, tokens[1:])]
+    return terms
+
+
+def rank_by_keywords(rows: list, name_col: str, keyword_col: str, query: str) -> list:
+    """[(row index, score)] best first, matching the query against each row's name and keywords.
+
+    The score adds an exact pass and an accent-folded pass, so 'doanh thu giam'
+    (typed without accents) still matches the keyword 'doanh thu giảm', while a
+    match with the right accents counts double.
+    """
+    def rank(fold):
+        prep = fold_accents if fold else (lambda t: t)
+        docs = [phrase_terms(prep(r.get(name_col, ""))) + keyword_terms(prep(r.get(keyword_col, "")))
+                for r in rows]
+        bm25 = TermBM25(b=0.3)
+        bm25.fit(docs)
+        return dict(bm25.score(phrase_terms(prep(query))))
+
+    if not rows:
+        return []
+    exact, folded = rank(False), rank(True)
+    ranked = sorted(((i, exact[i] + folded[i]) for i in range(len(rows))), key=lambda x: x[1], reverse=True)
+    return [(i, score) for i, score in ranked if score > 0]
+
+
 # ============ SEARCH FUNCTIONS ============
 def _load_csv(filepath):
     """Load CSV and return list of dicts."""
@@ -183,10 +241,14 @@ def _search_csv(filepath, search_cols, output_cols, query, max_results):
     # Build documents from search columns
     documents = [" ".join(str(row.get(col, "")) for col in search_cols) for row in data]
 
-    # BM25 search
+    # BM25 search; Vietnamese typed without accents gets a second, accent-folded pass
     bm25 = BM25()
     bm25.fit(documents)
     ranked = bm25.score(query)
+    if not ranked or ranked[0][1] <= 0:
+        bm25 = BM25()
+        bm25.fit([fold_accents(d) for d in documents])
+        ranked = bm25.score(fold_accents(query))
 
     # Get top results with score > 0
     results = []
@@ -263,18 +325,69 @@ def category_names() -> list:
 def classify_category(query: str) -> str:
     """Pick the reasoning category (business context) that best matches the query.
 
-    Returns "" when nothing matches, so callers fall back to generic defaults.
+    Returns "" when nothing matches, so callers fall back to generic defaults
+    (and tell the AI to pass --category).
     """
     rules = load_reasoning()
-    if not rules:
-        return ""
-    documents = [f"{r.get('Problem_Category', '')} {r.get('Keywords', '')}" for r in rules]
-    bm25 = BM25()
-    bm25.fit(documents)
-    ranked = bm25.score(query)
-    if not ranked or ranked[0][1] <= 0:
-        return ""
-    return rules[ranked[0][0]].get("Problem_Category", "")
+    ranked = rank_by_keywords(rules, "Problem_Category", "Keywords", query)
+    return rules[ranked[0][0]].get("Problem_Category", "") if ranked else ""
+
+
+def classify_problem_type(query: str) -> dict:
+    """The problem-types row whose name and keywords best match the query, or {}.
+
+    Keywords decide first (English and Vietnamese); when none match, the full
+    description columns are searched as a weaker signal (source "text").
+    """
+    rows = _load_csv(DATA_DIR / CSV_CONFIG["problem-types"]["file"])
+    ranked = rank_by_keywords(rows, "Problem Type", "Keywords", query)
+    if ranked:
+        return dict(rows[ranked[0][0]], _source="auto")
+    results = search(query, "problem-types", 1).get("results", [])
+    if results:
+        name = results[0].get("Problem Type")
+        row = next((r for r in rows if r["Problem Type"] == name), results[0])
+        return dict(row, _source="text")
+    return {}
+
+
+# ============ CROSS-REFERENCES ============
+def _norm_name(text) -> str:
+    """'Root Cause Analysis (5 Whys)' -> 'root cause analysis'."""
+    return re.sub(r"\s+", " ", re.sub(r"\(.*?\)", "", str(text))).strip().lower()
+
+
+NAME_COLUMNS = {
+    "decomposition": "Framework", "prioritization": "Technique", "analysis": "Tool",
+    "biases": "Bias", "communication": "Pattern", "heuristics": "Mental Model", "team": "Pattern",
+}
+
+
+def find_record(domain: str, name: str) -> dict:
+    """The record of `domain` called `name`, or {}.
+
+    Parentheticals are ignored and a reference may be the start of the full
+    name ('Expert Interview' -> 'Expert Interview / Delphi Method').
+    """
+    wanted = _norm_name(name)
+    if len(wanted) < 3:
+        return {}
+    rows = _load_csv(DATA_DIR / CSV_CONFIG[domain]["file"])
+    col = NAME_COLUMNS[domain]
+    for row in rows:
+        if _norm_name(row.get(col, "")) == wanted:
+            return row
+    for row in rows:
+        have = _norm_name(row.get(col, ""))
+        if have and (have.startswith(wanted + " ") or wanted.startswith(have + " ")):
+            return row
+    return {}
+
+
+def split_names(text, sep: str = None) -> list:
+    """'A + B; C' -> ['A', 'B', 'C'] (both separators are used in the data)."""
+    parts = re.split(r"\s\+\s|;", str(text)) if sep is None else str(text).split(sep)
+    return [p.strip() for p in parts if p.strip()]
 
 
 def resolve_choice(value: str, choices: list, what: str) -> str:

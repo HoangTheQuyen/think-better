@@ -8,6 +8,7 @@ skill at a time with load_skill() instead of plain imports.
 """
 
 import importlib
+import json
 import os
 import shutil
 import subprocess
@@ -858,6 +859,280 @@ class StdinInputTests(unittest.TestCase):
                     r = run_script(SKILLS / skill / "scripts/search.py", ["bias", "-n", "0"], cwd=tmp)
                     self.assertEqual(r.returncode, 2)
                     self.assertIn("must be 1 or more", r.stderr)
+
+
+class ProblemSolvingProTests(unittest.TestCase):
+    """problem-solving-pro: Vietnamese and English classification, depth, data references, resume."""
+
+    SCRIPT = SKILLS / "problem-solving-pro/scripts/search.py"
+
+    # (request, problem type, category): half Vietnamese, including text typed without accents
+    LABELED = [
+        ("Revenue dropped 20% despite market growth", "Diagnostic", "Business Performance"),
+        ("Reduce homelessness in our city", "Wicked", "Policy / Public Sector"),
+        ("We are running out of cash in 4 months", "Diagnostic", "Crisis / Turnaround"),
+        ("Should we enter the Vietnamese market?", "Opportunity", "Market Entry Strategy"),
+        ("I'm burned out at work", "Diagnostic", "Organizational Change"),
+        ("Our cloud bill doubled in three months", "Diagnostic", "Cost Reduction"),
+        ("Cut operating costs by 15% without layoffs", "Well-Structured", "Cost Reduction"),
+        ("Forecast demand for next quarter", "Prediction", "Data / Analytics Problem"),
+        ("Should we acquire our main competitor", "Opportunity", "Partnership / M&A"),
+        ("Negotiate a new contract with our biggest supplier", "Negotiation", "Partnership / M&A"),
+        ("Design a better onboarding flow for new users", "Design", "Product Development"),
+        ("A startup using AI is disrupting our core business", "Ill-Structured", "Innovation / Disruption"),
+        ("Production outage took checkout down for 3 hours", "Diagnostic", "Crisis / Turnaround"),
+        ("Employee attrition doubled after the reorganization", "Diagnostic", "Organizational Change"),
+        ("Two departments disagree over who owns the marketing budget", "Negotiation", "Organizational Change"),
+        ("Optimize warehouse inventory levels to minimize holding cost", "Well-Structured", "Cost Reduction"),
+        ("Our dashboard metrics don't match the finance numbers", "Diagnostic", "Data / Analytics Problem"),
+        ("doanh thu giảm 20% quý này", "Diagnostic", "Business Performance"),
+        ("Mở rộng sang thị trường Nhật Bản", "Opportunity", "Market Entry Strategy"),
+        ("Công ty sắp hết tiền mặt", "Diagnostic", "Crisis / Turnaround"),
+        ("Cắt giảm chi phí vận hành 15% mà không sa thải", "Well-Structured", "Cost Reduction"),
+        ("Dự báo nhu cầu bán hàng quý tới", "Prediction", "Data / Analytics Problem"),
+        ("Có nên mua lại đối thủ cạnh tranh không", "Opportunity", "Partnership / M&A"),
+        ("Nhân viên nghỉ việc nhiều sau khi tái cấu trúc", "Diagnostic", "Organizational Change"),
+        ("Thiết kế tính năng mới cho ứng dụng di động", "Design", "Product Development"),
+        ("Đàm phán lại hợp đồng với nhà cung cấp lớn nhất", "Negotiation", "Partnership / M&A"),
+        ("Tỷ lệ khách hàng rời bỏ tăng mạnh", "Diagnostic", "Business Performance"),
+        ("Hệ thống bị sập, khách hàng không thanh toán được", "Diagnostic", "Crisis / Turnaround"),
+        ("Giảm ùn tắc giao thông ở Hà Nội", "Wicked", "Policy / Public Sector"),
+        ("Đối thủ dùng AI đang thay đổi cả ngành của chúng tôi", "Ill-Structured", "Innovation / Disruption"),
+        ("Nhân viên bị kiệt sức vì quá tải công việc", "Diagnostic", "Organizational Change"),
+        ("Hóa đơn cloud tăng gấp đôi", "Diagnostic", "Cost Reduction"),
+        ("Số liệu trên dashboard không khớp với báo cáo tài chính", "Diagnostic", "Data / Analytics Problem"),
+        ("Hai phòng ban mâu thuẫn về ngân sách marketing", "Negotiation", "Organizational Change"),
+        ("doanh thu giam manh sau khi tang gia", "Diagnostic", "Business Performance"),
+        ("Tối ưu lịch giao hàng để giảm chi phí vận chuyển", "Well-Structured", "Cost Reduction"),
+    ]
+
+    @classmethod
+    def setUpClass(cls):
+        cls.core, cls.advisor = load_skill("problem-solving-pro")
+        cls.engine = cls.advisor.ProblemSolvingAdvisor()
+
+    def cli(self, cwd, *args, stdin=None):
+        env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", PYTHONIOENCODING="utf-8")
+        r = subprocess.run([sys.executable, str(self.SCRIPT)] + list(args), cwd=cwd, env=env, capture_output=True,
+                           input=(stdin or "").encode("utf-8"))
+        return r.returncode, r.stdout.decode("utf-8"), r.stderr.decode("utf-8")
+
+    def test_labeled_requests_classify(self):
+        vietnamese = sum(1 for q, _, _ in self.LABELED if not q.isascii() or "giam" in q)
+        self.assertGreaterEqual(len(self.LABELED), 30)
+        self.assertGreaterEqual(vietnamese * 2, len(self.LABELED))
+        for query, ptype, category in self.LABELED:
+            with self.subTest(query=query):
+                plan = self.engine.generate(query)
+                self.assertEqual((plan["problem_type"]["name"], plan["problem_category"]), (ptype, category))
+                self.assertEqual(plan["classification"]["type_source"], "auto")
+                self.assertEqual(plan["classification"]["category_source"], "auto")
+                self.assertEqual(plan["hints"], [])
+
+    def test_accents_are_optional(self):
+        self.assertEqual(self.core.fold_accents("Giảm chi phí ĐIỆN"), "Giam chi phi DIEN")
+        for accented, plain in (("Công ty sắp hết tiền mặt", "Cong ty sap het tien mat"),
+                                ("Mở rộng sang thị trường Nhật Bản", "Mo rong sang thi truong Nhat Ban")):
+            with self.subTest(query=plain):
+                self.assertEqual(self.core.classify_category(plain), self.core.classify_category(accented))
+
+    def test_unmatched_request_tells_the_ai_to_pass_type_and_category(self):
+        plan = self.engine.generate("zzz qqq")
+        self.assertEqual((plan["classification"]["type_source"], plan["classification"]["category_source"]),
+                         ("default", "default"))
+        text = self.advisor.format_markdown(plan)
+        self.assertIn("No problem type matched clearly. Re-run with `--type`", text)
+        self.assertIn("Re-run with `--category`", text)
+        for value in self.core.problem_type_names() + self.core.category_names():
+            self.assertIn(value, text)
+        plan = self.engine.generate("zzz qqq", problem_type="Wicked", category="Policy / Public Sector")
+        self.assertEqual(plan["hints"], [])
+        self.assertNotIn("Re-run", self.advisor.format_markdown(plan))
+
+    def test_depth_changes_the_plan(self):
+        query = "Revenue dropped 20% despite market growth"
+        plans = {d: self.engine.generate(query, depth=d) for d in self.advisor.VALID_DEPTHS}
+        md = {d: self.advisor.format_markdown(p) for d, p in plans.items()}
+        sizes = [len(md[d]) for d in ("quick", "standard", "deep", "executive")]
+        self.assertEqual(sizes, sorted(sizes))
+        self.assertLess(sizes[0] * 2, sizes[1])
+        self.assertLess(sizes[1] * 1.5, sizes[2])
+        for heading in ("The 7 Steps", "Problem-Solving Checklist", "Decision Rules", "Prioritization:"):
+            self.assertNotIn(heading, md["quick"])
+            self.assertIn(heading, md["standard"])
+        self.assertIn("First Move", md["quick"])
+        self.assertNotIn("Danger zone", md["standard"])
+        self.assertIn("Danger zone", md["deep"])
+        self.assertIn("Pitfalls:", md["deep"])
+        self.assertGreater(len(plans["deep"]["mental_models"]), len(plans["standard"]["mental_models"]))
+        self.assertGreater(len(plans["deep"]["bias_warnings"]), len(plans["standard"]["bias_warnings"]))
+        self.assertGreater(len(plans["deep"]["decomposition"]["alternatives"]
+                               + plans["deep"]["analysis"]["alternatives"]),
+                           len(plans["standard"]["decomposition"]["alternatives"]
+                               + plans["standard"]["analysis"]["alternatives"]))
+        for heading in ("Executive Summary (SCR)", "**Situation:**", "**Complication:**", "**Resolution",
+                        "Key Risks", "Decision Needed"):
+            self.assertNotIn(heading, md["deep"])
+            self.assertIn(heading, md["executive"])
+        # ASCII follows the same depth rules, and every box line has the same width
+        for depth in ("quick", "executive"):
+            box = self.advisor.format_ascii_box(plans[depth]).splitlines()
+            self.assertEqual({len(line) for line in box}, {self.advisor.BOX_WIDTH})
+        self.assertIn("EXECUTIVE SUMMARY", self.advisor.format_ascii_box(plans["executive"]))
+
+    def test_biases_and_mental_models_come_from_type_and_context(self):
+        for query, ptype, category in self.LABELED:
+            with self.subTest(query=query):
+                plan = self.engine.generate(query)
+                self.assertGreaterEqual(len(plan["bias_warnings"]), 3)
+                self.assertGreaterEqual(len(plan["mental_models"]), 3)
+        rule = self.engine._find_reasoning_rule("Crisis / Turnaround")
+        plan = self.engine.generate("Công ty sắp hết tiền mặt")
+        first_bias = self.core.split_names(rule["Key_Biases"])[0]
+        first_model = self.core.find_record("heuristics", self.core.split_names(rule["Key_Heuristics"])[0])
+        self.assertEqual(plan["bias_warnings"][0]["bias"], first_bias)
+        self.assertEqual(plan["mental_models"][0]["name"], first_model["Mental Model"])
+
+    def test_every_referenced_name_resolves(self):
+        data = SKILLS / "problem-solving-pro" / "data"
+        refs = [  # (file, column, separator, domains the names must exist in)
+            ("reasoning.csv", "Decomposition_Style", None, ("decomposition", "prioritization")),
+            ("reasoning.csv", "Analysis_Priority", None, ("analysis", "prioritization")),
+            ("reasoning.csv", "Communication_Style", None, ("communication",)),
+            ("reasoning.csv", "Key_Heuristics", ";", ("heuristics",)),
+            ("reasoning.csv", "Key_Biases", ";", ("biases",)),
+            ("problem-types.csv", "Key Biases", ";", ("biases",)),
+            ("problem-types.csv", "Mental Models", ";", ("heuristics",)),
+        ]
+        checked = 0
+        for file, column, sep, domains in refs:
+            for row in self.core._load_csv(data / file):
+                for name in self.core.split_names(row[column], sep):
+                    with self.subTest(file=file, column=column, name=name):
+                        self.assertTrue(any(self.core.find_record(d, name) for d in domains),
+                                        f"{name!r} in {file}:{column} is not defined in {domains}")
+                        checked += 1
+        self.assertGreater(checked, 100)
+
+    def test_every_step_is_rendered_with_its_gate(self):
+        plan = self.engine.generate("Revenue dropped 20%")
+        self.assertEqual([s["number"] for s in plan["methodology"]["steps"]], list(range(1, 8)))
+        text = self.advisor.format_markdown(plan)
+        for step in plan["methodology"]["steps"]:
+            self.assertIn(step["name"], text)
+            self.assertIn(step["gate"], text)
+        self.assertIn("If revenue problem: decompose price x volume", text)
+        self.assertIn("stakes HIGH", text)
+        self.assertIn("(auto-detected)", text)
+
+    def test_long_request_is_shortened_in_titles_but_kept_in_files(self):
+        query = "Revenue dropped " + " ".join(f"word{i}" for i in range(700))
+        plan = self.engine.generate(query)
+        self.assertLessEqual(len(plan["project_name"]), 60)
+        text = self.advisor.format_markdown(plan)
+        self.assertLess(max(len(line) for line in text.splitlines()[:3]), 700)
+        with tempfile.TemporaryDirectory() as tmp:
+            path, _ = self.advisor.persist_plan(plan, tmp)
+            self.assertIn("word699", Path(path).read_text(encoding="utf-8"))
+
+    def test_json_plan(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            code, out, err = self.cli(tmp, "--stdin", "--plan", "--json", stdin="Hóa đơn cloud tăng gấp đôi")
+            self.assertEqual(code, 0, err)
+            plan = json.loads(out)
+            self.assertEqual(plan["query"], "Hóa đơn cloud tăng gấp đôi")
+            self.assertEqual(plan["problem_category"], "Cost Reduction")
+            self.assertEqual(len(plan["methodology"]["steps"]), 7)
+            code, out, err = self.cli(tmp, "cloud bill doubled", "--plan", "--json", "--persist", "--step-docs",
+                                      "-p", "cloud")
+            self.assertEqual(code, 0, err)
+            self.assertIn("00-OVERVIEW.md", json.loads(out)["saved"]["written"])
+            self.assertEqual(os.listdir(tmp), ["solving-plans"])
+
+    def test_next_steps_appear_once(self):
+        for path in sorted((ROOT / ".agents" / "workflows").glob("solve*.md")):
+            text = path.read_text(encoding="utf-8")
+            with self.subTest(workflow=path.name):
+                if path.name == "solve.resume.md":
+                    self.assertIn("--stdin --status", text)
+                else:
+                    self.assertNotIn("Next Steps:**", text)
+        with tempfile.TemporaryDirectory() as tmp:
+            for depth in self.advisor.VALID_DEPTHS:
+                code, out, _ = self.cli(tmp, "revenue dropped", "--plan", "--depth", depth, "-f", "markdown")
+                self.assertEqual(out.count("Next Steps"), 1, depth)
+
+    def test_resume_status_and_done(self):
+        request = "Công ty sắp hết tiền mặt trong 4 tháng, cần làm gì?"
+        with tempfile.TemporaryDirectory() as tmp:
+            code, out, err = self.cli(tmp, "--stdin", "--plan", "--persist", "--step-docs", "-p", "Cash Crunch",
+                                      "-f", "markdown", stdin=request)
+            self.assertEqual(code, 0, err)
+            self.assertIn("/solve.resume", out)
+            plan_dir = Path(tmp) / "solving-plans" / "cash-crunch"
+            state = json.loads((plan_dir / ".workspace.json").read_text(encoding="utf-8"))
+            self.assertEqual(state["request"], request)
+            self.assertEqual(state["category"], "Crisis / Turnaround")
+            self.assertIn(request, (plan_dir / "01-PROBLEM-DEFINITION.md").read_text(encoding="utf-8"))
+            self.assertIn("| Step | File | Done? |", (plan_dir / "00-OVERVIEW.md").read_text(encoding="utf-8"))
+
+            code, out, _ = self.cli(tmp, "--status")
+            self.assertEqual(code, 0)
+            self.assertIn("### Next: 1. Define the Problem", out)
+            self.assertIn("| 1. Define the Problem | `01-PROBLEM-DEFINITION.md` | not yet | ☐ |", out)
+            self.assertIn("**Done when (quality gate):**", out)
+
+            define = plan_dir / "01-PROBLEM-DEFINITION.md"
+            define.write_text(define.read_text(encoding="utf-8") + "\nCash runway: 4 months\n", encoding="utf-8")
+            code, out, _ = self.cli(tmp, "--done", "define", "-p", "cash crunch")
+            self.assertEqual(code, 0)
+            self.assertIn("Done: 1. Define the Problem", out)
+            self.assertIn("| 1. Define the Problem | `01-PROBLEM-DEFINITION.md` | yes | ☑ |", out)
+            self.assertIn("### Next: 2. Disaggregate the Problem", out)
+            self.assertIn("--done 2 -p cash-crunch", out)
+
+            # Saving again keeps the notes, the ticks and their "filled" state
+            self.cli(tmp, "--stdin", "--plan", "--persist", "--step-docs", "-p", "Cash Crunch", stdin=request)
+            code, out, _ = self.cli(tmp, "--status", "--json", "-p", "cash crunch")
+            status = json.loads(out)
+            self.assertTrue(status["rows"][0]["filled"] and status["rows"][0]["done"])
+
+            # A second workspace; the request text picks the right one, else the latest
+            self.cli(tmp, "Design a better onboarding flow", "--plan", "--persist", "--step-docs", "-p", "onboarding")
+            code, out, _ = self.cli(tmp, "--stdin", "--status", stdin="tiếp tục vụ tiền mặt")
+            self.assertIn("## Workspace: cash-crunch", out)
+            self.assertIn("Other workspaces: `onboarding`", out)
+
+            for step in ("2", "prioritize", "plan", "5", "synthesize"):
+                self.cli(tmp, "--done", step, "-p", "cash-crunch")
+            code, out, _ = self.cli(tmp, "--done", "communicate", "-p", "cash-crunch")
+            self.assertIn("All steps are done", out)
+            code, out, _ = self.cli(tmp, "--undone", "5", "-p", "cash-crunch")
+            self.assertIn("### Next: 5. Conduct Analyses", out)
+
+            code, _, err = self.cli(tmp, "--done", "9", "-p", "cash-crunch")
+            self.assertEqual(code, 2)
+            self.assertIn("unknown step", err)
+            code, _, err = self.cli(tmp, "--status", "-p", "nope")
+            self.assertEqual(code, 1)
+            self.assertIn("cash-crunch", err)
+
+    def test_workspaces_saved_before_tracking_still_resume(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.cli(tmp, "revenue dropped", "--plan", "--persist", "--step-docs", "-p", "old")
+            plan_dir = Path(tmp) / "solving-plans" / "old"
+            (plan_dir / ".workspace.json").unlink()
+            overview = plan_dir / "00-OVERVIEW.md"
+            text = overview.read_text(encoding="utf-8")
+            overview.write_text(text[:text.index("| Step |")], encoding="utf-8")
+            code, out, _ = self.cli(tmp, "--status")
+            self.assertEqual(code, 0)
+            self.assertIn("| 1. Define the Problem | `01-PROBLEM-DEFINITION.md` | ? | ☐ |", out)
+            self.assertIn("saved before progress tracking", out)
+            code, out, _ = self.cli(tmp, "--done", "1")
+            self.assertEqual(code, 0)
+            self.assertIn("### Next: 2. Disaggregate the Problem", out)
+            self.assertIn("## Progress", overview.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":
