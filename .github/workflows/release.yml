@@ -28,6 +28,8 @@ jobs:
         # on another commit, a version that is already published, or a tag
         # that does not match the VERSION file. A tag that already exists on
         # this commit is fine: an earlier run created it and failed later.
+        # Also fails when internal/installer/known_hashes.json does not cover
+        # the earlier releases (see the last step).
         runs-on: ubuntu-latest
         timeout-minutes: 5
         permissions:
@@ -83,22 +85,51 @@ jobs:
                   echo "version=$version" >> "$GITHUB_OUTPUT"
                   echo "Releasing $version from $GITHUB_SHA"
 
+            - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+              with:
+                  go-version-file: go.mod
+                  cache: false
+
+            # internal/installer/known_hashes.json is written by `make known-hashes`
+            # after each release (CONTRIBUTING.md, Releasing). It must cover every
+            # earlier release tag. The release being cut is left out: its entry is
+            # recorded from its own tag, which does not exist until this run.
+            - name: known_hashes.json covers the earlier releases
+              env:
+                  VERSION: ${{ steps.version.outputs.version }}
+              run: |
+                  set -eu
+                  earlier="$(git tag --merged HEAD --list 'v*' | grep -vxF "$VERSION" | paste -sd, -)"
+                  if ! go run ./internal/installer/gen -check -versions "$earlier"; then
+                    echo "::error::known_hashes.json is missing an earlier release. On main, run 'git fetch --tags && make known-hashes', merge that file in a PR, then run the release again."
+                    exit 1
+                  fi
+
     checks:
         name: CI
         needs: preflight
-        # Same jobs as on every push/PR: go vet + tests on 3 OSes, golangci-lint,
-        # Python skill smoke + engine tests.
+        # The same jobs as on every push and pull request, with the macOS jobs
+        # (pull requests skip them) and without the jobs that only test the
+        # already-published release.
         uses: ./.github/workflows/ci.yml
         with:
             release: true
         permissions:
             contents: read
 
+    nix:
+        name: Nix build
+        needs: preflight
+        # The same build as nix-build.yml on every pull request, gating the release.
+        uses: ./.github/workflows/nix-build.yml
+        permissions:
+            contents: read
+
     release:
-        needs: [preflight, checks]
+        needs: [preflight, checks, nix]
         if: github.event_name == 'push' || github.ref == 'refs/heads/main'
         runs-on: ubuntu-latest
-        timeout-minutes: 30
+        timeout-minutes: 20
         permissions:
             contents: write # create and publish the release, push the tag and the Formula/bucket commits
             id-token: write # keyless cosign signature and build provenance (Sigstore OIDC)
@@ -150,11 +181,13 @@ jobs:
             # It also writes the Homebrew formula and Scoop manifest to dist/
             # (skip_upload: they are committed below, once the assets exist).
             # Exact GoReleaser version (same as ci.yml); see .goreleaser.yaml.
+            # --skip=before: the `before` hook is `go test ./...`, which the
+            # checks job already ran on this commit.
             - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
               with:
                   distribution: goreleaser
                   version: v2.18.2
-                  args: release --clean
+                  args: release --clean --skip=before
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
