@@ -1,19 +1,19 @@
 {
-    "version": "1.4.0",
+    "version": "1.5.0",
     "architecture": {
         "64bit": {
-            "url": "https://github.com/HoangTheQuyen/think-better/releases/download/v1.4.0/think-better_1.4.0_windows_amd64.zip",
+            "url": "https://github.com/HoangTheQuyen/think-better/releases/download/v1.5.0/think-better_1.5.0_windows_amd64.zip",
             "bin": [
                 "think-better.exe"
             ],
-            "hash": "513439a3356cd693738dcaf548ab34cdfb5fa83d2e085153d432b7d44d43d8ef"
+            "hash": "d8e83b52b2831740af3400b0bbfe801fcdea5a666e12df3203d93a25479e3871"
         },
         "arm64": {
-            "url": "https://github.com/HoangTheQuyen/think-better/releases/download/v1.4.0/think-better_1.4.0_windows_arm64.zip",
+            "url": "https://github.com/HoangTheQuyen/think-better/releases/download/v1.5.0/think-better_1.5.0_windows_arm64.zip",
             "bin": [
                 "think-better.exe"
             ],
-            "hash": "96324e80e4efc959c5e1a04bb404c6585b2e7e9b7d97fb80ea50d7c9c1c7bc62"
+            "hash": "ce9efb636834a74d45a6f6e71a1e839e063cb3c906f3c7da2a28561784d012c6"
         }
     },
     "homepage": "https://thinkbetter.dev/",
