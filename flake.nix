@@ -11,10 +11,12 @@
       let
         pkgs = nixpkgs.legacyPackages.${system};
 
-        version =
-          if self ? shortRev
-          then self.shortRev
-          else "dev";
+        # The release version lives in ./VERSION; the Release workflow refuses
+        # to tag a version that does not match it, so a build of a release tag
+        # always reports that release. Other commits report the VERSION value
+        # plus their commit hash. See CONTRIBUTING.md, "Releasing".
+        version = pkgs.lib.fileContents ./VERSION;
+        commit = self.shortRev or self.dirtyShortRev or "unknown";
 
         think-better = pkgs.buildGoModule {
           pname = "think-better";
@@ -32,8 +34,8 @@
 
           ldflags = [
             "-s" "-w"
-            "-X main.version=${version}"
-            "-X main.commit=${version}"
+            "-X main.version=v${version}"
+            "-X main.commit=${commit}"
             "-X main.buildDate=1970-01-01"
           ];
 
