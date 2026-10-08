@@ -75,6 +75,11 @@ func CheckStatus(skill *skills.SkillPackage, target *targets.AITarget, baseDir, 
 		return nil, err
 	}
 	m := loadSkillManifest(filepath.Join(installDir, SkillManifestName))
+	if m != nil && m.Uninstalled {
+		// Tombstone: uninstalled, only files the user modified remain.
+		st.Status = StatusNotInstalled
+		return st, nil
+	}
 	var recorded map[string]string
 	if m != nil {
 		recorded = m.Files
@@ -85,7 +90,7 @@ func CheckStatus(skill *skills.SkillPackage, target *targets.AITarget, baseDir, 
 		}
 	}
 
-	present := compare(st, baseDir, dirRel, desired, recorded, false)
+	present := compare(st, baseDir, dirRel, desired, recorded, skillHistory(skill.Name), false)
 	if m == nil && present == 0 {
 		st.Status = StatusNotInstalled
 		return st, nil
@@ -97,7 +102,7 @@ func CheckStatus(skill *skills.SkillPackage, target *targets.AITarget, baseDir, 
 			return nil, err
 		}
 		wm := loadWorkflowManifest(filepath.Join(baseDir, filepath.FromSlash(wfDir), WorkflowManifestName))
-		compare(st, baseDir, wfDir, wdesired, workflowEntries(wm, skill.Name), true)
+		compare(st, baseDir, wfDir, wdesired, workflowEntries(wm, skill.Name), workflowHistory(skill.Name), true)
 	}
 
 	switch {
@@ -113,11 +118,16 @@ func CheckStatus(skill *skills.SkillPackage, target *targets.AITarget, baseDir, 
 	return st, nil
 }
 
-// compare checks the files of dirRel against the desired content and the
-// manifest hashes (recorded, nil without a manifest), filling st. It returns
-// how many of the files are present. For workflows without a manifest entry,
-// a missing file only makes the install outdated (an update adds it).
-func compare(st *InstallStatus, base, dirRel string, desired map[string][]byte, recorded map[string]string, workflows bool) int {
+// compare checks the files of dirRel against the desired content, the
+// manifest hashes (recorded, nil without a manifest) and what earlier
+// releases installed (hist), filling st. It returns how many of the files
+// are present. Content some release installed is never a user edit; it only
+// makes the install outdated.
+//
+// Without a manifest entry, a missing file only makes the install outdated
+// (an update adds it), except for a legacy install's skill file that every
+// release of the skill shipped: that one was deleted.
+func compare(st *InstallStatus, base, dirRel string, desired map[string][]byte, recorded map[string]string, hist shipped, workflows bool) int {
 	present := 0
 	seen := map[string]bool{}
 	names := append(sortedKeys(desired), sortedKeys(recorded)...)
@@ -133,34 +143,54 @@ func compare(st *InstallStatus, base, dirRel string, desired map[string][]byte, 
 
 		if cur == nil {
 			switch {
-			case hasRec || (recorded == nil && !workflows):
+			case hasRec || (recorded == nil && !workflows && hist.alwaysShipped(rel)):
 				st.Missing = append(st.Missing, shown) // was installed, now gone
 			case shipped:
-				st.Outdated = true // new in this version
+				st.Outdated = true // new in this version (or since the install)
 			}
 			continue
 		}
 		present++
 		curHash := hashBytes(cur)
+		wantHash := hashBytes(want)
+		released := hist.has(rel, curHash) // what some release installed
 		switch {
 		case hasRec:
-			if curHash != rec {
-				st.Modified = append(st.Modified, shown)
+			if curHash != rec && (!shipped || curHash != wantHash) {
+				if released {
+					st.Outdated = true
+				} else {
+					st.Modified = append(st.Modified, shown)
+				}
 			}
-			if !shipped || rec != hashBytes(want) {
+			if !shipped || rec != wantHash {
 				st.Outdated = true
 			}
-		case recorded == nil:
-			// Legacy install: anything that differs from this version counts as modified.
-			if curHash != hashBytes(want) {
-				st.Modified = append(st.Modified, shown)
+		case curHash == wantHash:
+			if recorded != nil {
+				st.Outdated = true // not in the manifest yet; an update records it
 			}
+		case released:
+			st.Outdated = true // an earlier release's version
 		default:
-			// Present but not in the manifest: written by someone else, and
-			// an update would offer this version next to it.
-			if curHash != hashBytes(want) {
-				st.Modified = append(st.Modified, shown)
+			// Legacy install: anything else counts as modified. With a
+			// manifest, the file was written by someone else, and an update
+			// would offer this version next to it.
+			st.Modified = append(st.Modified, shown)
+			if recorded != nil {
+				st.Outdated = true
 			}
+		}
+	}
+	// Files an earlier release installed that this version no longer ships:
+	// an update removes them.
+	for _, rel := range sortedKeys(hist) {
+		if seen[rel] || !validRel(rel) {
+			continue
+		}
+		cur := readFollow(filepath.Join(base, filepath.FromSlash(path.Join(dirRel, rel))))
+		if cur != nil && hist.has(rel, hashBytes(cur)) {
+			present++
 			st.Outdated = true
 		}
 	}

@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -44,8 +45,14 @@ import (
 // the file keeps reading as modified until the user resolves it.
 //
 // Installs made before manifests existed ("legacy" installs) are handled by
-// comparing each file with the content the current binary would write: equal
-// files count as unmodified, anything else as modified by the user.
+// comparing each file with the content the current binary would write and
+// with what every earlier release installed (known_hashes.json): a match
+// counts as unmodified, anything else as modified by the user.
+//
+// When uninstall keeps files the user modified, the skill manifest stays
+// behind as a tombstone ("uninstalled": true, listing the kept files with the
+// hashes think-better had installed), so the leftovers are not mistaken for
+// a damaged install.
 const (
 	SkillManifestName    = ".think-better.json"
 	WorkflowManifestName = ".think-better-workflows.json"
@@ -57,6 +64,9 @@ type SkillManifest struct {
 	Skill   string            `json:"skill"`
 	Target  string            `json:"target"`
 	Files   map[string]string `json:"files"`
+	// Uninstalled marks a tombstone: the skill was uninstalled and Files
+	// lists only the modified files that were kept.
+	Uninstalled bool `json:"uninstalled,omitempty"`
 }
 
 // WorkflowEntry records one installed workflow file and the skill it runs.
@@ -177,6 +187,10 @@ func sortedKeys[V any](m map[string]V) []string {
 // compared as semantic versions ("v1.2.3", optional pre-release suffix);
 // when either is not a release-style version ("dev", a commit hash) it
 // returns false and callers fall back to comparing content.
+//
+// `git describe` versions of development builds (`make build`), such as
+// v1.4.0-3-gabc1234 or v1.4.0-dirty, are commits after v1.4.0: newer than
+// v1.4.0 and older than the next release, not a v1.4.0 pre-release.
 func versionOlder(a, b string) bool {
 	va, okA := parseVersion(a)
 	vb, okB := parseVersion(b)
@@ -188,24 +202,43 @@ func versionOlder(a, b string) bool {
 			return va.core[i] < vb.core[i]
 		}
 	}
-	// v1.2.3-rc1 < v1.2.3
-	return va.pre && !vb.pre
+	// v1.2.3-rc1 < v1.2.3-rc1-2-gabc < v1.2.3 < v1.2.3-2-gabc
+	return va.rank() < vb.rank()
 }
 
 type semver struct {
 	core [3]int
-	pre  bool
+	pre  bool // pre-release (v1.2.3-rc1)
+	post bool // git describe: commits after the tag (v1.2.3-4-gabc1234, -dirty)
 }
+
+func (s semver) rank() int {
+	r := 0
+	if !s.pre {
+		r += 2
+	}
+	if s.post {
+		r++
+	}
+	return r
+}
+
+// gitDescribe matches the suffix `git describe --tags --dirty` adds after
+// the tag name: -<commits>-g<hash> and/or -dirty.
+var gitDescribe = regexp.MustCompile(`(-[0-9]+-g[0-9a-f]+)?(-dirty)?$`)
 
 func parseVersion(v string) (semver, bool) {
 	v = strings.TrimPrefix(strings.TrimSpace(v), "v")
 	v, _, _ = strings.Cut(v, "+")
+	var s semver
+	if loc := gitDescribe.FindStringIndex(v); loc != nil && loc[0] < loc[1] {
+		v, s.post = v[:loc[0]], true
+	}
 	core, pre, hasPre := strings.Cut(v, "-")
 	parts := strings.Split(core, ".")
 	if len(parts) != 3 {
 		return semver{}, false
 	}
-	var s semver
 	for i, p := range parts {
 		n, err := strconv.Atoi(p)
 		if err != nil || n < 0 {

@@ -22,13 +22,17 @@ GOLANGCI_LINT_VERSION := v2.5.0
 # Cross-compilation targets
 PLATFORMS := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64
 
-.PHONY: all build build-all test test-cover test-py check clean embed-prep lint fmt tidy help release-check release-snapshot
+.PHONY: all build build-all test test-cover test-py check clean embed-prep known-hashes lint fmt tidy help release-check release-snapshot
 
 all: embed-prep build
 
 ## embed-prep: Mirror .agents/ skills and workflows into internal/skills for embedding
 embed-prep:
 	go generate ./internal/skills
+
+## known-hashes: Record what every release tag installed (internal/installer/known_hashes.json); run after tagging a release
+known-hashes:
+	go run ./internal/installer/gen
 
 ## build: Build for current platform
 build: embed-prep
