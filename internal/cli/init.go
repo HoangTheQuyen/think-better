@@ -4,7 +4,9 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/HoangTheQuyen/think-better/internal/checker"
@@ -140,14 +142,12 @@ Flags:`)
 			for _, s := range skillsToInstall {
 				fmt.Printf("  - Skill %q is available in .agents/skills/%s/\n", s.Name, s.Name)
 			}
-			fmt.Println("  - Workflows installed: /solve, /solve.deep, /solve.exec, /solve.quick")
-			fmt.Println("  - Workflows installed: /decide, /decide.deep, /decide.exec, /decide.quick")
+			printSlashCommands("Workflows installed")
 		} else if ai == "claude" {
 			for _, s := range skillsToInstall {
 				fmt.Printf("  - Skill %q is available in .claude/skills/%s/\n", s.Name, s.Name)
 			}
-			fmt.Println("  - Slash commands installed: /solve, /solve.quick, /solve.deep, /solve.exec")
-			fmt.Println("  - Slash commands installed: /decide, /decide.quick, /decide.deep, /decide.exec")
+			printSlashCommands("Slash commands installed")
 		} else if ai == "opencode" {
 			fmt.Println("  - Skills installed as OpenCode skills (SKILL.md entry points)")
 			for _, s := range skillsToInstall {
@@ -172,4 +172,29 @@ Flags:`)
 	}
 
 	return 0
+}
+
+// printSlashCommands lists the bundled workflows as slash commands, one line
+// per group (/code, /code.debug, ... then /decide, ...).
+func printSlashCommands(label string) {
+	files, err := skills.WorkflowFiles()
+	if err != nil {
+		return
+	}
+	groups := map[string][]string{}
+	var order []string
+	for _, f := range files {
+		name := strings.TrimSuffix(path.Base(f), ".md")
+		group, _, _ := strings.Cut(name, ".")
+		if _, ok := groups[group]; !ok {
+			order = append(order, group)
+		}
+		groups[group] = append(groups[group], "/"+name)
+	}
+	sort.Strings(order)
+	for _, group := range order {
+		cmds := groups[group]
+		sort.Strings(cmds)
+		fmt.Printf("  - %s: %s\n", label, strings.Join(cmds, ", "))
+	}
 }

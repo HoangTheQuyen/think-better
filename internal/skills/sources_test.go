@@ -3,6 +3,7 @@ package skills
 import (
 	"bytes"
 	"encoding/csv"
+	"fmt"
 	"io/fs"
 	"os"
 	"path"
@@ -96,6 +97,9 @@ func TestWorkflowStructure(t *testing.T) {
 		if meta["description"] == "" {
 			t.Errorf("%s: frontmatter description is required", f)
 		}
+		for _, issue := range plainScalarIssues(string(data)) {
+			t.Errorf("%s: %s", f, issue)
+		}
 		for _, line := range strings.Split(string(data), "\n") {
 			_, rest, ok := strings.Cut(line, ".agents/skills/")
 			if !ok {
@@ -107,4 +111,47 @@ func TestWorkflowStructure(t *testing.T) {
 			}
 		}
 	}
+}
+
+// TestSkillFrontmatterIsValidYAML catches frontmatter that our lenient parser
+// accepts but strict YAML parsers (used by the AI tools) reject.
+func TestSkillFrontmatterIsValidYAML(t *testing.T) {
+	for _, skill := range Registry {
+		data, err := fs.ReadFile(Content, "skills/"+skill.Name+"/SKILL.md")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, issue := range plainScalarIssues(string(data)) {
+			t.Errorf("%s/SKILL.md: %s", skill.Name, issue)
+		}
+	}
+}
+
+// plainScalarIssues reports unquoted frontmatter values containing ": " or " #",
+// which end or break a YAML plain scalar. Block scalars (| or >) and quoted
+// values are fine.
+func plainScalarIssues(doc string) []string {
+	lines := strings.Split(doc, "\n")
+	var issues []string
+	plain := false
+	for i, line := range lines[1:] {
+		if strings.TrimSpace(line) == "---" {
+			break
+		}
+		value := line
+		if !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "\t") {
+			_, v, ok := strings.Cut(line, ":")
+			if !ok {
+				continue
+			}
+			value = strings.TrimSpace(v)
+			plain = value != "" && !strings.ContainsAny(value[:1], "|>'\"")
+		} else if !plain {
+			continue
+		}
+		if plain && (strings.Contains(value, ": ") || strings.Contains(value, " #")) {
+			issues = append(issues, fmt.Sprintf("frontmatter line %d: unquoted value contains \": \" or \" #\"; quote it or reword", i+2))
+		}
+	}
+	return issues
 }

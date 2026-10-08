@@ -3,10 +3,11 @@ name: problem-solving-pro
 description: |
   Systematic problem-solving toolkit: root cause analysis, hypothesis testing,
   debugging strategies, critical thinking frameworks. Use when user says "solve",
-  "analyze", "diagnose", "debug", "figure out", "what's wrong", "root cause",
+  "analyze", "diagnose", "figure out", "what's wrong", "root cause",
   "why is this happening", "I'm stuck", "break down", "decompose", "structure",
   "tại sao bị vậy", "tìm nguyên nhân", "phân tích", "giải quyết", "bị kẹt",
   "không biết làm sao", or describes any problem that needs structured decomposition.
+  For bugs and other changes to a codebase, use code-solving instead.
 ---
 
 # Goal
