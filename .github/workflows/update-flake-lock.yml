@@ -31,7 +31,7 @@ jobs:
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: DeterminateSystems/update-flake-lock@v24
+      - uses: DeterminateSystems/update-flake-lock@v29
         with:
           pr-title: "chore(nix): update flake.lock"
           commit-msg: "chore(nix): update flake.lock"
