@@ -5,7 +5,8 @@ description: |
   "fix this bug", "debug this", "exception", "stack trace", "crash", "the code is not working",
   "add a feature", "refactor", "clean up this code", "the code is slow", "memory leak",
   "flaky test", "CI is failing", "production is down", "upgrade the dependency", "migrate",
-  "review my code", "write tests", "review code".
+  "review my code", "write tests", "fix the error", "add a new feature", "make it faster",
+  "upgrade the library".
   Trivial edits (a typo, a rename, a one-line change with an obvious result) do not need this
   process; just make the change.
   Do NOT use for problems outside the code (business, product, process; use problem-solving-pro)
