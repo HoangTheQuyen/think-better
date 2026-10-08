@@ -28,6 +28,8 @@ jobs:
         # on another commit, a version that is already published, or a tag
         # that does not match the VERSION file. A tag that already exists on
         # this commit is fine: an earlier run created it and failed later.
+        # Also fails when internal/installer/known_hashes.json does not cover
+        # the earlier releases (see the last step).
         runs-on: ubuntu-latest
         timeout-minutes: 5
         permissions:
@@ -82,6 +84,26 @@ jobs:
 
                   echo "version=$version" >> "$GITHUB_OUTPUT"
                   echo "Releasing $version from $GITHUB_SHA"
+
+            - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+              with:
+                  go-version-file: go.mod
+                  cache: false
+
+            # internal/installer/known_hashes.json is written by `make known-hashes`
+            # after each release (CONTRIBUTING.md, Releasing). It must cover every
+            # earlier release tag. The release being cut is left out: its entry is
+            # recorded from its own tag, which does not exist until this run.
+            - name: known_hashes.json covers the earlier releases
+              env:
+                  VERSION: ${{ steps.version.outputs.version }}
+              run: |
+                  set -eu
+                  earlier="$(git tag --merged HEAD --list 'v*' | grep -vxF "$VERSION" | paste -sd, -)"
+                  if ! go run ./internal/installer/gen -check -versions "$earlier"; then
+                    echo "::error::known_hashes.json is missing an earlier release. On main, run 'git fetch --tags && make known-hashes', merge that file in a PR, then run the release again."
+                    exit 1
+                  fi
 
     checks:
         name: CI
