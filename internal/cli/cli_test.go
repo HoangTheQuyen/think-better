@@ -150,7 +150,6 @@ func TestBadArguments(t *testing.T) {
 	e.mustRun(1, RunInit, "--ai", "claude", "--skill", "nope")
 	e.mustRun(1, RunUpdate, "--ai", "nope")
 	e.mustRun(1, RunUninstall, "--ai", "claude")
-	e.mustRun(1, RunInit, "--ai", "copilot", "--global")
 }
 
 func TestInitNeedsTargetWhenNonInteractive(t *testing.T) {
@@ -177,7 +176,7 @@ func TestInitPromptsForTarget(t *testing.T) {
 	e := newEnv(t)
 	e.answer("2\n")
 	e.mustRun(0, RunInit, "--skill", "make-decision")
-	if !exists(e.file(".github", "prompts", "make-decision", "SKILL.md")) {
+	if !exists(e.file(".github", "skills", "make-decision", "SKILL.md")) {
 		t.Error("choice 2 (copilot) not installed")
 	}
 }

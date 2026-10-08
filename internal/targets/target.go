@@ -19,7 +19,12 @@ type AITarget struct {
 	GlobalInstallPattern  string
 	GlobalWorkflowPattern string
 
+	// LegacyInstallPatterns are project install locations used by earlier
+	// releases. Skills found there are moved to InstallPattern by update.
+	LegacyInstallPatterns []string
+
 	global bool // set on the copy returned by Global()
+	legacy bool // set on the copies returned by Legacy()
 }
 
 // FormatCopilotPrompt writes workflows as VS Code Copilot prompt files
@@ -41,18 +46,35 @@ var Targets = []AITarget{
 		GlobalWorkflowPattern: ".claude/commands/",
 	},
 	{
-		Name:            "copilot",
-		DisplayName:     "GitHub Copilot",
-		InstallPattern:  ".github/prompts/{skill}/",
-		WorkflowPattern: ".github/prompts/",
-		WorkflowFormat:  FormatCopilotPrompt,
+		Name:        "copilot",
+		DisplayName: "GitHub Copilot",
+		// Agent skills (SKILL.md folders): .github/skills/<name>/ in a repository,
+		// ~/.copilot/skills/<name>/ for personal skills.
+		// https://docs.github.com/en/copilot/how-tos/use-copilot-agents/cloud-agent/create-skills
+		// https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/create-skills
+		// https://code.visualstudio.com/docs/copilot/customization/agent-skills
+		InstallPattern: ".github/skills/{skill}/",
+		// Prompt files (slash commands) stay in .github/prompts/. User-level
+		// prompt files live in the VS Code profile folder, which differs per OS
+		// and profile, so --global installs the skills only.
+		// https://code.visualstudio.com/docs/copilot/customization/prompt-files
+		WorkflowPattern:      ".github/prompts/",
+		WorkflowFormat:       FormatCopilotPrompt,
+		GlobalInstallPattern: ".copilot/skills/{skill}/",
+		// Releases up to v1.4.0 installed skills next to the prompt files,
+		// where Copilot does not load SKILL.md.
+		LegacyInstallPatterns: []string{".github/prompts/{skill}/"},
 	},
 	{
-		Name:            "antigravity",
-		DisplayName:     "Antigravity (Gemini Antigravity)",
+		Name:        "antigravity",
+		DisplayName: "Antigravity (Gemini Antigravity)",
+		// Workspace skills and workflows (slash commands) live under .agents/.
+		// https://antigravity.google/docs/skills
+		// https://antigravity.google/docs/rules-workflows
 		InstallPattern:  ".agents/skills/{skill}/",
 		WorkflowPattern: ".agents/workflows/",
-		// Global scope per Google's Antigravity skills codelab and workflow migration guide
+		// Global skills: ~/.gemini/config/skills/ (https://antigravity.google/docs/skills);
+		// global workflows per Google's Antigravity workflow migration guide.
 		GlobalInstallPattern:  ".gemini/config/skills/{skill}/",
 		GlobalWorkflowPattern: ".gemini/config/workflows/",
 	},
@@ -129,6 +151,29 @@ func (t *AITarget) Global() (*AITarget, error) {
 // IsGlobal reports whether this is the user-level variant from Global().
 func (t *AITarget) IsGlobal() bool {
 	return t.global
+}
+
+// Legacy returns a variant of this project target for each location where
+// earlier releases installed skills: the same target with InstallPattern
+// pointing there. Workflows stay where they are.
+func (t *AITarget) Legacy() []*AITarget {
+	if t.global {
+		return nil
+	}
+	out := make([]*AITarget, 0, len(t.LegacyInstallPatterns))
+	for _, p := range t.LegacyInstallPatterns {
+		l := *t
+		l.InstallPattern = p
+		l.LegacyInstallPatterns = nil
+		l.legacy = true
+		out = append(out, &l)
+	}
+	return out
+}
+
+// IsLegacy reports whether this is a variant from Legacy().
+func (t *AITarget) IsLegacy() bool {
+	return t.legacy
 }
 
 // Display formats a path relative to the install base for messages
