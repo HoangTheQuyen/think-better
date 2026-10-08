@@ -183,7 +183,7 @@ Bugs in code go here, not to `/solve`.
 | | `analysis` | 10 analysis techniques |
 | | `criteria` | 15 criteria templates, 5 criteria each |
 | | `facilitation` | 8 facilitation techniques |
-| problem-solving-pro | `decomposition` | 18 decomposition frameworks |
+| problem-solving-pro | `decomposition` | 20 decomposition frameworks |
 | | `heuristics` | 13 mental models |
 | | `communication` | 10 communication patterns |
 | | `steps`, `problem-types`, `prioritization`, `analysis`, `biases`, `team` | the rest of the method |

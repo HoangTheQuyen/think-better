@@ -76,7 +76,7 @@ SAMPLES = [
         "expect": {
             "type": "Diagnostic",
             "category": "Business Performance",
-            "decomposition": "Profitability Tree",
+            "decomposition": "Fishbone (Ishikawa)",
             "biases": ["Confirmation Bias", "Narrative Fallacy", "Availability Heuristic"],
         },
         "docs": ["README.md"],
@@ -88,7 +88,7 @@ SAMPLES = [
         "args": ["--depth", "deep"],
         "expect": {
             "type": "Diagnostic",
-            "decomposition": "Profitability Tree",
+            "decomposition": "Fishbone (Ishikawa)",
             "biases": ["Confirmation Bias", "Narrative Fallacy", "Availability Heuristic", "Anchoring"],
         },
         "docs": ["docs/index.html"],

@@ -12,7 +12,7 @@ solves problems with a proven method, and changes code with evidence instead of 
 [![CI](https://img.shields.io/github/actions/workflow/status/HoangTheQuyen/think-better/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/HoangTheQuyen/think-better/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 
-**3 skills · 323 knowledge records · 20 slash commands · 4 AI tools**
+**3 skills · 326 knowledge records · 20 slash commands · 4 AI tools**
 
 **Works with** Claude Code · GitHub Copilot · Antigravity · OpenCode
 
@@ -106,7 +106,7 @@ The samples below are real script output for these requests, shortened.
 
 → Type: Diagnostic · Context: Business Performance
 → Process: Define precisely → Profitability tree → Pareto prioritize → Hypothesis-driven analysis
-→ Decomposition: Profitability Tree · Prioritize: Sensitivity Analysis · Analysis: Benchmarking
+→ Decomposition: Fishbone (Ishikawa) · Prioritize: Pareto Analysis (80/20) · Analysis: Root Cause Analysis (5 Whys)
 → Bias warnings: Confirmation Bias, Narrative Fallacy, Availability Heuristic
 → Communicate with the Pyramid Principle; next steps: /solve.deep, /solve.exec, /decide
 ```
@@ -140,12 +140,12 @@ Full walk-throughs: [examples/](examples/README.md).
 | **Comparison matrix** | `--matrix "A vs B vs C"` with weighted criteria |
 | **Decision journal** | Record the decision, review it later with the real outcome |
 
-### `/solve` — solve a problem · `problem-solving-pro` · 111 records
+### `/solve` — solve a problem · `problem-solving-pro` · 114 records
 
 | | |
 |---|---|
 | **7-Step Method** | Define → Disaggregate → Prioritize → Workplan → Analyze → Synthesize → Communicate |
-| **18 decomposition frameworks** | Issue Tree, Hypothesis Tree, Profitability Tree, Systems Map… |
+| **20 decomposition frameworks** | Issue Tree, Hypothesis Tree, Profitability Tree, Systems Map… |
 | **13 mental models** | First Principles, Inversion, Bayesian Updating, Second-Order Thinking… |
 | **10 communication patterns** | Pyramid Principle, BLUF, SCR, Action Titles… |
 
@@ -187,7 +187,7 @@ skills add what a prompt alone does not:
   a decision plan for choices), so the AI does not jump from symptom to fix.
 - **Gates.** `/code` does not move on without evidence: a failing test before the fix, the
   project's own test/lint/build output after it.
-- **A knowledge base.** 323 records (frameworks, cognitive biases with remedies, criteria
+- **A knowledge base.** 326 records (frameworks, cognitive biases with remedies, criteria
   templates, 44 known error messages, ...) are searched locally and put into the answer, so the
   advice is specific and the same request gets the same method every time.
 - **Saved, resumable workspaces.** Say "save step-by-step" and the work is written to Markdown
@@ -219,7 +219,7 @@ You ── "Revenue dropped 20%"  or  /solve.deep …  or  /code.debug …
           │
           ▼
   Skill engine (local, Python 3 standard library)
-   ├─ BM25 search over 323 knowledge records (CSV files shipped with the skill)
+   ├─ BM25 search over 326 knowledge records (CSV files shipped with the skill)
    ├─ classify: problem type · decision type · coding task type
    ├─ /code only: read the project (stack-trace frames, symbols, git log, diff, test commands)
    └─ build the plan: framework · steps and gates · bias warnings · checklist
@@ -344,7 +344,7 @@ natural language too.
 Một CLI cài ba skill và các lệnh slash đi kèm, để AI ra quyết định bằng framework thật, giải quyết
 vấn đề theo phương pháp rõ ràng và sửa code dựa trên bằng chứng thay vì đoán.
 
-**3 skill · 323 bản ghi kiến thức · 20 lệnh slash · 4 công cụ AI** (Claude Code, GitHub Copilot, Antigravity, OpenCode)
+**3 skill · 326 bản ghi kiến thức · 20 lệnh slash · 4 công cụ AI** (Claude Code, GitHub Copilot, Antigravity, OpenCode)
 
 ### Cài đặt
 
@@ -402,9 +402,9 @@ còn `--force` xóa luôn cả file bạn đã sửa (kèm cảnh báo).
 **`/decide`** — Ra quyết định · `make-decision` · 63 bản ghi
 - 10 framework quyết định · 12 thiên kiến nhận thức kèm cách khắc phục · Bảng so sánh có trọng số · Nhật ký quyết định
 
-**`/solve`** — Giải quyết vấn đề kinh doanh, sản phẩm · `problem-solving-pro` · 111 bản ghi
+**`/solve`** — Giải quyết vấn đề kinh doanh, sản phẩm · `problem-solving-pro` · 114 bản ghi
 - 7 bước: Định nghĩa → Phân tách → Ưu tiên → Lập kế hoạch → Phân tích → Tổng hợp → Trình bày
-- 18 framework phân tách · 13 mô hình tư duy · 10 mẫu trình bày
+- 20 framework phân tách · 13 mô hình tư duy · 10 mẫu trình bày
 
 **`/code`** — Sửa và viết code có quy trình · `code-solving` · 149 bản ghi
 - 7 bước có "cổng kiểm tra": phải có test fail, chạy test thật, đủ bằng chứng mới qua bước
@@ -441,7 +441,7 @@ file; ở phiên sau, dùng `/solve.resume`, `/decide.resume` hoặc `/code.resu
 
 - **Quy trình cố định:** mọi yêu cầu đi qua các bước rõ ràng, AI không nhảy thẳng từ triệu chứng sang cách sửa.
 - **Cổng kiểm tra:** `/code` chỉ qua bước khi có bằng chứng (test fail trước khi sửa, test/lint/build pass sau khi sửa).
-- **Kho kiến thức:** 323 bản ghi kiến thức (framework, thiên kiến kèm cách khắc phục, mẫu tiêu chí, lỗi hay gặp) được tìm ngay trên máy và đưa vào câu trả lời.
+- **Kho kiến thức:** 326 bản ghi kiến thức (framework, thiên kiến kèm cách khắc phục, mẫu tiêu chí, lỗi hay gặp) được tìm ngay trên máy và đưa vào câu trả lời.
 - **Workspace lưu lại được:** làm dở thì phiên sau làm tiếp từ bước còn dang dở.
 
 ### Lưu ý
