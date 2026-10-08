@@ -1,0 +1,95 @@
+# GoReleaser config — builds release binaries, archives, checksums, and
+# publishes the Homebrew tap and Scoop bucket.
+# Docs: https://goreleaser.com  ·  Local dry run: goreleaser release --snapshot --clean
+version: 2
+
+project_name: think-better
+
+before:
+  hooks:
+    - go test ./...
+
+builds:
+  - id: think-better
+    main: ./cmd/think-better
+    binary: think-better
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{ .Tag }} -X main.commit={{ .ShortCommit }} -X main.buildDate={{ time "2006-01-02" }}
+
+archives:
+  # Raw binaries named think-better-<os>-<arch>[.exe]: the assets that
+  # install.sh / install.ps1 download. Keep these names stable.
+  - id: raw
+    ids: [think-better]
+    formats: [binary]
+    name_template: "{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}"
+
+  # Compressed archives for package managers (Homebrew, Scoop).
+  - id: packaged
+    ids: [think-better]
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  use: github-native
+
+release:
+  github:
+    owner: HoangTheQuyen
+    name: think-better
+
+# Homebrew: brew install HoangTheQuyen/tap/think-better
+brews:
+  - name: think-better
+    ids: [packaged]
+    repository:
+      owner: HoangTheQuyen
+      name: homebrew-tap
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    directory: Formula
+    homepage: https://thinkbetter.dev/
+    description: Structured decision-making and problem-solving skills for AI coding assistants
+    license: MIT
+    commit_author:
+      name: think-better-bot
+      email: noreply@thinkbetter.dev
+    # Without the token (e.g. forks), still release but don't publish the formula.
+    skip_upload: '{{ if index .Env "TAP_GITHUB_TOKEN" }}false{{ else }}true{{ end }}'
+    test: |
+      system "#{bin}/think-better", "version"
+    caveats: |
+      Install skills in your project with:
+        think-better init --ai claude   # or: copilot, antigravity, opencode
+      The skill scripts need Python 3 (check with: think-better check).
+
+# Scoop: scoop bucket add think-better https://github.com/HoangTheQuyen/scoop-bucket
+#        scoop install think-better
+scoops:
+  - name: think-better
+    ids: [packaged]
+    repository:
+      owner: HoangTheQuyen
+      name: scoop-bucket
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    homepage: https://thinkbetter.dev/
+    description: Structured decision-making and problem-solving skills for AI coding assistants
+    license: MIT
+    commit_author:
+      name: think-better-bot
+      email: noreply@thinkbetter.dev
+    skip_upload: '{{ if index .Env "TAP_GITHUB_TOKEN" }}false{{ else }}true{{ end }}'

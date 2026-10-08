@@ -17,7 +17,7 @@ LDFLAGS := -s -w \
 # Cross-compilation targets
 PLATFORMS := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64
 
-.PHONY: all build build-all test test-cover test-py check clean embed-prep lint fmt tidy help
+.PHONY: all build build-all test test-cover test-py check clean embed-prep lint fmt tidy help release-snapshot
 
 all: embed-prep build
 
@@ -81,6 +81,10 @@ fmt:
 tidy:
 	go mod tidy
 	go mod verify
+
+## release-snapshot: Dry-run the GoReleaser release locally (output in dist/)
+release-snapshot:
+	goreleaser release --snapshot --clean
 
 ## help: Show available targets
 help:

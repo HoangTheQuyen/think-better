@@ -20,54 +20,16 @@ jobs:
               with:
                   go-version-file: go.mod
 
-            - name: Test
-              run: go test ./...
-
-            - name: Cross-compile all platforms
-              run: |
-                  VERSION=${GITHUB_REF_NAME}
-                  COMMIT=$(git rev-parse --short HEAD)
-                  BUILD_DATE=$(date -u +%Y-%m-%d)
-                  LDFLAGS="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.buildDate=${BUILD_DATE}"
-
-                  platforms=(
-                    "linux/amd64"
-                    "linux/arm64"
-                    "darwin/amd64"
-                    "darwin/arm64"
-                    "windows/amd64"
-                    "windows/arm64"
-                  )
-
-                  mkdir -p dist
-
-                  for platform in "${platforms[@]}"; do
-                    GOOS="${platform%/*}"
-                    GOARCH="${platform#*/}"
-                    output="dist/think-better-${GOOS}-${GOARCH}"
-                    if [ "$GOOS" = "windows" ]; then
-                      output="${output}.exe"
-                    fi
-
-                    echo "Building ${GOOS}/${GOARCH}..."
-                    CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build \
-                      -ldflags "$LDFLAGS" \
-                      -o "$output" \
-                      ./cmd/think-better
-                  done
-
-                  ls -la dist/
-
-            - name: Generate checksums
-              run: |
-                  cd dist
-                  sha256sum * > checksums.txt
-                  cat checksums.txt
-
-            - name: Create GitHub Release
-              uses: softprops/action-gh-release@v2
+            # Builds all platforms, writes checksums.txt, publishes the GitHub
+            # Release, and updates the Homebrew tap and Scoop bucket.
+            # TAP_GITHUB_TOKEN: a fine-grained PAT with "Contents: read & write"
+            # on HoangTheQuyen/homebrew-tap and HoangTheQuyen/scoop-bucket.
+            # Without it the release still ships; only tap/bucket updates are skipped.
+            - uses: goreleaser/goreleaser-action@v6
               with:
-                  generate_release_notes: true
-                  files: |
-                      dist/think-better-*
-                      dist/checksums.txt
+                  distribution: goreleaser
+                  version: "~> v2"
+                  args: release --clean
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
