@@ -10,7 +10,7 @@ This project adopts the [Contributor Covenant, version 2.1](https://www.contribu
 
 ## Enforcement
 
-Report unacceptable behavior to the maintainer at **hoangthequyen@gmail.com**.
+Report unacceptable behavior to the maintainer at **hoangthequyen01@gmail.com**.
 All reports are reviewed promptly and kept confidential. Maintainers may
 remove comments, commits, or contributions and may temporarily or permanently
 ban contributors who violate this code, following the Covenant's
