@@ -25,7 +25,7 @@ Removes all skill files from AI assistant installation directory.
 Use --force to skip confirmation prompt.
 
 Usage:
-  think-better uninstall [--ai <target>] --skill <name> [--force]
+  think-better uninstall [--ai <target>] --skill <name> [--global] [--force]
 
 Flags:`)
 		fs.PrintDefaults()
@@ -60,13 +60,13 @@ Flags:`)
 		return 1
 	}
 
-	cwd, err := os.Getwd()
+	target, baseDir, err := ResolveScope(target, sf.Global)
 	if err != nil {
-		Errorf("getting working directory: %v", err)
+		Errorf("%v", err)
 		return 1
 	}
 
-	uninst := installer.NewUninstaller(cwd)
+	uninst := installer.NewUninstaller(baseDir)
 	interactive := IsTerminal()
 
 	fmt.Printf("Removing skill %q for %s...\n", skill.Name, ai)
@@ -83,20 +83,21 @@ Flags:`)
 	}
 
 	installPath := target.InstallDir(skill.Name)
+	shown := target.Display(installPath)
 	for _, f := range removed {
-		fmt.Printf("  Removed %s\n", filepath.ToSlash(filepath.Join(installPath, f)))
+		fmt.Printf("  Removed %s\n", filepath.ToSlash(filepath.Join(shown, f)))
 	}
 
 	// Check if skill directory was removed
-	installDir := filepath.Join(cwd, filepath.FromSlash(installPath))
+	installDir := filepath.Join(baseDir, filepath.FromSlash(installPath))
 	if _, err := os.Stat(installDir); os.IsNotExist(err) {
-		fmt.Printf("  Removed %s\n", installPath)
+		fmt.Printf("  Removed %s\n", shown)
 	}
 
 	// Remove the slash commands that run this skill
 	wfRemoved, err := uninst.UninstallWorkflows(skill, target)
 	for _, f := range wfRemoved {
-		fmt.Printf("  Removed %s\n", filepath.ToSlash(filepath.Join(target.WorkflowDir(), f)))
+		fmt.Printf("  Removed %s\n", filepath.ToSlash(filepath.Join(target.Display(target.WorkflowDir()), f)))
 	}
 	if err != nil {
 		Errorf("%v", err)

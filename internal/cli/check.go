@@ -8,7 +8,6 @@ import (
 	"github.com/HoangTheQuyen/think-better/internal/checker"
 	"github.com/HoangTheQuyen/think-better/internal/installer"
 	"github.com/HoangTheQuyen/think-better/internal/skills"
-	"github.com/HoangTheQuyen/think-better/internal/targets"
 )
 
 // RunCheck handles the "check" subcommand.
@@ -51,26 +50,23 @@ Flags:`)
 		return 1
 	}
 
-	// Check skill installation status
-	defaultTarget := &targets.Targets[0]
-	for _, skill := range skills.Registry {
-		status, err := installer.CheckStatus(&skill, defaultTarget, cwd)
-		if err != nil {
-			fmt.Printf("  ✗ Skill %q: error checking status\n", skill.Name)
+	// Check skill installation status across all AI tools, project and global
+	home := userHome()
+	for i := range skills.Registry {
+		skill := &skills.Registry[i]
+		locations := findSkillLocations(skill, cwd, home)
+		if len(locations) == 0 {
+			fmt.Printf("  ✗ Skill %q not installed (run: think-better init)\n", skill.Name)
 			warnings++
 			continue
 		}
-
-		switch status.Status {
-		case installer.StatusInstalled:
-			files, _ := skills.SkillFiles(skill.Name)
-			fmt.Printf("  ✓ Skill %q installed (%d files)\n", skill.Name, len(files))
-		case installer.StatusIncomplete:
-			fmt.Printf("  ⚠ Skill %q incomplete (%d missing files)\n", skill.Name, len(status.MissingFiles))
-			warnings++
-		case installer.StatusNotInstalled:
-			fmt.Printf("  ✗ Skill %q not installed\n", skill.Name)
-			warnings++
+		for _, loc := range locations {
+			if loc.Status == installer.StatusIncomplete {
+				fmt.Printf("  ⚠ Skill %q incomplete in %s (run: think-better init --force)\n", skill.Name, loc.Path)
+				warnings++
+			} else {
+				fmt.Printf("  ✓ Skill %q installed for %s (%s)\n", skill.Name, loc.Label, loc.Path)
+			}
 		}
 	}
 

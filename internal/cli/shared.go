@@ -13,9 +13,10 @@ import (
 
 // SharedFlags contains flags common to multiple subcommands.
 type SharedFlags struct {
-	AI    string
-	Skill string
-	Force bool
+	AI     string
+	Skill  string
+	Force  bool
+	Global bool
 }
 
 // AddSharedFlags registers the common flags on a FlagSet.
@@ -23,6 +24,28 @@ func AddSharedFlags(fs *flag.FlagSet, sf *SharedFlags) {
 	fs.StringVar(&sf.AI, "ai", "", "AI target: "+strings.Join(targets.TargetNames(), ", "))
 	fs.StringVar(&sf.Skill, "skill", "", "Skill name")
 	fs.BoolVar(&sf.Force, "force", false, "Skip confirmation prompts")
+	fs.BoolVar(&sf.Global, "global", false, "Use your user account (all projects) instead of the current project")
+}
+
+// ResolveScope returns the target and base directory to work in: the current
+// project, or the home directory with the target's user-level paths for --global.
+func ResolveScope(target *targets.AITarget, global bool) (*targets.AITarget, string, error) {
+	if !global {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return nil, "", fmt.Errorf("getting working directory: %w", err)
+		}
+		return target, cwd, nil
+	}
+	g, err := target.Global()
+	if err != nil {
+		return nil, "", err
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, "", fmt.Errorf("finding home directory: %w", err)
+	}
+	return g, home, nil
 }
 
 // IsTerminal returns true if stdin is connected to a terminal (not piped/redirected).

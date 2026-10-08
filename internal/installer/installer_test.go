@@ -196,3 +196,55 @@ func TestUninstallRemovesOnlyThatSkillsWorkflows(t *testing.T) {
 		t.Error("decide.md belongs to make-decision and should stay")
 	}
 }
+
+// A --global install writes under the home directory, and every "~/..." script
+// path in the installed docs and commands resolves there.
+func TestGlobalInstallPaths(t *testing.T) {
+	pathRe := regexp.MustCompile(`~/[\w./-]+/scripts/search\.py`)
+	for _, project := range targets.Targets {
+		target, err := project.Global()
+		if err != nil {
+			continue
+		}
+		t.Run(target.Name, func(t *testing.T) {
+			home := t.TempDir()
+			inst := NewInstaller(home)
+			var names []string
+			for i := range skills.Registry {
+				if _, err := inst.Install(&skills.Registry[i], target, true, false); err != nil {
+					t.Fatal(err)
+				}
+				names = append(names, skills.Registry[i].Name)
+			}
+			if _, err := inst.InstallWorkflows(target, true, names...); err != nil {
+				t.Fatal(err)
+			}
+			checked := 0
+			err := filepath.WalkDir(home, func(p string, d os.DirEntry, err error) error {
+				if err != nil || d.IsDir() || !strings.HasSuffix(p, ".md") {
+					return err
+				}
+				data, err := os.ReadFile(p)
+				if err != nil {
+					return err
+				}
+				if strings.Contains(string(data), ".agents/skills/") && target.Name != "antigravity" {
+					t.Errorf("%s still references .agents/skills/", p)
+				}
+				for _, ref := range pathRe.FindAllString(string(data), -1) {
+					checked++
+					if _, err := os.Stat(filepath.Join(home, filepath.FromSlash(strings.TrimPrefix(ref, "~/")))); err != nil {
+						t.Errorf("%s references %s, which does not exist under home", p, ref)
+					}
+				}
+				return nil
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if checked == 0 {
+				t.Error("no ~/ script paths found in installed files")
+			}
+		})
+	}
+}
