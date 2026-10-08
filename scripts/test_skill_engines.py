@@ -369,9 +369,10 @@ class ProblemSolvingTests(unittest.TestCase):
 
     def test_reasoning_rule_drives_framework_choice(self):
         plan = self.plan("Revenue dropped 20% despite market growth")
-        self.assertEqual(plan["decomposition"]["primary"], "Profitability Tree")
-        self.assertEqual(plan["analysis"]["primary_tool"], "Benchmarking")
-        self.assertNotIn("Profitability Tree", plan["decomposition"]["alternatives"])
+        # The problem type (Diagnostic) picks the primary methods; the category rule's tree is an alternative
+        self.assertEqual(plan["decomposition"]["primary"], "Fishbone (Ishikawa)")
+        self.assertEqual(plan["analysis"]["primary_tool"], "Root Cause Analysis (5 Whys)")
+        self.assertIn("Profitability Tree", plan["decomposition"]["alternatives"])
 
     def test_explicit_type_and_category_override_detection(self):
         plan = self.plan("something vague", problem_type="design", category="product development")
@@ -1079,16 +1080,39 @@ class ProblemSolvingProTests(unittest.TestCase):
             ("reasoning.csv", "Key_Biases", ";", ("biases",)),
             ("problem-types.csv", "Key Biases", ";", ("biases",)),
             ("problem-types.csv", "Mental Models", ";", ("heuristics",)),
+            # The method columns of each problem type are rows of the knowledge base, or named here as absent
+            ("problem-types.csv", "Decomposition Style", ";", ("decomposition",)),
+            ("problem-types.csv", "Analysis Methods", ";", ("analysis", "prioritization")),
+            ("problem-types.csv", "Prioritization", ";", ("prioritization",)),
         ]
+        # Methods a problem type names that have no row in the knowledge base, on purpose
+        intentionally_absent = {"Optimization modeling", "Statistical testing", "Hypothesis testing",
+                                "Time series analysis", "Causal loop diagrams", "Systems dynamics", "Game theory"}
         checked = 0
         for file, column, sep, domains in refs:
             for row in self.core._load_csv(data / file):
                 for name in self.core.split_names(row[column], sep):
                     with self.subTest(file=file, column=column, name=name):
-                        self.assertTrue(any(self.core.find_record(d, name) for d in domains),
-                                        f"{name!r} in {file}:{column} is not defined in {domains}")
+                        found = any(self.core.find_record(d, name) for d in domains)
+                        if name in intentionally_absent:
+                            self.assertFalse(found, f"{name!r} now has a row; drop it from the absent list")
+                        else:
+                            self.assertTrue(found, f"{name!r} in {file}:{column} is not defined in {domains}")
                         checked += 1
         self.assertGreater(checked, 100)
+
+    def test_problem_type_shapes_the_methods_not_the_category(self):
+        plan = self.engine.generate("Our app crash rate jumped 3x after the last release, logs show OutOfMemoryError")
+        self.assertEqual(plan["problem_type"]["name"], "Diagnostic")
+        self.assertEqual(plan["analysis"]["primary_tool"], "Root Cause Analysis (5 Whys)")
+        self.assertEqual(plan["decomposition"]["primary"], "Fishbone (Ishikawa)")
+        self.assertEqual(plan["prioritization"]["technique"], "Pareto Analysis (80/20)")
+        # The category supplies context only: a wicked problem keeps its systems methods in any category
+        plan = self.engine.generate("How can our city reduce homelessness without pushing people to neighbouring districts?",
+                                    category="Product Development")
+        self.assertEqual(plan["problem_type"]["name"], "Wicked")
+        self.assertEqual(plan["decomposition"]["primary"], "Systems Map")
+        self.assertEqual(plan["prioritization"]["technique"], "Dot Voting")
 
     def test_every_step_is_rendered_with_its_gate(self):
         plan = self.engine.generate("Revenue dropped 20%")
