@@ -4,6 +4,13 @@ on:
     push:
         tags:
             - "v*"
+    # Release without pushing a tag yourself: Actions → Release → Run workflow,
+    # enter the version (e.g. v1.1.0). The tag is created on the current main.
+    workflow_dispatch:
+        inputs:
+            version:
+                description: "Version tag to create and release, e.g. v1.1.0"
+                required: true
 
 permissions:
     contents: write
@@ -15,6 +22,26 @@ jobs:
             - uses: actions/checkout@v7
               with:
                   fetch-depth: 0
+
+            # Tags pushed with GITHUB_TOKEN do not trigger another run, so this
+            # job does not release twice.
+            - name: Create tag (manual run)
+              if: github.event_name == 'workflow_dispatch'
+              env:
+                  VERSION: ${{ inputs.version }}
+              run: |
+                  if ! printf '%s' "$VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$'; then
+                    echo "::error::version must look like v1.2.3 or v1.2.3-rc.1, got '$VERSION'"
+                    exit 1
+                  fi
+                  if git rev-parse -q --verify "refs/tags/$VERSION" >/dev/null; then
+                    echo "::error::tag $VERSION already exists"
+                    exit 1
+                  fi
+                  git config user.name "github-actions[bot]"
+                  git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+                  git tag -a "$VERSION" -m "$VERSION"
+                  git push origin "refs/tags/$VERSION"
 
             - uses: actions/setup-go@v7
               with:
