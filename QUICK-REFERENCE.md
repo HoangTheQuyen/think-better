@@ -9,6 +9,7 @@ curl -fsSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/ins
 
 # Install skills and slash commands
 think-better init --ai claude       # or: copilot, antigravity, opencode
+think-better init --ai claude --global   # once for all projects (not Copilot)
 
 # List installed skills
 think-better list

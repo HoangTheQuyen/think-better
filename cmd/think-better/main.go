@@ -78,6 +78,7 @@ Global options:
   --ai string     AI assistant target: claude, copilot, antigravity, opencode
   --skill string  Skill name (default: all for init, required for uninstall)
   --force         Skip confirmation prompts
+  --global        Install for your user account (all projects); claude, opencode, antigravity
 
 Environment:
   THINK_BETTER_AI  Default for --ai (e.g. claude)

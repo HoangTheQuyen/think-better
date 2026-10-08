@@ -111,7 +111,10 @@ with that skill.
 
 1. Add an entry to `Targets` in `internal/targets/target.go`
    (`InstallPattern` must contain `{skill}`; set `WorkflowPattern` if the
-   platform supports slash-command files).
+   platform supports slash-command files; set `GlobalInstallPattern` and
+   `GlobalWorkflowPattern`, relative to the home directory, if the platform
+   has user-level skills, to enable `--global`). Link the docs you used in a
+   comment next to the paths.
 2. Add the name to the tests in `internal/targets/target_test.go` and to the
    CI smoke loop in `.github/workflows/ci.yml`.
 3. Document it in the README "Works with" line and the target table.

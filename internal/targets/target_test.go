@@ -176,3 +176,34 @@ func TestAdaptWorkflowCopilotPrompt(t *testing.T) {
 		t.Errorf("copilot AdaptWorkflow =\n%s\nwant:\n%s", got, want)
 	}
 }
+
+func TestGlobalScope(t *testing.T) {
+	if _, err := FindTarget("copilot").Global(); err == nil {
+		t.Error("copilot Global() should be unsupported")
+	}
+	cases := map[string]string{
+		"claude":      "~/.claude/skills/",
+		"opencode":    "~/.config/opencode/skills/",
+		"antigravity": "~/.gemini/config/skills/",
+	}
+	for name, root := range cases {
+		project := FindTarget(name)
+		g, err := project.Global()
+		if err != nil {
+			t.Fatalf("%s Global(): %v", name, err)
+		}
+		if !g.IsGlobal() || project.IsGlobal() {
+			t.Errorf("%s: IsGlobal wrong (global %v, project %v)", name, g.IsGlobal(), project.IsGlobal())
+		}
+		got := g.RewriteSkillPaths("python3 .agents/skills/x/scripts/search.py")
+		if want := "python3 " + root + "x/scripts/search.py"; got != want {
+			t.Errorf("%s global RewriteSkillPaths = %q, want %q", name, got, want)
+		}
+	}
+
+	// Antigravity keeps its "// turbo" annotations in the global scope too
+	g, _ := FindTarget("antigravity").Global()
+	if got := g.AdaptWorkflow("// turbo\n.agents/skills/x/"); got != "// turbo\n~/.gemini/config/skills/x/" {
+		t.Errorf("antigravity global AdaptWorkflow = %q", got)
+	}
+}

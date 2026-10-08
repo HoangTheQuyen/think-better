@@ -5,11 +5,11 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/HoangTheQuyen/think-better/internal/installer"
 	"github.com/HoangTheQuyen/think-better/internal/skills"
-	"github.com/HoangTheQuyen/think-better/internal/targets"
 )
 
 type listOutput struct {
@@ -17,11 +17,12 @@ type listOutput struct {
 }
 
 type listSkill struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	FileCount   int    `json:"fileCount"`
-	Status      string `json:"status"`
-	InstallPath string `json:"installPath"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	FileCount   int      `json:"fileCount"`
+	Status      string   `json:"status"`
+	InstallPath string   `json:"installPath"`
+	InstalledIn []string `json:"installedIn"`
 }
 
 // RunList handles the "list" subcommand.
@@ -33,7 +34,8 @@ func RunList(args []string) int {
 		fmt.Fprintln(os.Stderr, `Show available decision-making frameworks and problem-solving skills.
 
 Lists all bundled AI assistant skills with installation status, file counts,
-and descriptions. Use --json for programmatic parsing.
+and descriptions. Status covers every AI tool, in this project and in your
+user account (--global installs). Use --json for programmatic parsing.
 
 Usage:
   think-better list [--json]
@@ -52,31 +54,35 @@ Flags:`)
 		return 1
 	}
 
-	// Use first target for status check (both use same path pattern)
-	defaultTarget := &targets.Targets[0]
-
+	home := userHome()
 	var entries []listSkill
-	for _, skill := range skills.Registry {
+	for i := range skills.Registry {
+		skill := &skills.Registry[i]
 		files, _ := skills.SkillFiles(skill.Name)
-		fileCount := len(files)
 
-		status, err := installer.CheckStatus(&skill, defaultTarget, cwd)
-		statusStr := "not-installed"
-		installPath := ""
-		if err == nil {
-			statusStr = string(status.Status)
-			if status.Status != installer.StatusNotInstalled {
-				installPath = defaultTarget.InstallDir(skill.Name)
-			}
-		}
-
-		entries = append(entries, listSkill{
+		entry := listSkill{
 			Name:        skill.Name,
 			Description: skill.Description,
-			FileCount:   fileCount,
-			Status:      statusStr,
-			InstallPath: installPath,
-		})
+			FileCount:   len(files),
+			Status:      string(installer.StatusNotInstalled),
+			InstalledIn: []string{},
+		}
+		for _, loc := range findSkillLocations(skill, cwd, home) {
+			label := loc.Label
+			if loc.Status == installer.StatusIncomplete {
+				label += " [incomplete]"
+			} else {
+				entry.Status = string(installer.StatusInstalled)
+			}
+			if entry.InstallPath == "" {
+				entry.InstallPath = loc.Path
+			}
+			entry.InstalledIn = append(entry.InstalledIn, label)
+		}
+		if entry.Status != string(installer.StatusInstalled) && len(entry.InstalledIn) > 0 {
+			entry.Status = string(installer.StatusIncomplete)
+		}
+		entries = append(entries, entry)
 	}
 
 	if *jsonFlag {
@@ -98,9 +104,13 @@ func printListJSON(entries []listSkill) int {
 
 func printListTable(entries []listSkill) int {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 4, ' ', 0)
-	_, _ = fmt.Fprintln(w, "SKILL\tDESCRIPTION\tFILES\tSTATUS")
+	_, _ = fmt.Fprintln(w, "SKILL\tDESCRIPTION\tFILES\tINSTALLED IN")
 	for _, e := range entries {
-		_, _ = fmt.Fprintf(w, "%s\t%s\t%d\t%s\n", e.Name, e.Description, e.FileCount, e.Status)
+		where := "-"
+		if len(e.InstalledIn) > 0 {
+			where = strings.Join(e.InstalledIn, ", ")
+		}
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%d\t%s\n", e.Name, e.Description, e.FileCount, where)
 	}
 	if err := w.Flush(); err != nil {
 		Errorf("writing output: %v", err)

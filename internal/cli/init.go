@@ -29,7 +29,10 @@ Installs cognitive bias detection, strategic planning frameworks, and critical t
 methodologies for Claude AI, GitHub Copilot, Antigravity, or OpenCode.
 
 Usage:
-  think-better init [--ai <target>] [--skill <name>] [--force]
+  think-better init [--ai <target>] [--skill <name>] [--global] [--force]
+
+Use --global to install for your user account so every project can use the
+skills (supported for claude, opencode and antigravity).
 
 Flags:`)
 		fs.PrintDefaults()
@@ -67,21 +70,21 @@ Flags:`)
 		}
 	}
 
-	cwd, err := os.Getwd()
+	target, baseDir, err := ResolveScope(target, sf.Global)
 	if err != nil {
-		Errorf("getting working directory: %v", err)
+		Errorf("%v", err)
 		return 1
 	}
 
 	// Warn if target directory doesn't exist (only relevant for copilot which uses .github/)
-	if ai == "copilot" {
-		githubDir := filepath.Join(cwd, ".github")
+	if ai == "copilot" && !target.IsGlobal() {
+		githubDir := filepath.Join(baseDir, ".github")
 		if _, err := os.Stat(githubDir); os.IsNotExist(err) {
 			fmt.Fprintln(os.Stderr, "warning: .github/ directory does not exist (will be created)")
 		}
 	}
 
-	inst := installer.NewInstaller(cwd)
+	inst := installer.NewInstaller(baseDir)
 	interactive := IsTerminal()
 	totalFiles := 0
 	hasError := false
@@ -102,7 +105,7 @@ Flags:`)
 			continue
 		}
 
-		installPath := target.InstallDir(skill.Name)
+		installPath := target.Display(target.InstallDir(skill.Name))
 		for _, f := range created {
 			fmt.Printf("  Created %s\n", filepath.ToSlash(filepath.Join(installPath, f)))
 		}
@@ -123,7 +126,7 @@ Flags:`)
 			Errorf("installing workflows: %v", err)
 			hasError = true
 		} else if len(wfCreated) > 0 {
-			workflowDir := target.WorkflowDir()
+			workflowDir := target.Display(target.WorkflowDir())
 			fmt.Printf("\nInstalling workflows to %s...\n", workflowDir)
 			for _, f := range wfCreated {
 				fmt.Printf("  Created %s\n", filepath.ToSlash(filepath.Join(workflowDir, f)))
@@ -131,7 +134,7 @@ Flags:`)
 			fmt.Printf("✓ Installed %d workflow files\n", len(wfCreated))
 			totalFiles += len(wfCreated)
 		} else {
-			fmt.Printf("\n✓ Workflows already up-to-date at %s\n", target.WorkflowDir())
+			fmt.Printf("\n✓ Workflows already up-to-date at %s\n", target.Display(target.WorkflowDir()))
 		}
 	}
 
@@ -142,15 +145,18 @@ Flags:`)
 	// Next steps & prerequisite check
 	if totalFiles > 0 {
 		fmt.Println("\nNext steps:")
+		if target.IsGlobal() {
+			fmt.Println("  - Installed for your user account: available in every project")
+		}
 		if ai == "antigravity" {
 			fmt.Println("  - Skills installed as Antigravity skills (SKILL.md entry points)")
 			for _, s := range skillsToInstall {
-				fmt.Printf("  - Skill %q is available in .agents/skills/%s/\n", s.Name, s.Name)
+				fmt.Printf("  - Skill %q is available in %s\n", s.Name, target.Display(target.InstallDir(s.Name)))
 			}
 			printSlashCommands("Workflows installed", installed)
 		} else if ai == "claude" || ai == "copilot" {
 			for _, s := range skillsToInstall {
-				fmt.Printf("  - Skill %q is available in %s\n", s.Name, target.InstallDir(s.Name))
+				fmt.Printf("  - Skill %q is available in %s\n", s.Name, target.Display(target.InstallDir(s.Name)))
 			}
 			printSlashCommands("Slash commands installed", installed)
 			if ai == "copilot" {
@@ -159,7 +165,7 @@ Flags:`)
 		} else if ai == "opencode" {
 			fmt.Println("  - Skills installed as OpenCode skills (SKILL.md entry points)")
 			for _, s := range skillsToInstall {
-				fmt.Printf("  - Skill %q is available in .opencode/skills/%s/\n", s.Name, s.Name)
+				fmt.Printf("  - Skill %q is available in %s\n", s.Name, target.Display(target.InstallDir(s.Name)))
 			}
 			fmt.Println("  - OpenCode will auto-discover skills via the native skill tool")
 			printSlashCommands("Slash commands installed", installed)

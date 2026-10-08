@@ -38,6 +38,9 @@ think-better init --ai antigravity
 # For OpenCode
 think-better init --ai opencode
 
+# For every project at once (Claude Code, OpenCode, Antigravity)
+think-better init --ai claude --global
+
 # Only one skill (its slash commands come with it)
 think-better init --ai claude --skill code-solving
 ```

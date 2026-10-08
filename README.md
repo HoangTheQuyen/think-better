@@ -62,6 +62,15 @@ think-better init --ai antigravity   # Antigravity   → .agents/skills + workfl
 think-better init --ai opencode      # OpenCode      → .opencode/skills + /solve, /decide, /code commands
 ```
 
+Want the skills in **every** project? Install them once for your user account:
+
+```bash
+think-better init --ai claude --global     # → ~/.claude/skills + ~/.claude/commands
+think-better init --ai opencode --global   # → ~/.config/opencode/skills + commands
+```
+
+`--global` works for Claude Code, OpenCode and Antigravity (`~/.gemini/config/`); Copilot needs a per-project install.
+
 <details>
 <summary>Other install methods</summary>
 
@@ -224,10 +233,10 @@ solving-plans/project/               decision-plans/project/
 ## CLI Commands
 
 ```bash
-think-better init             # Install skills for your AI (--ai, --skill, --force)
-think-better list             # Show installed skills
+think-better init             # Install skills for your AI (--ai, --skill, --global, --force)
+think-better list             # Show where each skill is installed (all AI tools, project + global)
 think-better check            # Verify prerequisites (Python 3)
-think-better uninstall        # Remove skills
+think-better uninstall        # Remove a skill and its slash commands (--global for user-level)
 think-better version          # Show version
 ```
 
