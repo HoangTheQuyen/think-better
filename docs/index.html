@@ -497,9 +497,9 @@ brew install think-better</code>
             <span data-lang="en">20 slash commands. <span class="accent-purple">Or just ask.</span></span>
             <span data-lang="vi">20 lệnh slash. <span class="accent-purple">Hoặc cứ hỏi.</span></span>
           </h2>
-          <p data-lang="en">Type a command for a fixed depth, or describe the problem in your own words where your
-            AI tool loads skills by itself.</p>
-          <p data-lang="vi">Gõ lệnh để chọn độ sâu, hoặc mô tả vấn đề bằng lời của bạn nếu công cụ AI tự nạp skill.</p>
+          <p data-lang="en">Type a command for a fixed depth, or describe the problem in your own words: every
+            supported AI tool loads the skills by itself.</p>
+          <p data-lang="vi">Gõ lệnh để chọn độ sâu, hoặc mô tả vấn đề bằng lời của bạn: mọi công cụ AI được hỗ trợ đều tự nạp skill.</p>
         </div>
 
         <div class="grid grid-3">
@@ -556,7 +556,7 @@ brew install think-better</code>
               <tr><td>Claude Code</td><td><span data-lang="en">Yes, picked by trigger phrases</span><span data-lang="vi">Có, chọn theo cụm từ kích hoạt</span></td><td><code>.claude/commands/</code></td></tr>
               <tr><td>OpenCode</td><td><span data-lang="en">Yes, via OpenCode's skill tool</span><span data-lang="vi">Có, qua skill tool của OpenCode</span></td><td><code>.opencode/commands/</code></td></tr>
               <tr><td>Antigravity</td><td><span data-lang="en">Yes</span><span data-lang="vi">Có</span></td><td><code>.agents/workflows/</code></td></tr>
-              <tr><td>GitHub Copilot</td><td><span data-lang="en">No, use the slash commands</span><span data-lang="vi">Không, hãy dùng lệnh slash</span></td><td><span data-lang="en">Prompt files in</span><span data-lang="vi">Prompt file trong</span> <code>.github/prompts/</code> <span data-lang="en">(agent mode)</span><span data-lang="vi">(chế độ agent)</span></td></tr>
+              <tr><td>GitHub Copilot</td><td><span data-lang="en">Yes, in agent mode (skills in <code>.github/skills/</code>)</span><span data-lang="vi">Có, ở chế độ agent (skill trong <code>.github/skills/</code>)</span></td><td><span data-lang="en">Prompt files in</span><span data-lang="vi">Prompt file trong</span> <code>.github/prompts/</code> <span data-lang="en">(agent mode)</span><span data-lang="vi">(chế độ agent)</span></td></tr>
             </tbody>
           </table>
         </div>
@@ -730,7 +730,9 @@ think-better init --ai opencode
 <span class="k"># once for every project</span>
 think-better init --ai claude --global
 <span class="k"># later, after upgrading</span>
-think-better update</pre>
+think-better update
+<span class="k"># files you edited: see their .new versions</span>
+think-better diff</pre>
           </div>
           <div class="card">
             <p class="step-label"><span data-lang="en">STEP 3</span><span data-lang="vi">BƯỚC 3</span></p>
