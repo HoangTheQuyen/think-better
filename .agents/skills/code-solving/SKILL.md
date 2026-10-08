@@ -78,6 +78,20 @@ python3 .agents/skills/code-solving/scripts/search.py "<task description>" --pla
 
 Omit `--type` to auto-detect (the plan says when it is unsure). The plan contains the 7 steps with task-specific guidance and gates, the project's own check commands, techniques, testing strategy, design principles, bias warnings, a review checklist and the hand-off template.
 
+The plan opens with **Context from the project**: facts the script found in the code and git, so Step 2 starts from them instead of a blank search. Pass the user's full error output and stack trace in the request; the script reads it.
+
+| Context | Found from |
+|---------|------------|
+| Where the error points | Stack-trace and compiler-error frames (Python, JS/TS, Go, Java/Kotlin, C#, Rust, …) resolved to project files, with the source line; library frames are dropped |
+| Files and symbols | File names and identifiers in the request: where each symbol is defined and how many files mention it |
+| Recent commits | The last commits touching those files (regressions usually start there) |
+| Working tree | Branch and uncommitted changes |
+| Diff (reviews) | Changed files with line counts, and the review areas they touch (security, data safety, API compatibility, concurrency, error handling, performance, observability, missing tests); those areas go first in the review checklist |
+
+Reviews include the diff automatically: uncommitted changes if there are any, else the branch against the default branch, else the last commit. Name a base with `--diff <base>` (a branch, tag or commit). Skip all lookups with `--no-context`. To see only the context: `python3 .agents/skills/code-solving/scripts/search.py --stdin --context` with the text on stdin.
+
+Treat the context as leads to verify, not conclusions: read the code at each location before relying on it.
+
 Depth: `--depth quick` (Define, Execute, Verify only), `standard` (default), `deep` (pitfalls per step, extra techniques, full review checklist), `executive` (deep plus a stakeholder summary).
 
 To see only the project's commands: `python3 .agents/skills/code-solving/scripts/search.py --detect`

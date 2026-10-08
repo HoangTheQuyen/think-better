@@ -147,7 +147,8 @@ AI:  → Detects: Opportunity Gap
 |---|---|
 | **7 Steps with Gates** | Define → Decompose → Prioritize → Plan → Execute → Verify → Communicate; each step needs real evidence (failing test, change map, passing checks) before moving on |
 | **8 Task Types** | debug, feature, refactor, performance, flaky-test, incident, migration, review |
-| **Project-Aware** | Detects your test/lint/build commands (npm/pnpm/yarn, Make, Go, Cargo, pytest, Maven/Gradle, …) and puts them in the Verify step |
+| **Project-Aware** | Detects your test/lint/build commands (npm/pnpm/yarn, Make, Go, Cargo, pytest with uv/Poetry, Maven/Gradle, CI steps, …) and puts them in the Verify step |
+| **Reads Your Code First** | Maps stack-trace frames to project files and lines, finds where named symbols are defined, lists recent commits on those files; reviews get the diff and the risk areas it touches |
 | **Engineering Knowledge** | Git bisect, minimal repro, expand-contract, strangler fig, characterization tests, review checklist, bias warnings… |
 
 ```
@@ -343,6 +344,7 @@ Nói chuyện với AI bình thường — Think Better tự kích hoạt:
 - 7 bước có "cổng kiểm tra": phải có test fail, chạy test thật, đủ bằng chứng mới qua bước
 - 8 loại việc: sửa bug, thêm tính năng, refactor, tối ưu, test chập chờn, sự cố production, nâng cấp, review code
 - Tự tìm lệnh test/lint/build của project
+- Đọc code trước: map stack trace ra file:dòng trong project, tìm nơi định nghĩa hàm/class, commit gần đây; review thì lấy diff và chỉ ra vùng rủi ro
 
 ### Slash Commands
 

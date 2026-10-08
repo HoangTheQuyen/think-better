@@ -16,6 +16,8 @@ cat .agents/skills/code-solving/SKILL.md
    Keep the request between the two `TASK` lines exactly as given: it is read from stdin, so
    quotes, backticks and `$` in it are safe. Never move it onto the command line or into quotes
    (PowerShell: see "Passing the user's text" in SKILL.md).
+   The plan includes the diff (uncommitted changes, else this branch against the default branch).
+   If the user names a branch, tag or commit to compare against, add `--diff <base>`.
 // turbo
 ```
 python3 .agents/skills/code-solving/scripts/search.py --stdin --plan --type review -f markdown <<'TASK'

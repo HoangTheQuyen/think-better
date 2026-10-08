@@ -10,6 +10,8 @@ Usage:
     python3 search.py "<task>" --plan [--type debug] [--depth quick|standard|deep|executive] [-f markdown|ascii]
     python3 search.py "<task>" --plan --persist [--step-docs] [-p "name"] [-o dir] [--force]
     python3 search.py --detect                      # the project's own test/lint/build commands
+    python3 search.py --stdin --context <<'TASK'    # what an error or request points at in the code
+    python3 search.py "<task>" --plan --type review --diff [base]   # review a diff (default: auto)
     python3 search.py "<keywords>" [--domain <domain>] [-n 3] [--json]
 
 Task types: debug, feature, refactor, performance, flaky-test, incident, migration, review
@@ -21,8 +23,10 @@ import io
 import json
 import sys
 
-from core import CSV_CONFIG, MAX_RESULTS, detect_project_commands, read_stdin_query, search, task_type_names
-from advisor import CodeSolvingAdvisor, VALID_DEPTHS, generate_code_plan
+from context import gather as gather_context
+from core import (CSV_CONFIG, MAX_RESULTS, default_output_dir, detect_project_commands,
+                  read_stdin_query, search, task_type_names)
+from advisor import CodeSolvingAdvisor, VALID_DEPTHS, _context_lines, generate_code_plan
 
 # Force UTF-8 output (Windows consoles default to a legacy code page)
 if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
@@ -70,6 +74,11 @@ def main() -> int:
     parser.add_argument("--output-dir", "-o", default=None, help="Where to save (default: project root)")
     parser.add_argument("--project-dir", default=None, help="Project to inspect for commands (default: project root)")
     parser.add_argument("--detect", action="store_true", help="List the project's test/lint/build commands")
+    parser.add_argument("--context", action="store_true",
+                        help="Show what the text points at in the project: trace locations, files, symbols, commits")
+    parser.add_argument("--no-context", action="store_true", help="With --plan, skip looking at the project")
+    parser.add_argument("--diff", nargs="?", const="auto", default=None, metavar="BASE",
+                        help="Include the diff against BASE (default: auto; reviews include it anyway)")
     parser.add_argument("--domain", "-d", choices=list(CSV_CONFIG), help="Search one knowledge domain")
     parser.add_argument("--max-results", "-n", type=positive_int, default=MAX_RESULTS, help="Max search results")
     parser.add_argument("--json", action="store_true", help="JSON output")
@@ -89,19 +98,30 @@ def main() -> int:
                 print("No test/lint/build configuration detected.")
             return 0
 
-        if not args.query.strip():
+        if not args.query.strip() and not (args.context and args.diff):
             parser.print_help()
             return 1
+
+        if args.context:
+            root = args.project_dir or default_output_dir()
+            ctx = gather_context(args.query, root, args.diff)
+            if args.json:
+                print(json.dumps(ctx, indent=2, ensure_ascii=False))
+            else:
+                print("\n".join(_context_lines(ctx)) or "Nothing in the text matched the project.")
+            return 0
 
         if args.plan:
             if args.json:
                 plan = CodeSolvingAdvisor().generate(args.query, args.project_name, args.depth,
-                                                     args.task_type, args.project_dir)
+                                                     args.task_type, args.project_dir,
+                                                     not args.no_context, args.diff)
                 print(json.dumps(plan, indent=2, ensure_ascii=False))
             else:
                 print(generate_code_plan(args.query, args.project_name, args.format, args.persist,
                                          args.output_dir, args.depth, args.step_docs,
-                                         args.task_type, args.project_dir, args.force))
+                                         args.task_type, args.project_dir, args.force,
+                                         not args.no_context, args.diff))
             return 0
 
         result = search(args.query, args.domain, args.max_results)
