@@ -59,7 +59,7 @@ Then, **inside your project**, install the skills for your AI:
 think-better init --ai claude        # Claude Code   → .claude/skills + /solve, /decide commands
 think-better init --ai copilot       # GitHub Copilot → .github/prompts + /solve, /decide, /code prompt files
 think-better init --ai antigravity   # Antigravity   → .agents/skills + workflows
-think-better init --ai opencode      # OpenCode      → .opencode/skills
+think-better init --ai opencode      # OpenCode      → .opencode/skills + /solve, /decide, /code commands
 ```
 
 <details>

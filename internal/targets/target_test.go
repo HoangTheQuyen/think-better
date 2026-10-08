@@ -146,6 +146,21 @@ func TestAdaptWorkflow(t *testing.T) {
 	}
 }
 
+func TestOpenCodeCommands(t *testing.T) {
+	opencode := FindTarget("opencode")
+	if opencode.WorkflowDir() != ".opencode/commands/" {
+		t.Errorf("WorkflowDir = %q, want .opencode/commands/", opencode.WorkflowDir())
+	}
+	if got := opencode.WorkflowFileName("code.debug.md"); got != "code.debug.md" {
+		t.Errorf("WorkflowFileName = %q, want code.debug.md", got)
+	}
+	src := "---\ndescription: Fix a bug.\n---\n// turbo\n```\npython3 .agents/skills/code-solving/scripts/search.py \"$ARGUMENTS\"\n```\n"
+	want := "---\ndescription: Fix a bug.\n---\n```\npython3 .opencode/skills/code-solving/scripts/search.py \"$ARGUMENTS\"\n```\n"
+	if got := opencode.AdaptWorkflow(src); got != want {
+		t.Errorf("opencode AdaptWorkflow =\n%s\nwant:\n%s", got, want)
+	}
+}
+
 func TestAdaptWorkflowCopilotPrompt(t *testing.T) {
 	copilot := FindTarget("copilot")
 	if got := copilot.WorkflowFileName("code.debug.md"); got != "code.debug.prompt.md" {
