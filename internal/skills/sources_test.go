@@ -318,8 +318,8 @@ func TestWorkflowsShareRules(t *testing.T) {
 		if !resume && strings.Contains(doc, "🎯 **Next Steps:**") {
 			t.Errorf("%s: adds its own Next Steps table; the plan already ends with one", name)
 		}
-		if strings.Contains(doc, "--persist") && !strings.Contains(doc, `"lưu từng bước"`) {
-			t.Errorf("%s: save step should accept Vietnamese save phrases", name)
+		if strings.Contains(doc, "--persist") && !strings.Contains(doc, `"step-by-step"`) {
+			t.Errorf("%s: save step should accept the step-by-step save phrase", name)
 		}
 	}
 	for _, f := range []string{"workflows/code.review.md"} {
