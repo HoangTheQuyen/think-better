@@ -342,7 +342,7 @@ natural language too.
 </div>
 
 Một CLI cài ba skill và các lệnh slash đi kèm, để AI ra quyết định bằng framework thật, giải quyết
-vấn đề theo phương pháp rõ ràng và sửa code bằng bằng chứng thay vì đoán.
+vấn đề theo phương pháp rõ ràng và sửa code dựa trên bằng chứng thay vì đoán.
 
 **3 skill · 323 bản ghi kiến thức · 20 lệnh slash · 4 công cụ AI** (Claude Code, GitHub Copilot, Antigravity, OpenCode)
 
@@ -441,7 +441,7 @@ file; ở phiên sau, dùng `/solve.resume`, `/decide.resume` hoặc `/code.resu
 
 - **Quy trình cố định:** mọi yêu cầu đi qua các bước rõ ràng, AI không nhảy thẳng từ triệu chứng sang cách sửa.
 - **Cổng kiểm tra:** `/code` chỉ qua bước khi có bằng chứng (test fail trước khi sửa, test/lint/build pass sau khi sửa).
-- **Knowledge base:** 323 bản ghi kiến thức (framework, thiên kiến kèm cách khắc phục, mẫu tiêu chí, lỗi hay gặp) được tìm ngay trên máy và đưa vào câu trả lời.
+- **Kho kiến thức:** 323 bản ghi kiến thức (framework, thiên kiến kèm cách khắc phục, mẫu tiêu chí, lỗi hay gặp) được tìm ngay trên máy và đưa vào câu trả lời.
 - **Workspace lưu lại được:** làm dở thì phiên sau làm tiếp từ bước còn dang dở.
 
 ### Lưu ý
@@ -450,7 +450,7 @@ file; ở phiên sau, dùng `/solve.resume`, `/decide.resume` hoặc `/code.resu
   AI trả lời bằng tiếng Việt và dịch kế hoạch (script in ra bằng tiếng Anh).
 - Mọi thứ chạy trên máy bạn: script không gọi mạng, không cần tài khoản hay API key.
 - Gặp lỗi? Xem [Troubleshooting](USER-GUIDE.md#troubleshooting) và [FAQ](USER-GUIDE.md#faq) trong User Guide.
-- Lộ trình: thêm công cụ AI, thêm bản ghi kiến thức và ví dụ (xem [Roadmap](#roadmap)). Skill gốc cho Copilot đã xong.
+- Lộ trình: thêm công cụ AI, thêm bản ghi kiến thức và ví dụ (xem [Roadmap](#roadmap)). Copilot đã hỗ trợ skill trực tiếp.
 - Tài liệu chi tiết: [User Guide](USER-GUIDE.md) · [Quick Reference](QUICK-REFERENCE.md) · [Ví dụ](examples/README.md)
 - Muốn đóng góp skill/framework mới? Xem [CONTRIBUTING.md](CONTRIBUTING.md) (PR bằng tiếng Việt cũng được).
 
