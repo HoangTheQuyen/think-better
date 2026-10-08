@@ -1,68 +1,130 @@
 # Contributing to Think Better
 
-First off, thank you for considering contributing to **Think Better**! It's people like you that make the open-source community such a great place to learn, inspire, and create.
+Thanks for helping make AI assistants think better! This guide gets you from
+clone to merged PR, and explains how to add the things people contribute most:
+**skills**, **slash-command workflows**, **knowledge records**, and **AI targets**.
 
-This document provides guidelines and instructions for contributing to this project.
+> Tiếng Việt: PR và issue bằng tiếng Việt hay tiếng Anh đều được chào đón.
 
-## How Can I Contribute?
+## TL;DR
 
-### Reporting Bugs & Requesting Features
-- Use the [GitHub Issues](https://github.com/HoangTheQuyen/think-better/issues) tab.
-- Check if the issue or feature request already exists before creating a new one.
-- Describe the issue clearly, including steps to reproduce, what you expected to happen, and what actually happened.
-
-### Contributing Code or New AI Skills
-
-We welcome pull requests! Here is the standard workflow to contribute code:
-
-#### 1. Fork and Clone
-1. **Fork** the repository on GitHub by clicking the "Fork" button in the top right corner.
-2. **Clone** your forked repository to your local machine:
-   ```bash
-   git clone https://github.com/<your-username>/think-better.git
-   cd think-better
-   ```
-
-#### 2. Create a Branch
-Create a new branch for your feature or bug fix:
 ```bash
-git checkout -b feature/your-feature-name
-# or
-git checkout -b fix/your-bug-fix
+git clone https://github.com/<you>/think-better.git && cd think-better
+# ...edit files under .agents/ or internal/...
+make embed-prep   # mirror .agents/ into internal/skills (or: go generate ./internal/skills)
+make check        # vet + Go tests + Python smoke tests — the same checks CI runs
+git commit -m "feat(make-decision): add OODA loop framework"
 ```
 
-#### 3. Make Changes & Test
-- Make your code changes. If you are adding a new AI skill, follow the structure in `.agents/skills/`.
-- Run the tests to ensure everything is working correctly:
-  ```bash
-  go test ./...
-  ```
-- Before committing, make sure the embedded skills are prepared:
-  ```bash
-  make embed-prep
-  ```
+No `make`? Run the three commands directly:
+`go generate ./internal/skills && go test ./... && python3 scripts/smoke_test_skills.py`.
 
-#### 4. Commit Your Changes
-We follow the [Conventional Commits](https://www.conventionalcommits.org/) specification (e.g., `feat:`, `fix:`, `docs:`, `chore:`).
-```bash
-git add .
-git commit -m "feat: add new decision framework for product launch"
+## Development setup
+
+| Tool | Version | Used for |
+|------|---------|----------|
+| Go | 1.25+ (see `go.mod`) | CLI, tests, embedding |
+| Python | 3.9+ | Skill scripts (standard library only — no pip installs) |
+| golangci-lint | v2 (optional) | `make lint` |
+| Nix (optional) | flakes | `nix develop` gives you Go + Python + make |
+
+## How the repo fits together
+
+```
+.agents/                     ← SOURCE OF TRUTH — edit here
+├── skills/<skill-name>/     SKILL.md, PROMPT.md, scripts/*.py, data/*.csv
+└── workflows/*.md           slash commands (/solve, /decide.deep, ...)
+
+internal/skills/             ← GENERATED mirror of .agents/ (embedded into the binary)
+├── skills/  workflows/      do not edit by hand; run `go generate ./internal/skills`
+├── gen/                     the generator
+├── registry.go              skills are auto-discovered from SKILL.md frontmatter
+└── sources_test.go          fails if the mirror drifts or a skill is malformed
+
+internal/targets/            AI platforms (claude, copilot, antigravity, opencode)
+internal/installer/          install / uninstall / status logic
+internal/cli/                subcommands
+cmd/think-better/            main package
+scripts/smoke_test_skills.py runs every skill's search.py in CI
 ```
 
-#### 5. Push and Create a Pull Request (PR)
-1. **Push** your branch to your forked repository:
-   ```bash
-   git push origin feature/your-feature-name
+The mirror in `internal/skills/` is committed so `go install` works without a
+build step. `TestEmbeddedInSync` fails CI if you forget to regenerate it — the
+error message tells you the exact command to run.
+
+## Adding a new skill
+
+Skills are discovered automatically — **no Go code changes are needed**.
+
+1. Create `.agents/skills/<skill-name>/` (lowercase, kebab-case).
+2. Add `SKILL.md` starting with frontmatter:
+
+   ```markdown
+   ---
+   name: <skill-name>            # must equal the directory name
+   description: |
+     One-sentence summary shown by `think-better list`. Use when user says
+     "trigger phrase", "another phrase", "cụm từ tiếng Việt", ...
+   ---
    ```
-2. Go to the original `HoangTheQuyen/think-better` repository on GitHub.
-3. Click the **"Compare & pull request"** button next to your recently pushed branch.
-4. Fill out the PR template describing your changes, why they are needed, and how they were tested.
-5. Submit the Pull Request!
 
-## Development Setup
+   The **first sentence** of `description` is the short summary; the rest
+   tells the AI when to activate the skill.
+3. Add `PROMPT.md` (entry point for assistants that do not read frontmatter).
+4. Optional: `scripts/search.py` and `data/*.csv`. Scripts must use only the
+   Python standard library and work on Python 3.9+. Any skill with
+   `scripts/search.py` is picked up by the smoke test automatically; it must
+   accept a query, `--json`, `--plan`, `--format ascii|markdown` and
+   `--depth quick|standard|deep|executive`.
+5. `make embed-prep && make check`, then open a PR.
 
-To work on `think-better` locally, you will need:
-- **Go 1.25+**
-- **Python 3** (for running the skill analysis checker scripts)
+## Adding knowledge records (CSV rows)
 
-Thank you for your contributions! 🚀
+Most content contributions are rows in `.agents/skills/*/data/*.csv`.
+
+- Keep the header and column count unchanged (tests enforce a consistent column count).
+- Quote fields that contain commas.
+- Write in English — the AI translates queries before searching.
+- Cite the source (book, paper, author) in the PR description.
+
+## Adding or changing a workflow (slash command)
+
+Workflows live in `.agents/workflows/<command>.md` and are installed as slash
+commands for targets that support them (Antigravity, Claude Code).
+
+- Frontmatter must have a `description`.
+- Reference skills as `.agents/skills/<skill>/...`; the installer rewrites the
+  path for each target (e.g. `.claude/skills/<skill>/...`).
+- Use `$ARGUMENTS` for the user's input.
+- A test fails if a workflow references a skill that does not exist.
+
+## Adding a new AI target
+
+1. Add an entry to `Targets` in `internal/targets/target.go`
+   (`InstallPattern` must contain `{skill}`; set `WorkflowPattern` if the
+   platform supports slash-command files).
+2. Add the name to the tests in `internal/targets/target_test.go` and to the
+   CI smoke loop in `.github/workflows/ci.yml`.
+3. Document it in the README "Works with" line and the target table.
+
+## Commits and pull requests
+
+- Branch from `main`: `feat/...`, `fix/...`, `docs/...`.
+- Use [Conventional Commits](https://www.conventionalcommits.org/):
+  `feat:`, `fix:`, `docs:`, `chore:`, `ci:`, `refactor:`, `test:`.
+  Scope with the skill or package when useful: `feat(problem-solving-pro): ...`.
+- Keep PRs focused: one skill / feature / fix per PR.
+- Fill in the PR template. CI must be green before review.
+
+## Releasing (maintainers)
+
+1. Make sure `main` is green.
+2. `git tag vX.Y.Z && git push origin vX.Y.Z`
+3. The `Release` workflow tests, cross-compiles, writes `checksums.txt`, and
+   publishes a GitHub Release. `install.sh` / `install.ps1` pick it up
+   automatically and verify the checksum.
+
+## Code of Conduct
+
+This project follows the [Code of Conduct](CODE_OF_CONDUCT.md). Report
+security issues privately as described in [SECURITY.md](SECURITY.md).

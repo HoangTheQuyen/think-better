@@ -12,7 +12,8 @@ Summary of the implementation approach.
 
 ## Checklist
 
-- [ ] Code builds without errors (`make build`)
-- [ ] Tests pass (`make test`)
+- [ ] Edited sources under `.agents/` (not `internal/skills/`) and ran `make embed-prep`
+- [ ] `make check` passes (vet, Go tests, Python smoke tests)
 - [ ] Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/)
 - [ ] Documentation updated (if applicable)
+- [ ] For new knowledge records: sources cited above

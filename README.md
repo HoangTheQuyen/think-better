@@ -17,7 +17,7 @@ Think Better injects structured decision frameworks directly into your AI prompt
 
 [Website](https://thinkbetter.dev/) · [Documentation](USER-GUIDE.md) · [Quick Reference](QUICK-REFERENCE.md) · [Contributing](CONTRIBUTING.md)
 
-**Works with** Claude · GitHub Copilot · Antigravity
+**Works with** Claude Code · GitHub Copilot · Antigravity · OpenCode
 
 </div>
 
@@ -35,21 +35,42 @@ You ask your AI *"Should we migrate to microservices?"* and get a generic pros/c
 
 ```bash
 # macOS / Linux
-curl -sSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.sh | sh
 
 # Windows (PowerShell)
 irm https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.ps1 | iex
 ```
 
-Then install skills for your AI:
+The installers download the right binary for your OS/CPU and verify its SHA-256 checksum.
+Pin a version or change the location with environment variables, e.g.
+`curl -fsSL .../install.sh | THINK_BETTER_VERSION=v1.0.3 INSTALL_DIR=/usr/local/bin sh`.
+
+Then, **inside your project**, install the skills for your AI:
 
 ```bash
-think-better init --ai claude        # Claude Code
-think-better init --ai copilot       # GitHub Copilot
-think-better init --ai antigravity   # Antigravity
+think-better init --ai claude        # Claude Code   → .claude/skills + /solve, /decide commands
+think-better init --ai copilot       # GitHub Copilot → .github/prompts
+think-better init --ai antigravity   # Antigravity   → .agents/skills + workflows
+think-better init --ai opencode      # OpenCode      → .opencode/skills
 ```
 
-> **Other install methods:** `go install github.com/HoangTheQuyen/think-better/cmd/make-decision@latest` or clone & `make build`
+<details>
+<summary>Other install methods</summary>
+
+```bash
+# Go 1.25+
+go install github.com/HoangTheQuyen/think-better/cmd/think-better@latest
+
+# Nix
+nix run github:HoangTheQuyen/think-better -- init --ai claude
+
+# From source
+git clone https://github.com/HoangTheQuyen/think-better && cd think-better && make build
+```
+
+Manual download: grab a binary from [Releases](https://github.com/HoangTheQuyen/think-better/releases) and check it against `checksums.txt`.
+
+</details>
 
 <br>
 
@@ -176,7 +197,7 @@ solving-plans/project/               decision-plans/project/
 ## CLI Commands
 
 ```bash
-think-better init             # Install skills for your AI
+think-better init             # Install skills for your AI (--ai, --skill, --force)
 think-better list             # Show installed skills
 think-better check            # Verify prerequisites (Python 3)
 think-better uninstall        # Remove skills
@@ -189,21 +210,23 @@ think-better version          # Show version
 
 ```
 think-better/
-├── cmd/make-decision/           # CLI entry point (Go)
-├── internal/                    # Core logic
-│   ├── skills/                  # Skill registry + embedded data
-│   ├── targets/                 # AI platform definitions
-│   ├── installer/               # Install/uninstall logic
-│   └── cli/                     # Command handlers
-├── .agents/
+├── .agents/                     # ✏️  Source of truth — edit skills & workflows here
 │   ├── skills/
 │   │   ├── make-decision/       # Decision skill (SKILL.md, scripts, CSVs)
 │   │   └── problem-solving-pro/ # Problem-solving skill
-│   └── workflows/               # Slash command definitions
+│   └── workflows/               # Slash commands (/solve, /decide, ...)
+├── cmd/think-better/            # CLI entry point (Go)
+├── internal/
+│   ├── skills/                  # Auto-discovered registry + generated embed mirror
+│   ├── targets/                 # AI platform definitions
+│   ├── installer/               # Install/uninstall logic
+│   └── cli/                     # Command handlers
+├── scripts/                     # Dev tooling (skill smoke tests)
 └── specs/                       # Specifications
 ```
 
-**Stats:** 13 Go files · 7 Python scripts · 16 CSVs (160 records) · 8 workflows
+New skills are picked up automatically from `.agents/skills/<name>/SKILL.md` — see
+[Adding a new skill](CONTRIBUTING.md#adding-a-new-skill).
 
 <br>
 
@@ -213,6 +236,7 @@ think-better/
 |--------|-------------|
 | Binary download | None — just run |
 | `go install` | Go 1.25+ |
+| Nix | Nix with flakes |
 | Build from source | Go 1.25+ |
 | Running skills | Python 3 |
 
@@ -220,7 +244,14 @@ think-better/
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Contributions of new skills, frameworks, biases and AI targets are very welcome.
+
+```bash
+make embed-prep   # mirror .agents/ into the embedded copy
+make check        # the same checks CI runs (Go tests + Python smoke tests)
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide.
 
 <br>
 
@@ -241,7 +272,7 @@ Think Better tiêm framework tư duy vào prompt — biến AI thành Staff Engi
 
 ```bash
 # macOS / Linux
-curl -sSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.sh | sh
 
 # Windows
 irm https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.ps1 | iex
@@ -287,7 +318,8 @@ Nói chuyện với AI bình thường — Think Better tự kích hoạt:
 
 - Knowledge base tiếng Anh — AI tự dịch keyword trước khi search
 - Cần **Python 3** cho script phân tích
-- Hỗ trợ **Claude, Copilot, Antigravity**
+- Hỗ trợ **Claude Code, Copilot, Antigravity, OpenCode**
+- Muốn đóng góp skill/framework mới? Xem [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ---
 
