@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 """Keep the docs honest.
 
-Checks that the numbers in README.md and the website (docs/index.html) match
-the repository, and that relative links in the Markdown docs resolve:
+Checks that the numbers in README.md, USER-GUIDE.md, QUICK-REFERENCE.md and
+the website (docs/index.html) match the repository, and that relative links in
+the Markdown docs resolve:
 
 - knowledge records: rows of .agents/skills/*/data/*.csv, per skill and in total
-- a few named counts (decision frameworks, error messages, task types, ...)
-- slash commands: files in .agents/workflows/, and every /solve, /decide or
-  /code command the docs mention exists
+- a few named counts (decision frameworks, criteria templates, error messages,
+  task types, ...)
+- slash commands: files in .agents/workflows/; README and the guides list every
+  one, and every /solve, /decide or /code command the docs mention exists
 - AI tools: the targets in internal/targets/target.go
+- bias names in the docs' bias tables exist in a skill's biases CSV
+- the sample outputs in the docs match a real run (scripts/test_doc_samples.py)
 - the version in Formula/think-better.rb has a CHANGELOG.md section
 - relative links and #anchors in the Markdown docs point at existing files
   and headings inside the repository
@@ -22,11 +26,15 @@ import re
 import sys
 from pathlib import Path
 
+import test_doc_samples  # noqa: E402 - same directory as this script
+
 ROOT = Path(__file__).resolve().parent.parent
 SKILLS_DIR = ROOT / ".agents" / "skills"
 WORKFLOWS_DIR = ROOT / ".agents" / "workflows"
 TARGETS_GO = ROOT / "internal" / "targets" / "target.go"
 README = ROOT / "README.md"
+# Guides checked like the README, except that they need not repeat every count.
+GUIDES = [ROOT / "USER-GUIDE.md", ROOT / "QUICK-REFERENCE.md"]
 WEBSITE = ROOT / "docs" / "index.html"
 CHANGELOG = ROOT / "CHANGELOG.md"
 FORMULA = ROOT / "Formula" / "think-better.rb"
@@ -49,7 +57,21 @@ NAMED_COUNTS = [
     (r"communication patterns|mẫu trình bày", "problem-solving-pro", "communication.csv"),
     (r"task types|loại việc", "code-solving", "task-types.csv"),
     (r"(?:common )?error messages|thông báo lỗi(?: hay gặp)?", "code-solving", "errors.csv"),
+    (r"decision types|loại quyết định", "make-decision", "decision-types.csv"),
+    (r"criteria templates|mẫu tiêu chí", "make-decision", "criteria-templates.csv"),
+    (r"analysis techniques", "make-decision", "analysis-techniques.csv"),
+    (r"facilitation techniques", "make-decision", "facilitation.csv"),
 ]
+
+# Biases the docs may name in a bias table: the first column of a table whose
+# header starts with "Bias", or the cells of a column headed "Biases".
+BIAS_CSVS = [
+    ("make-decision", "cognitive-biases.csv"),
+    ("problem-solving-pro", "cognitive-biases.csv"),
+    ("code-solving", "biases.csv"),
+]
+BIAS_DOCS = ["README.md", "USER-GUIDE.md", "QUICK-REFERENCE.md"]
+BIAS_GLOBS = ["examples/*.md"]
 
 # Markdown files whose relative links must resolve.
 LINKED_DOCS = [
@@ -100,6 +122,11 @@ def targets():
 
 # ---------------------------------------------------------------- helpers
 
+def strip_code_blocks(text):
+    """Markdown without fenced code blocks."""
+    return re.sub(r"^([ \t]*)(```|~~~).*?^\1\2[^\n]*$", "", text, flags=re.M | re.S)
+
+
 def strip_code(text):
     """Markdown without fenced code blocks and inline code (for link checks)."""
     text = re.sub(r"^([ \t]*)(```|~~~).*?^\1\2[^\n]*$", "", text, flags=re.M | re.S)
@@ -120,12 +147,14 @@ def expect_all(label, where, found, want, required=True):
 
 # ---------------------------------------------------------------- count checks
 
-def check_counts(path, text, records, commands, target_names, full):
+def check_counts(path, text, records, commands, target_names, full, required=True):
+    """full: also slash commands, AI tools, skills, named counts and steps.
+    required: the main counts must be mentioned at all (README, website)."""
     where = rel(path)
     total = sum(sum(c.values()) for c in records.values())
 
     expect_all("knowledge records", where,
-               numbers(r"(\d+)\s+(?:knowledge records|bản ghi kiến thức)", text), total)
+               numbers(r"(\d+)\s+(?:knowledge records|bản ghi kiến thức)", text), total, required)
 
     # Any other "<n> records" must be the total or one skill's count.
     allowed = {total} | {sum(c.values()) for c in records.values()}
@@ -137,7 +166,7 @@ def check_counts(path, text, records, commands, target_names, full):
     for skill, counts in records.items():
         found = numbers(
             rf"{re.escape(skill)}(?:`|</code>)?[\s`·:—–\-]*(\d+)\s+(?:records|bản ghi)", text)
-        expect_all(f"records for {skill}", where, found, sum(counts.values()))
+        expect_all(f"records for {skill}", where, found, sum(counts.values()), required)
 
     for name, display in ((t, TARGET_DISPLAY.get(t)) for t in target_names):
         if display is None:
@@ -155,10 +184,10 @@ def check_counts(path, text, records, commands, target_names, full):
         return
 
     expect_all("slash commands", where,
-               numbers(r"(\d+)\s+(?:slash commands|lệnh slash)", text), len(commands))
+               numbers(r"(\d+)\s+(?:slash commands|lệnh slash)", text), len(commands), required)
     expect_all("AI tools", where,
-               numbers(r"(\d+)\s+(?:AI tools|công cụ AI)", text), len(target_names))
-    expect_all("skills", where, numbers(r"\b(\d+)\s+skills?\b", text), len(records))
+               numbers(r"(\d+)\s+(?:AI tools|công cụ AI)", text), len(target_names), required)
+    expect_all("skills", where, numbers(r"\b(\d+)\s+skills?\b", text), len(records), required)
 
     for phrase, skill, csv_name in NAMED_COUNTS:
         want = records.get(skill, {}).get(csv_name)
@@ -181,6 +210,53 @@ def check_counts(path, text, records, commands, target_names, full):
     for cmd in commands:
         if not re.search(rf"(?<![\w/.]){re.escape('/' + cmd)}(?![\w.-])", text):
             fail(f"{where}: slash command /{cmd} is not mentioned")
+
+
+# ---------------------------------------------------------------- bias names
+
+def known_biases(records_dir=SKILLS_DIR):
+    """Bias names from the skills' CSVs, lowercased, with and without the
+    trailing Bias / Effect / Fallacy / Heuristic ("Anchoring" = "Anchoring Effect")."""
+    names = set()
+    for skill, csv_name in BIAS_CSVS:
+        path = records_dir / skill / "data" / csv_name
+        if not path.exists():
+            fail(f"scripts/test_docs.py: {skill}/data/{csv_name} not found")
+            continue
+        with path.open(newline="", encoding="utf-8") as fh:
+            for row in csv.DictReader(fh):
+                name = (row.get("Bias") or "").strip().lower()
+                if name:
+                    names.add(name)
+                    names.add(re.sub(r"\s+(?:bias|effect|fallacy|heuristic)$", "", name))
+    return names
+
+
+def table_biases(text):
+    """Bias names in the bias tables of a Markdown doc."""
+    found = []
+    header = None
+    for line in strip_code_blocks(text).splitlines():
+        if not line.lstrip().startswith("|"):
+            header = None
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if header is None:
+            header = [c.strip("* ").lower() for c in cells]
+            continue
+        if all(re.fullmatch(r":?-+:?", c) for c in cells if c):
+            continue
+        for i, cell in enumerate(cells[:len(header)]):
+            if (i == 0 and header[0] == "bias") or header[i] == "biases":
+                found += [n.strip("* ").strip() for n in cell.split(",") if n.strip("* ").strip()]
+    return found
+
+
+def check_bias_names(path, names):
+    for bias in table_biases(path.read_text(encoding="utf-8")):
+        if bias.lower() not in names:
+            fail(f"{rel(path)}: bias '{bias}' is not in any skill's biases CSV "
+                 f"({', '.join(f'{s}/data/{c}' for s, c in BIAS_CSVS)})")
 
 
 # ---------------------------------------------------------------- slash commands
@@ -284,6 +360,13 @@ def main():
 
     check_counts(README, README.read_text(encoding="utf-8"), records, commands, target_names, True)
     check_counts(WEBSITE, WEBSITE.read_text(encoding="utf-8"), records, commands, target_names, False)
+    for guide in GUIDES:
+        check_counts(guide, guide.read_text(encoding="utf-8"), records, commands, target_names,
+                     True, required=False)
+    names = known_biases()
+    for path in doc_files(BIAS_DOCS, BIAS_GLOBS):
+        check_bias_names(path, names)
+    test_doc_samples.check(fail)
     check_site_assets()
     for path in doc_files(COMMAND_DOCS, COMMAND_GLOBS):
         check_command_mentions(path, commands)
