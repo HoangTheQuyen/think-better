@@ -21,6 +21,14 @@ QUERIES = [
     "nên chọn AWS hay GCP",
 ]
 DEPTHS = ["quick", "standard", "deep", "executive"]
+# (args, expected exit code): flag spellings every skill accepts, and bad input
+SHARED_CLI = [
+    (["bias", "--results", "1"], 0),
+    (["bias", "--max-results", "1"], 0),
+    (["--plan"], 2),
+    (["   ", "--plan"], 2),
+    (["x", "--plan", "--depth", "nope"], 2),
+]
 
 
 def run(script, args, cwd):
@@ -57,11 +65,14 @@ def main():
         script = os.path.join(SKILLS_DIR, skill, "scripts", "search.py")
         # Run from a temp dir so nothing (journals, plans) leaks into the repo.
         with tempfile.TemporaryDirectory() as tmp:
-            for args in cases():
+            for args, expected in [(a, 0) for a in cases()] + SHARED_CLI:
                 total += 1
                 code, out, err = run(script, args, tmp)
                 problem = None
-                if code != 0:
+                if expected:
+                    if code != expected or out.strip() or not err.strip():
+                        problem = "expected exit %d with an error on stderr, got %d\n%s" % (expected, code, err)
+                elif code != 0:
                     problem = "exit code %d\n%s" % (code, err.strip())
                 elif not out.strip():
                     problem = "empty output"
