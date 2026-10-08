@@ -160,6 +160,7 @@ AI:  → Detects: Opportunity Gap
 /code.review
 /code.test raise coverage of the pricing rules
 /code.explain how does a request reach the checkout handler?
+/code.resume the checkout bug
 ```
 
 <br>
@@ -216,7 +217,7 @@ YOU ─── "Revenue dropped 20%" ──────────────�
 
 ## Step-by-Step Workspace
 
-Add *"save step-by-step"* to any prompt to generate a full markdown workspace (`coding-plans/` for `/code`). Saving again keeps the files you already filled in; the scripts replace them only with `--force`:
+Add *"save step-by-step"* to any prompt to generate a full markdown workspace (`coding-plans/` for `/code`). Saving again keeps the files you already filled in; the scripts replace them only with `--force`. For `/code`, `/code.resume` picks the work up in a later session at the first step whose gate is not met yet:
 
 ```
 solving-plans/project/               decision-plans/project/
@@ -346,6 +347,7 @@ Nói chuyện với AI bình thường — Think Better tự kích hoạt:
 **`/code`** — Viết code có quy trình
 - 7 bước có "cổng kiểm tra": phải có test fail, chạy test thật, đủ bằng chứng mới qua bước
 - 12 loại việc: sửa bug, thêm tính năng, refactor, tối ưu, test chập chờn, sự cố production, nâng cấp, review code, viết test, giải thích code, vá lỗ hổng bảo mật, sửa nhỏ
+- Lưu workspace từng bước và làm tiếp ở phiên sau với `/code.resume` (biết bước nào đã xong, bước tiếp theo là gì)
 - Nhận ra 44 thông báo lỗi hay gặp (JS/TS, Python, Go, Java, C#, Rust, SQL, hạ tầng): nguyên nhân thường gặp và cần kiểm tra gì trước
 - Tự tìm lệnh test/lint/build của project
 - Đọc code trước: map stack trace ra file:dòng trong project, tìm nơi định nghĩa hàm/class, commit gần đây; review thì lấy diff và chỉ ra vùng rủi ro

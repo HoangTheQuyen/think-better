@@ -11,6 +11,8 @@ Usage:
     python3 search.py "<task>" --plan --persist [--step-docs] [-p "name"] [-o dir] [--force]
     python3 search.py --detect                      # the project's own test/lint/build commands
     python3 search.py --stdin --context <<'TASK'    # what an error or request points at in the code
+    python3 search.py --status [-p name]            # progress of a saved workspace and the next step
+    python3 search.py --done <step> -p name         # tick a step's gate in the workspace
     python3 search.py "<task>" --plan --type review --diff [base]   # review a diff (default: auto)
     python3 search.py "<keywords>" [--domain <domain>] [-n 3] [--json]
 
@@ -23,10 +25,12 @@ import argparse
 import io
 import json
 import sys
+from pathlib import Path
 
 from context import gather as gather_context
 from core import (CSV_CONFIG, MAX_RESULTS, default_output_dir, detect_project_commands,
-                  read_stdin_query, search, task_type_names)
+                  read_stdin_query, search, slugify, task_type_names)
+from workspace import format_status, list_workspaces, mark, pick_workspace, workspace_status
 from advisor import CodeSolvingAdvisor, VALID_DEPTHS, _context_lines, generate_code_plan
 
 # Force UTF-8 output (Windows consoles default to a legacy code page)
@@ -57,6 +61,42 @@ def format_results(result: dict) -> str:
     return "\n".join(out)
 
 
+def show_status(args) -> int:
+    """--status / --done / --undone on a saved workspace."""
+    base = args.output_dir or default_output_dir()
+    name = slugify(args.project_name) if args.project_name else ""
+    plan_dir = pick_workspace(base, args.query, name)
+    if plan_dir is None:
+        spaces = [d.name for d in list_workspaces(base)]
+        if name and spaces:
+            print(f"No workspace named {name!r}. Saved workspaces: {', '.join(spaces)}", file=sys.stderr)
+        else:
+            print("No saved workspace in coding-plans/. Create one with --plan --persist --step-docs -p <name>.",
+                  file=sys.stderr)
+        return 1
+    if args.done:
+        print(f"Gate met: {mark(plan_dir, args.done, True)}\n")
+    if args.undone:
+        print(f"Gate reopened: {mark(plan_dir, args.undone, False)}\n")
+    status = workspace_status(plan_dir)
+    steps = {}
+    if status["type"] in task_type_names():
+        plan = CodeSolvingAdvisor().generate(status["request"] or "x", depth="deep",
+                                             task_type=status["type"], context=False)
+        steps = {s["number"]: s for s in plan["steps"]}
+    if args.json:
+        print(json.dumps(status, indent=2, ensure_ascii=False))
+    else:
+        others = [d.name for d in list_workspaces(base) if d != plan_dir]
+        script = Path(__file__).resolve()
+        try:
+            script = script.relative_to(Path.cwd().resolve())
+        except ValueError:
+            pass
+        print(format_status(status, steps, others, f"python3 {script.as_posix()}"))
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Code Solving: 7-step plans with evidence gates for coding tasks")
     parser.add_argument("query", nargs="?", default="", help="Task description or search keywords")
@@ -80,6 +120,10 @@ def main() -> int:
     parser.add_argument("--no-context", action="store_true", help="With --plan, skip looking at the project")
     parser.add_argument("--diff", nargs="?", const="auto", default=None, metavar="BASE",
                         help="Include the diff against BASE (default: auto; reviews include it anyway)")
+    parser.add_argument("--status", action="store_true",
+                        help="Progress of a saved workspace (-p name, or the one the text matches, or the latest)")
+    parser.add_argument("--done", metavar="STEP", help="Tick STEP's gate (1-7 or a step name) in the workspace")
+    parser.add_argument("--undone", metavar="STEP", help="Untick STEP's gate in the workspace")
     parser.add_argument("--domain", "-d", choices=list(CSV_CONFIG), help="Search one knowledge domain")
     parser.add_argument("--max-results", "-n", type=positive_int, default=MAX_RESULTS, help="Max search results")
     parser.add_argument("--json", action="store_true", help="JSON output")
@@ -98,6 +142,9 @@ def main() -> int:
             else:
                 print("No test/lint/build configuration detected.")
             return 0
+
+        if args.status or args.done or args.undone:
+            return show_status(args)
 
         if not args.query.strip() and not (args.context and args.diff):
             parser.print_help()

@@ -15,6 +15,7 @@ from datetime import datetime
 from pathlib import Path
 
 from context import gather as gather_context
+from workspace import record_state
 from core import (
     classify_task, detect_project_commands, find_named, load_csv, match_errors, save_docs, search,
     slugify, default_output_dir, task_type_names,
@@ -499,6 +500,7 @@ def persist_step_by_step(plan: dict, output_dir: str = None, force: bool = False
 {body}
 """
     written, kept = save_docs(plan_dir, files, force)
+    record_state(plan_dir, plan, {name: files[name] for name in written})
     return str(plan_dir), written, kept
 
 

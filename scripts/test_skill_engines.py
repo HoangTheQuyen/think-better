@@ -21,7 +21,7 @@ sys.dont_write_bytecode = True
 
 ROOT = Path(__file__).resolve().parent.parent
 SKILLS = ROOT / ".agents" / "skills"
-MODULES = ("core", "context", "advisor", "search")
+MODULES = ("core", "context", "workspace", "advisor", "search")
 
 
 def load_skill(name):
@@ -228,6 +228,99 @@ class CodeContextTests(unittest.TestCase):
                            ["review", "--plan", "--type", "review", "--diff=-x"], cwd=tmp)
             self.assertEqual(r.returncode, 2)
             self.assertIn("invalid --diff base", r.stderr)
+
+
+class WorkspaceStatusTests(unittest.TestCase):
+    """--status / --done: resume a saved workspace at the first gate not met."""
+
+    SCRIPT = SKILLS / "code-solving/scripts/search.py"
+
+    @classmethod
+    def setUpClass(cls):
+        sys.modules.pop("workspace", None)
+        path = str(SKILLS / "code-solving" / "scripts")
+        sys.path.insert(0, path)
+        try:
+            cls.ws = importlib.import_module("workspace")
+        finally:
+            sys.path.remove(path)
+            sys.modules.pop("workspace", None)
+
+    def cli(self, cwd, *args, stdin=None):
+        env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", PYTHONIOENCODING="utf-8")
+        r = subprocess.run([sys.executable, str(self.SCRIPT)] + list(args), cwd=cwd, env=env, capture_output=True,
+                           input=(stdin or "").encode("utf-8"))
+        return r.returncode, r.stdout.decode("utf-8"), r.stderr.decode("utf-8")
+
+    def test_progress_and_marking_gates(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            code, _, err = self.cli(tmp, "panic: assignment to entry in nil map", "--plan", "--persist",
+                                    "--step-docs", "-p", "worker panic")
+            self.assertEqual(code, 0, err)
+            plan_dir = Path(tmp) / "coding-plans" / "worker-panic"
+            self.assertTrue((plan_dir / ".workspace.json").exists())
+
+            status = self.ws.workspace_status(plan_dir)
+            self.assertEqual(status["type"], "debug")
+            self.assertEqual([r["label"] for r in status["rows"]][:3],
+                             ["1. Define", "2. Decompose", "3-4. Prioritize & Plan"])
+            self.assertEqual(status["next"]["label"], "1. Define")
+            self.assertEqual({r["filled"] for r in status["rows"]}, {False})
+
+            define = plan_dir / "01-DEFINE.md"
+            define.write_text(define.read_text(encoding="utf-8") + "\nRepro: go test ./worker\n", encoding="utf-8")
+            code, out, _ = self.cli(tmp, "--done", "define", "-p", "worker panic")
+            self.assertEqual(code, 0)
+            self.assertIn("Gate met: 1. Define", out)
+            self.assertIn("### Next: 2. Decompose", out)
+            self.assertIn("**Gate:** A change map", out)
+            self.assertIn("--done 2 -p worker-panic", out)
+
+            # 3 and 4 share a row; ticking either ticks it
+            self.ws.mark(plan_dir, "2")
+            self.ws.mark(plan_dir, "4")
+            status = self.ws.workspace_status(plan_dir)
+            self.assertEqual(status["next"]["label"], "5. Execute")
+            self.assertTrue(status["rows"][0]["filled"])
+
+            # Saving again keeps the notes and their "filled" state
+            self.cli(tmp, "panic: assignment to entry in nil map", "--plan", "--persist", "--step-docs", "-p", "worker panic")
+            self.assertTrue(self.ws.workspace_status(plan_dir)["rows"][0]["filled"])
+
+            self.ws.mark(plan_dir, "execute", done=False)
+            for step in ("5", "6", "7"):
+                self.ws.mark(plan_dir, step)
+            self.assertTrue(self.ws.workspace_status(plan_dir)["done"])
+            with self.assertRaises(ValueError):
+                self.ws.step_number("8")
+
+    def test_picking_the_workspace(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            code, _, err = self.cli(tmp, "--status")
+            self.assertEqual(code, 1)
+            self.assertIn("No saved workspace", err)
+            self.cli(tmp, "worker crashes with nil map", "--plan", "--persist", "--step-docs", "-p", "worker panic")
+            self.cli(tmp, "add csv export", "--plan", "--persist", "--step-docs", "-p", "csv export")
+            base = Path(tmp)
+            self.assertEqual(self.ws.pick_workspace(base, "continue the worker fix").name, "worker-panic")
+            self.assertEqual(self.ws.pick_workspace(base, "", "csv-export").name, "csv-export")
+            self.assertIsNone(self.ws.pick_workspace(base, "", "nope"))
+            code, out, _ = self.cli(tmp, "--stdin", "--status", stdin="the csv export please")
+            self.assertEqual(code, 0)
+            self.assertIn("## Workspace: csv-export", out)
+            self.assertIn("Other workspaces: `worker-panic`", out)
+            code, _, err = self.cli(tmp, "--status", "-p", "nope")
+            self.assertEqual(code, 1)
+            self.assertIn("csv-export", err)
+
+    def test_workspaces_saved_before_tracking_still_work(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.cli(tmp, "fix login", "--plan", "--persist", "--step-docs", "-p", "old")
+            plan_dir = Path(tmp) / "coding-plans" / "old"
+            (plan_dir / ".workspace.json").unlink()
+            status = self.ws.workspace_status(plan_dir)
+            self.assertEqual({r["filled"] for r in status["rows"]}, {None})
+            self.assertIn("| 1. Define | `01-DEFINE.md` | ? | ☐ |", self.ws.format_status(status))
 
 
 class ProblemSolvingTests(unittest.TestCase):
