@@ -124,7 +124,7 @@ jobs:
             # main is protected, allow github-actions to bypass the rule or the
             # commit will be rejected.
             # Exact GoReleaser version (same as ci.yml); see .goreleaser.yaml.
-            - uses: goreleaser/goreleaser-action@v6
+            - uses: goreleaser/goreleaser-action@v7
               with:
                   distribution: goreleaser
                   version: v2.18.2
@@ -137,11 +137,11 @@ jobs:
             # checksums.txt lists every asset under its published name (the raw
             # think-better-<os>-<arch> binaries only get that name on upload).
             - name: Attest build provenance (all assets)
-              uses: actions/attest-build-provenance@v3
+              uses: actions/attest-build-provenance@v4
               with:
                   subject-checksums: dist/checksums.txt
 
             - name: Attest build provenance (checksums.txt)
-              uses: actions/attest-build-provenance@v3
+              uses: actions/attest-build-provenance@v4
               with:
                   subject-path: dist/checksums.txt

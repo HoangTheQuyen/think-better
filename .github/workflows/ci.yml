@@ -72,7 +72,7 @@ jobs:
             # the config JSON schema at run time and has timed out in CI. The
             # config is still parsed (and rejected if invalid) by `run`.
             # Keep `version` in sync with the Makefile's GOLANGCI_LINT_VERSION.
-            - uses: golangci/golangci-lint-action@v8
+            - uses: golangci/golangci-lint-action@v9
               with:
                   version: v2.5.0
                   verify: false
@@ -128,7 +128,7 @@ jobs:
             - uses: anchore/sbom-action/download-syft@v0
 
             # Exact version, same as release.yml; see .goreleaser.yaml for why.
-            - uses: goreleaser/goreleaser-action@v6
+            - uses: goreleaser/goreleaser-action@v7
               with:
                   distribution: goreleaser
                   version: v2.18.2
