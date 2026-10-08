@@ -4,8 +4,7 @@ description: |
   Systematic problem-solving toolkit for business, product, process and personal problems: root cause analysis, hypothesis testing, critical thinking frameworks. Use when user says "solve",
   "analyze", "diagnose", "figure out", "what's wrong", "root cause",
   "why is this happening", "I'm stuck", "break down", "decompose",
-  "tại sao bị vậy", "tìm nguyên nhân", "phân tích", "giải quyết", "bị kẹt",
-  "không biết làm sao", or describes a problem that needs structured decomposition.
+  or describes a problem that needs structured decomposition.
   Do NOT use for bugs, errors or other changes to a codebase (use code-solving) or for
   choosing between known options (use make-decision).
 ---
@@ -16,7 +15,7 @@ Help users solve complex problems systematically using proven frameworks — tur
 
 # problem-solving-pro
 
-Comprehensive structured problem-solving framework for tackling any complex challenge. Contains a 7-step methodology, 18 decomposition frameworks, 8 prioritization techniques, 15 analysis tools, 12 cognitive biases with debiasing strategies, 10 communication patterns, 13 mental models, and 10 team dynamics patterns. Searchable database with reasoning-based recommendations that adapts to your specific problem type. Requests can be in English or Vietnamese (with or without accents).
+Comprehensive structured problem-solving framework for tackling any complex challenge. Contains a 7-step methodology, 18 decomposition frameworks, 8 prioritization techniques, 15 analysis tools, 12 cognitive biases with debiasing strategies, 10 communication patterns, 13 mental models, and 10 team dynamics patterns. Searchable database with reasoning-based recommendations that adapts to your specific problem type.
 
 ## Prerequisites
 
@@ -81,8 +80,7 @@ The here-string ends at a line that starts with `'@`. If a line of the user's te
 
 When user requests problem-solving help (analyze, solve, diagnose, decompose, find a root cause, plan, strategy, recommendation), follow this workflow. For bugs and code changes use code-solving; for choosing between known options use make-decision.
 
-**Language:** answer in the user's language. The scripts' output is in English: translate it
-when you present it, and keep commands, flags, file names and option names exactly as written.
+**Language:** Respond in English. The scripts' output is in English: show it as it is, and keep commands, flags, file names and option names exactly as written.
 
 If the user has not described the problem yet, ask what it is before running anything.
 
@@ -104,15 +102,14 @@ python3 .agents/skills/problem-solving-pro/scripts/search.py --stdin --plan -f m
 THINK_BETTER_EOF_7f3a
 ```
 
-If the user asked to save the work ("save", "step-by-step", "workspace", "lưu", "lưu lại",
-"lưu từng bước"), run the Step 2b command instead of this one: it prints the same plan.
+If the user asked to save the work ("save", "step-by-step", "workspace"), run the Step 2b command instead of this one: it prints the same plan.
 
 **Classify it yourself when you can** — you understand the problem better than keyword matching:
 
 - `--type <type>` — how the problem is shaped: Well-Structured, Ill-Structured, Wicked, Diagnostic, Opportunity, Design, Prediction, Negotiation
 - `--category "<context>"` — selects the reasoning rule (decomposition, analyses, communication style): Business Performance, Market Entry Strategy, Organizational Change, Product Development, Cost Reduction, Innovation / Disruption, Crisis / Turnaround, Data / Analytics Problem, Partnership / M&A, Policy / Public Sector
 
-Omit either flag to auto-detect (English and Vietnamese keywords). The plan reports what it used as
+Omit either flag to auto-detect. The plan reports what it used as
 **Type** and **Context** and whether each was set by you, auto-detected, a weak guess or no match.
 When nothing matched, the plan starts with a note such as "No problem type matched clearly. Re-run
 with `--type` (...)" listing the values: re-run with the flag instead of presenting generic defaults.
@@ -144,7 +141,7 @@ This command:
 
 ### Step 2b: Persist Problem-Solving Plan
 
-When the user asks to save ("save", "step-by-step", "workspace", "lưu", "lưu lại", "lưu từng bước"),
+When the user asks to save ("save", "step-by-step", "workspace"),
 run this instead of the Step 2 command, not after it:
 
 ```bash
@@ -330,6 +327,6 @@ re-run; otherwise stop. Never present a plan the script did not produce.
    - Walk through the 7-step methodology: Define → Decompose → Prioritize → Plan → Analyze → Synthesize → Communicate
    - Warn about the 3 most common biases for that problem type
 3. **Script errors**: If `search.py` returns no results, try broader keywords or search a different domain
-4. **Non-English queries**: Classification understands English and Vietnamese (with or without accents); the framework content is in English. For other languages, translate the user's key terms to English, or pass `--type` and `--category` yourself
+4. **Non-English queries**: Classification matches English keywords; the framework content is in English. For other languages, translate the user's key terms to English, or pass `--type` and `--category` yourself
 5. **"No ... matched clearly"**: the plan used generic defaults. Re-run with `--type` and `--category` (the note lists the values)
 

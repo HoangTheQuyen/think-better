@@ -299,7 +299,6 @@ def prepare_folder(plan_dir: Path, request: str, type_name: str, new_files=(), f
 
 
 def _slug(text: str) -> str:
-    """The folder name a project name gets today (accents folded), for folders saved before that."""
-    text = unicodedata.normalize("NFKD", str(text).replace("đ", "d").replace("Đ", "D"))
-    text = "".join(c for c in text if not unicodedata.combining(c)).lower()
+    """The folder name a project name gets (same rule as core.slugify), to match a name given with -p."""
+    text = unicodedata.normalize("NFC", str(text)).lower()
     return re.sub(r"[\s_-]+", "-", re.sub(r"[^\w\s-]", " ", text)).strip("-")[:50].strip("-")

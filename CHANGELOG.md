@@ -4,7 +4,20 @@ All notable changes to Think Better are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project follows [Semantic Versioning](https://semver.org/).
 
+Versioning in practice: breaking changes are listed under a **Breaking** heading in their
+release. Under SemVer they wait for a major version unless the old behaviour was unsafe.
+Neither break in 1.5.0 is a safety fix. `uninstall --force` now also deletes files you edited,
+so `--force` means "discard my changes" for `init`, `update` and `uninstall` alike (`--yes`
+keeps the old behaviour). The make-decision exit code moved from 1 to 2 to match the other
+skills. Under this rule both should have waited for 2.0. v1.1.1 to v1.5.0 were all released on
+2026-10-08: a burst of work, not a release cadence.
+
 ## [Unreleased]
+
+### Changed
+
+- Docs, website and issue/PR templates are English only: the Vietnamese README section and
+  website text were removed.
 
 ## [1.5.0] - 2026-10-08
 
@@ -47,7 +60,7 @@ and the project follows [Semantic Versioning](https://semver.org/).
 - `--exclude-command` / `--include-command` keep individual slash commands out.
 - Slash commands with no text: `/code.review` reviews the current changes, the resume
   commands open the latest workspace, the others ask first. Answers come in your language,
-  and saving accepts "lưu", "lưu lại", "lưu từng bước".
+  and saving accepts "save", "save again" and "save step-by-step".
 - All three skill scripts accept `-p`/`--project-name`/`--project` and
   `-n`/`--max-results`/`--results`; code-solving's executive depth opens with a summary.
 - CI tests upgrading from v1.3.0 and v1.4.0 on Linux and macOS.
@@ -59,8 +72,9 @@ and the project follows [Semantic Versioning](https://semver.org/).
 - Docs: README, guides and website match the CLI and real script output (checked in CI),
   with Troubleshooting, FAQ and Roadmap sections; the website no longer needs the Tailwind
   CDN or JavaScript to show its content.
-- Releases are published only after every step succeeded (draft first, Homebrew and Scoop
-  updated last) and can be re-run; GitHub Actions are pinned to commit SHAs.
+- Releases are published only after every step succeeded (a draft first; the Homebrew and
+  Scoop manifests are committed after the assets are attested, and the release is published
+  last) and can be re-run; GitHub Actions are pinned to commit SHAs.
 
 ## [1.4.0] - 2026-10-08
 

@@ -184,7 +184,7 @@ class ProblemSolvingAdvisor:
         """Build the plan dict.
 
         Args:
-            query: Problem description (any length; English or Vietnamese)
+            query: Problem description (any length)
             project_name: Optional project name (default: the start of the query)
             depth: quick, standard, deep, or executive
             problem_type: Problem type (e.g. "Diagnostic"); auto-detected if None
@@ -221,20 +221,21 @@ class ProblemSolvingAdvisor:
         # Step 3: Multi-domain search (scaled by depth)
         found = {d: r.get("results", []) for d, r in self._multi_domain_search(query, depth).items()}
 
-        # Step 4: the category rule decides first, the problem type's own
-        # recommendations next, keyword search ranking last.
+        # Step 4: the problem type shapes the methods (its named methods first), the category's
+        # reasoning rule supplies the fallbacks and the communication style, keyword search ranks last.
         type_approach = split_names(type_info.get("Recommended Approach", ""), ";")
         type_analysis = split_names(type_info.get("Analysis Methods", ""), ";")
         type_decomp = split_names(type_info.get("Decomposition Style", ""), ";")
+        type_prior = split_names(type_info.get("Prioritization", ""), ";")
         rule_decomp = reasoning["decomposition_style"] if category else []
         rule_analysis = reasoning["analysis_priority"] if category else []
         rule_comm = reasoning["communication_style"] if category else []
 
-        best_decomp = self._pick_named("decomposition", rule_decomp + type_decomp + type_approach + ["Issue Tree"],
+        best_decomp = self._pick_named("decomposition", type_decomp + type_approach + rule_decomp + ["Issue Tree"],
                                        found["decomposition"])
-        best_analysis = self._pick_named("analysis", rule_analysis + type_approach + type_analysis + ["Benchmarking"],
+        best_analysis = self._pick_named("analysis", type_analysis + type_approach + rule_analysis + ["Benchmarking"],
                                          found["analysis"])
-        best_prior = self._pick_named("prioritization", rule_decomp + rule_analysis + type_analysis
+        best_prior = self._pick_named("prioritization", type_prior + rule_analysis + type_analysis
                                       + ["Impact-Feasibility Matrix"], found["prioritization"])
         best_comm = self._pick_named("communication", rule_comm + ["Pyramid Principle"], found["communication"])
 
@@ -569,7 +570,7 @@ def format_ascii_box(plan: dict) -> str:
     label = f" [{depth.upper()}]" if depth != "standard" else ""
 
     def row(text=""):
-        # Columns, not characters: accents (even typed as combining marks) and wide characters
+        # Columns, not characters: combining marks take none, wide characters take two
         return f"| {pad_display(text, inner)} |"
 
     def wrapped(text, indent=""):

@@ -291,7 +291,7 @@ func TestPromptMirrorsSkill(t *testing.T) {
 }
 
 // All workflows share the same rules: what to do without text, on errors, in
-// which language to answer and how to handle the Next steps table.
+// which language to respond and how to handle the Next steps table.
 func TestWorkflowsShareRules(t *testing.T) {
 	shared := []string{
 		"### Rules",
@@ -299,7 +299,7 @@ func TestWorkflowsShareRules(t *testing.T) {
 		"- **No text**:",
 		"- **Errors**:",
 		"Never present a plan the script did not produce.",
-		"- **Language**: answer in the user's language.",
+		"- **Language**: Respond in English.",
 		"- **Next steps**:",
 	}
 	for name, doc := range skillDocs(t) {
@@ -318,8 +318,8 @@ func TestWorkflowsShareRules(t *testing.T) {
 		if !resume && strings.Contains(doc, "🎯 **Next Steps:**") {
 			t.Errorf("%s: adds its own Next Steps table; the plan already ends with one", name)
 		}
-		if strings.Contains(doc, "--persist") && !strings.Contains(doc, `"lưu từng bước"`) {
-			t.Errorf("%s: save step should accept Vietnamese save phrases", name)
+		if strings.Contains(doc, "--persist") && !strings.Contains(doc, `"step-by-step"`) {
+			t.Errorf("%s: save step should accept the step-by-step save phrase", name)
 		}
 	}
 	for _, f := range []string{"workflows/code.review.md"} {

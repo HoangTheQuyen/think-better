@@ -14,9 +14,9 @@ Usage: python search.py --stdin --plan [--type Diagnostic] [--category "Business
 Domains: steps, problem-types, decomposition, prioritization, analysis, biases,
          communication, heuristics, team
 
-The --plan flag generates a problem-solving plan: it classifies the problem
-(English or Vietnamese), applies the reasoning rule for its context and searches
-every domain. Depth changes what the plan contains.
+The --plan flag generates a problem-solving plan: it classifies the problem,
+applies the reasoning rule for its context and searches every domain. Depth
+changes what the plan contains.
 
 The three skills share these spellings: -p/--project-name/--project, -n/--max-results/--results.
 Exit codes: 0 ok, 1 no saved workspace (or a file error), 2 bad input (empty text, unknown value).

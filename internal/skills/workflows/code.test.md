@@ -1,6 +1,6 @@
 ---
 description: Add or improve tests by naming the behaviors to protect, proving each test can fail and
-  measuring coverage. Use when user asks to write tests or raise coverage ("viết test").
+  measuring coverage. Use when user asks to write tests or raise coverage.
 ---
 
 ## Tests
@@ -21,8 +21,7 @@ description: Add or improve tests by naming the behaviors to protect, proving ea
   stop. Never present a plan the script did not produce.
 - **Output**: the plan is your working method: follow its steps and gates instead of writing your
   own plan, and treat "Context from the project" as leads to verify by reading the code.
-- **Language**: answer in the user's language. The script's output is in English: translate it when
-  you present it, and keep commands, flags, file names and option names exactly as written.
+- **Language**: Respond in English. The script's output is in English: show it as it is, and keep commands, flags, file names and option names exactly as written.
 - **Next steps**: the plan already ends with a **Next steps** table for this command: show it once,
   at the end of your answer, and do not add another one.
 
@@ -34,8 +33,7 @@ description: Add or improve tests by naming the behaviors to protect, proving ea
 cat .agents/skills/code-solving/SKILL.md
 ```
 
-2. Generate the plan. If the user asked to save the work ("save", "step-by-step", "workspace",
-   "lưu", "lưu lại", "lưu từng bước"), run step 3 instead of this command.
+2. Generate the plan. If the user asked to save the work ("save", "step-by-step", "workspace"), run step 3 instead of this command.
    Files and functions named in the text are located under "Context from the project".
 // turbo
 ```

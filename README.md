@@ -12,11 +12,11 @@ solves problems with a proven method, and changes code with evidence instead of 
 [![CI](https://img.shields.io/github/actions/workflow/status/HoangTheQuyen/think-better/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/HoangTheQuyen/think-better/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 
-**3 skills · 323 knowledge records · 20 slash commands · 4 AI tools**
+**3 skills · 326 knowledge records · 20 slash commands · 4 AI tools**
 
 **Works with** Claude Code · GitHub Copilot · Antigravity · OpenCode
 
-[Website](https://thinkbetter.dev/) · [User Guide](USER-GUIDE.md) · [Quick Reference](QUICK-REFERENCE.md) · [Examples](examples/README.md) · [Changelog](CHANGELOG.md) · [Tiếng Việt](#-tiếng-việt)
+[Website](https://thinkbetter.dev/) · [User Guide](USER-GUIDE.md) · [Quick Reference](QUICK-REFERENCE.md) · [Examples](examples/README.md) · [Changelog](CHANGELOG.md)
 
 </div>
 
@@ -106,7 +106,7 @@ The samples below are real script output for these requests, shortened.
 
 → Type: Diagnostic · Context: Business Performance
 → Process: Define precisely → Profitability tree → Pareto prioritize → Hypothesis-driven analysis
-→ Decomposition: Profitability Tree · Prioritize: Sensitivity Analysis · Analysis: Benchmarking
+→ Decomposition: Fishbone (Ishikawa) · Prioritize: Pareto Analysis (80/20) · Analysis: Root Cause Analysis (5 Whys)
 → Bias warnings: Confirmation Bias, Narrative Fallacy, Availability Heuristic
 → Communicate with the Pyramid Principle; next steps: /solve.deep, /solve.exec, /decide
 ```
@@ -140,12 +140,12 @@ Full walk-throughs: [examples/](examples/README.md).
 | **Comparison matrix** | `--matrix "A vs B vs C"` with weighted criteria |
 | **Decision journal** | Record the decision, review it later with the real outcome |
 
-### `/solve` — solve a problem · `problem-solving-pro` · 111 records
+### `/solve` — solve a problem · `problem-solving-pro` · 114 records
 
 | | |
 |---|---|
 | **7-Step Method** | Define → Disaggregate → Prioritize → Workplan → Analyze → Synthesize → Communicate |
-| **18 decomposition frameworks** | Issue Tree, Hypothesis Tree, Profitability Tree, Systems Map… |
+| **20 decomposition frameworks** | Issue Tree, Hypothesis Tree, Profitability Tree, Systems Map… |
 | **13 mental models** | First Principles, Inversion, Bayesian Updating, Second-Order Thinking… |
 | **10 communication patterns** | Pyramid Principle, BLUF, SCR, Action Titles… |
 
@@ -174,7 +174,7 @@ Depth: `.quick` is a fast scan, the plain command is the default, `.deep` adds a
 for high-stakes work, `.exec` adds a summary for leadership. `/code` auto-detects the task type;
 `/code.deep` is the same with more techniques and the full review checklist.
 
-Add *"save step-by-step"* (Vietnamese: *"lưu từng bước"*) to any request to get a Markdown workspace with one file per step
+Add *"save step-by-step"* to any request to get a Markdown workspace with one file per step
 (`solving-plans/`, `decision-plans/` or `coding-plans/`). Saving again keeps the files you
 already filled in.
 
@@ -187,7 +187,7 @@ skills add what a prompt alone does not:
   a decision plan for choices), so the AI does not jump from symptom to fix.
 - **Gates.** `/code` does not move on without evidence: a failing test before the fix, the
   project's own test/lint/build output after it.
-- **A knowledge base.** 323 records (frameworks, cognitive biases with remedies, criteria
+- **A knowledge base.** 326 records (frameworks, cognitive biases with remedies, criteria
   templates, 44 known error messages, ...) are searched locally and put into the answer, so the
   advice is specific and the same request gets the same method every time.
 - **Saved, resumable workspaces.** Say "save step-by-step" and the work is written to Markdown
@@ -207,6 +207,8 @@ Slash commands work in every tool and set the depth for you. Copilot installs ma
 earlier put the skills in `.github/prompts/<skill>/`, where Copilot does not load them on its own;
 `think-better update` moves them to `.github/skills/`.
 
+The knowledge base and the trigger phrases are in English, so write requests in English for the best skill match.
+
 ## How it works
 
 ```
@@ -219,7 +221,7 @@ You ── "Revenue dropped 20%"  or  /solve.deep …  or  /code.debug …
           │
           ▼
   Skill engine (local, Python 3 standard library)
-   ├─ BM25 search over 323 knowledge records (CSV files shipped with the skill)
+   ├─ BM25 search over 326 knowledge records (CSV files shipped with the skill)
    ├─ classify: problem type · decision type · coding task type
    ├─ /code only: read the project (stack-trace frames, symbols, git log, diff, test commands)
    └─ build the plan: framework · steps and gates · bias warnings · checklist
@@ -325,134 +327,11 @@ you in [Discussions](https://github.com/HoangTheQuyen/think-better/discussions).
 
 - More AI tools, as they add support for skills or custom commands
 - More knowledge records (frameworks, known errors, criteria templates) and better
-  classification of requests, in English and Vietnamese
+  classification of requests
 - More worked [examples](examples/README.md), including ones from the community
 
 Done: native agent skills for GitHub Copilot (`.github/skills/`), so Copilot picks a skill from
 natural language too.
-
----
-
-<div align="center">
-
-# 🇻🇳 Tiếng Việt
-
-**Tư duy có cấu trúc cho trợ lý AI lập trình: quyết định bằng framework, giải quyết vấn đề tận gốc, sửa code có bằng chứng.**
-
-</div>
-
-Một CLI cài ba skill và các lệnh slash đi kèm, để AI ra quyết định bằng framework thật, giải quyết
-vấn đề theo phương pháp rõ ràng và sửa code bằng bằng chứng thay vì đoán.
-
-**3 skill · 323 bản ghi kiến thức · 20 lệnh slash · 4 công cụ AI** (Claude Code, GitHub Copilot, Antigravity, OpenCode)
-
-### Cài đặt
-
-```bash
-# macOS / Linux
-brew tap HoangTheQuyen/think-better https://github.com/HoangTheQuyen/think-better && brew install think-better
-curl -fsSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.sh | sh     # hoặc script
-
-# Windows
-scoop bucket add think-better https://github.com/HoangTheQuyen/think-better; scoop install think-better
-irm https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.ps1 | iex           # hoặc script
-
-# Go 1.25+
-go install github.com/HoangTheQuyen/think-better/cmd/think-better@latest
-
-# Trong thư mục project: cài skill cho công cụ AI của bạn
-think-better init --ai claude        # hoặc: --ai copilot, --ai antigravity, --ai opencode
-think-better init --ai claude --global   # một lần cho mọi project (Copilot: chỉ cài skill, không cài lệnh slash)
-```
-
-Cần **Python 3** (chỉ dùng thư viện chuẩn). Kiểm tra bằng `think-better check`.
-
-Sau khi nâng cấp CLI, chạy `think-better update` (thêm `--dry-run` để xem trước) để cập nhật mọi nơi
-đã cài. File bạn đã sửa được giữ nguyên, bản mới nằm ngay cạnh với đuôi `.new`: xem khác biệt bằng
-`think-better diff`, rồi nhận bản mới (`mv <file>.new <file>`) hoặc giữ bản của bạn (`rm <file>.new`).
-Với `--force`, file được thay bằng bản mới và bản của bạn được lưu thành `.bak`. Bản cài từ v1.3.0
-trở về trước cũng được nhận ra: file bạn chưa sửa được cập nhật thẳng, không sinh `.new` hay `.bak`.
-Skill Copilot do v1.4.0 trở về trước cài trong `.github/prompts/<skill>/` được tự chuyển sang
-`.github/skills/<skill>/` (giữ cả file bạn đã sửa).
-
-Không cần lệnh slash nào thì bỏ nó ra bằng `--exclude-command code.perf` (với `init` hoặc `update`;
-lần cập nhật sau vẫn nhớ, `--include-command` để cài lại). Các lệnh `update`, `check`, `list`,
-`uninstall`, `diff` chạy được từ thư mục con của project: CLI tự tìm lên bản cài của project (tối
-đa tới thư mục gốc của repo, không bao giờ lên thư mục home).
-
-### Lệnh CLI
-
-```bash
-think-better init        # Cài skill và lệnh slash; chạy lại để cập nhật
-think-better update      # Cập nhật mọi bản cài (project này và --global)
-think-better diff        # Xem bản mới (.new) đang chờ gộp vào file bạn đã sửa
-think-better check       # Kiểm tra Python 3 và trạng thái từng bản cài
-think-better list        # Skill nào đang được cài ở đâu
-think-better uninstall   # Gỡ một skill (--skill) hoặc tất cả (--all), giữ lại file bạn đã sửa
-think-better version     # Xem phiên bản
-```
-
-Cờ dùng chung: `--ai`, `--skill`, `--global`, `--force`, `--dry-run`, `--exclude-command` (chi tiết ở
-mục [CLI](#cli)). `uninstall` tự tìm skill đang được cài cho công cụ AI nào, không cần `--ai` (chỉ hỏi
-khi skill được cài cho nhiều công cụ); `-y`/`--yes` bỏ bước xác nhận nhưng vẫn giữ file bạn đã sửa,
-còn `--force` xóa luôn cả file bạn đã sửa (kèm cảnh báo).
-
-### 3 skill
-
-**`/decide`** — Ra quyết định · `make-decision` · 63 bản ghi
-- 10 framework quyết định · 12 thiên kiến nhận thức kèm cách khắc phục · Bảng so sánh có trọng số · Nhật ký quyết định
-
-**`/solve`** — Giải quyết vấn đề kinh doanh, sản phẩm · `problem-solving-pro` · 111 bản ghi
-- 7 bước: Định nghĩa → Phân tách → Ưu tiên → Lập kế hoạch → Phân tích → Tổng hợp → Trình bày
-- 18 framework phân tách · 13 mô hình tư duy · 10 mẫu trình bày
-
-**`/code`** — Sửa và viết code có quy trình · `code-solving` · 149 bản ghi
-- 7 bước có "cổng kiểm tra": phải có test fail, chạy test thật, đủ bằng chứng mới qua bước
-- 12 loại việc: sửa bug, thêm tính năng, refactor, tối ưu, test chập chờn, sự cố production, nâng cấp, review code, viết test, giải thích code, vá lỗ hổng bảo mật, sửa nhỏ
-- Đọc project trước: map stack trace ra file:dòng, tìm nơi định nghĩa hàm/class, commit gần đây; review thì lấy diff và chỉ ra vùng rủi ro
-- Nhận ra 44 thông báo lỗi hay gặp (JS/TS, Python, Go, Java, C#, Rust, SQL, hạ tầng) và tự tìm lệnh test/lint/build của project
-- Lưu workspace từng bước và làm tiếp ở phiên sau với `/code.resume`
-
-### Lệnh slash
-
-| Skill | Lệnh |
-|-------|------|
-| problem-solving-pro | `/solve.quick` · `/solve` · `/solve.deep` · `/solve.exec` · `/solve.resume` |
-| make-decision | `/decide.quick` · `/decide` · `/decide.deep` · `/decide.exec` · `/decide.resume` |
-| code-solving | `/code` · `/code.deep` · `/code.debug` · `/code.feature` · `/code.refactor` · `/code.perf` · `/code.review` · `/code.test` · `/code.explain` · `/code.resume` |
-
-`.quick` quét nhanh, lệnh gốc là mặc định, `.deep` phân tích sâu cho việc quan trọng, `.exec` thêm tóm tắt cho lãnh đạo.
-
-Bạn cứ nói tự nhiên ("Doanh thu giảm 20%, tại sao?"), AI sẽ tự chọn skill, ở cả bốn công cụ. Với
-GitHub Copilot, skill nằm trong `.github/skills/` và được nạp ở chế độ agent; lệnh slash là prompt file
-trong `.github/prompts/`.
-
-```
-/decide.deep Nên dùng AWS hay Azure hay GCP?
-/solve.quick Lượt đăng ký giảm 15% sau khi đổi giá
-/code.debug Đăng nhập bị lỗi 500 sau khi deploy
-/code.feature Thêm xuất file CSV cho trang báo cáo
-```
-
-Thêm *"lưu"*, *"lưu lại"* hoặc *"lưu từng bước"* (hoặc *"save step-by-step"*) vào yêu cầu để có workspace Markdown, mỗi bước một
-file; ở phiên sau, dùng `/solve.resume`, `/decide.resume` hoặc `/code.resume` để làm tiếp.
-
-### Vì sao không chỉ viết prompt?
-
-- **Quy trình cố định:** mọi yêu cầu đi qua các bước rõ ràng, AI không nhảy thẳng từ triệu chứng sang cách sửa.
-- **Cổng kiểm tra:** `/code` chỉ qua bước khi có bằng chứng (test fail trước khi sửa, test/lint/build pass sau khi sửa).
-- **Knowledge base:** 323 bản ghi kiến thức (framework, thiên kiến kèm cách khắc phục, mẫu tiêu chí, lỗi hay gặp) được tìm ngay trên máy và đưa vào câu trả lời.
-- **Workspace lưu lại được:** làm dở thì phiên sau làm tiếp từ bước còn dang dở.
-
-### Lưu ý
-
-- Skill hiểu tiếng Việt trực tiếp, có dấu hay không dấu đều được ("Nên chọn React hay Vue?", "doanh thu giam 20%").
-  AI trả lời bằng tiếng Việt và dịch kế hoạch (script in ra bằng tiếng Anh).
-- Mọi thứ chạy trên máy bạn: script không gọi mạng, không cần tài khoản hay API key.
-- Gặp lỗi? Xem [Troubleshooting](USER-GUIDE.md#troubleshooting) và [FAQ](USER-GUIDE.md#faq) trong User Guide.
-- Lộ trình: thêm công cụ AI, thêm bản ghi kiến thức và ví dụ (xem [Roadmap](#roadmap)). Skill gốc cho Copilot đã xong.
-- Tài liệu chi tiết: [User Guide](USER-GUIDE.md) · [Quick Reference](QUICK-REFERENCE.md) · [Ví dụ](examples/README.md)
-- Muốn đóng góp skill/framework mới? Xem [CONTRIBUTING.md](CONTRIBUTING.md) (PR bằng tiếng Việt cũng được).
 
 ---
 

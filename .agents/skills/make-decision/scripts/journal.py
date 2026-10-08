@@ -13,7 +13,7 @@ import re
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from core import default_output_dir, fold, slugify
+from core import default_output_dir, slugify
 
 JOURNAL_DIR = ".decisions"
 DEFAULT_REVIEW_DAYS = 30
@@ -219,7 +219,7 @@ def find_entry(journal_id: str, output_dir: str = None) -> Path:
     exact = [f for f in files if f.stem == wanted]
     if exact:
         return exact[0]
-    keys = {wanted.lower(), fold(wanted).lower(), slugify(wanted)}
+    keys = {wanted.lower(), slugify(wanted)}
     matches = [f for f in files if any(k and k in f.stem.lower() for k in keys)]
     if not matches:
         raise JournalError(f"no journal entry matches {journal_id!r} in {folder}")

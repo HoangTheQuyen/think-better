@@ -20,8 +20,8 @@ irm https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.ps
 
 # Or build from source:
 git clone https://github.com/HoangTheQuyen/think-better.git && cd think-better
-make build          # Linux/macOS
-.\build.ps1         # Windows
+make build          # Linux/macOS: writes bin/think-better
+.\build.ps1         # Windows: writes bin\think-better.exe
 ```
 
 ### 2. Install the Skills in Your Project
@@ -121,7 +121,7 @@ Type a slash command, or describe the problem in your own words:
 **Natural language** works in every supported tool, because each loads the skills by their
 description: Claude Code, OpenCode, Antigravity and GitHub Copilot (agent mode, skills in
 `.github/skills/`) pick the skill from its trigger phrases ("should I", "root cause",
-"fix this bug", "nên chọn", "tìm nguyên nhân", ...). A slash command picks the skill and the
+"fix this bug", ...). A slash command picks the skill and the
 depth for certain.
 
 ### All slash commands
@@ -151,12 +151,12 @@ depth for certain.
 
 The other commands ask what you need when you type them without text. Each skill also knows
 what it is not for and points you to the right one: bugs and code changes go to `/code*`,
-choices between options to `/decide*`, business and other non-code problems to `/solve*`. The AI
-answers in your language (the plan the script prints is in English; it translates it for you).
+choices between options to `/decide*`, business and other non-code problems to `/solve*`. The plan
+the script prints is in English.
 
-Add *"save step-by-step"* (or in Vietnamese *"lưu"*, *"lưu lại"*, *"lưu từng bước"*) to any request to get a Markdown
-workspace with one file per step: `decision-plans/<name>/`, `solving-plans/<name>/` or
-`coding-plans/<name>/`. Saving again keeps the files you already filled in.
+Add *"save step-by-step"* to any request to get a Markdown workspace with one file per step:
+`decision-plans/<name>/`, `solving-plans/<name>/` or `coding-plans/<name>/`. Saving again keeps the
+files you already filled in.
 
 ---
 
@@ -244,8 +244,7 @@ best matching template, and warns about the biases that fit the decision type. E
 Anchoring Effect, Availability Heuristic and Confirmation Bias.
 
 `--depth quick|standard|deep|executive` changes what the plan contains (executive is a
-recommendation-first brief). Questions in Vietnamese work too, with or without accents
-("Nên chọn React hay Vue?", "Nen chon React hay Vue?"). Journals go to `.decisions/` in your
+recommendation-first brief). Journals go to `.decisions/` in your
 project. Say "save step-by-step" to get a `decision-plans/<name>/` workspace with one file per
 step and a **Done?** column in `00-OVERVIEW.md`; in a later session, `/decide.resume` (or
 `$DECIDE --status`) shows which steps are done and continues at the next one.
@@ -296,12 +295,10 @@ python3 $SOLVE "root cause 5 whys" --domain analysis
 ```
 
 Add `--type` and `--category` when you know them (e.g. `--type Diagnostic --category "Business
-Performance"`); the plan shows which **Type** and **Context** it used. Requests can be in English
-or Vietnamese (accents optional): "doanh thu giảm 20% quý này" and "doanh thu giam 20% quy nay"
-give the same plan. `/solve.exec` adds an executive summary (SCR), key risks and the decision
-needed. Say "save step-by-step" to get a `solving-plans/<name>/` workspace with one file per step;
-in a later session, `/solve.resume` (or `$SOLVE --status`) shows which steps are done and
-continues at the first open one.
+Performance"`); the plan shows which **Type** and **Context** it used. `/solve.exec` adds an
+executive summary (SCR), key risks and the decision needed. Say "save step-by-step" to get a
+`solving-plans/<name>/` workspace with one file per step; in a later session, `/solve.resume` (or
+`$SOLVE --status`) shows which steps are done and continues at the first open one.
 
 ### Skill 3: code-solving
 
@@ -726,9 +723,9 @@ Your plans and journals (`decision-plans/`, `solving-plans/`, `coding-plans/`,
 
 **Does it cost tokens?**
 The scripts run locally and cost nothing. Your AI tool reads the instructions and the plan the
-script prints, which uses some of its context: a slash command file is about 2 KB, the skill's
-`SKILL.md` (read at the start) 12-18 KB, and a standard plan 4-9 KB (roughly 1,000-2,500 tokens).
-`.quick` plans are shorter, `.deep` and `.exec` longer.
+script prints, which uses some of its context: a slash command file is 2.5-3.8 KB, the skill's
+`SKILL.md` (read at the start) 15-20 KB, and a standard plan from the script about 9-12 KB (roughly
+2,000-3,000 tokens; `.deep` plans are about twice as long). `.quick` plans are shorter, `.exec` longer.
 
 **Does anything leave my machine?**
 No. The CLI copies Markdown, CSV and Python files into your project or home folder, and the
@@ -746,10 +743,10 @@ They are your working notes. Commit them when they are useful to the team (a dec
 with its rationale in `.decisions/` is often worth keeping; a step-by-step workspace for a design
 review too). Leave out, or add to `.gitignore`, ones with private or temporary content.
 
-**Do the skills understand Vietnamese?**
-Yes. Requests can be in Vietnamese, with or without accents; the keywords in the knowledge base
-cover both. The AI answers in Vietnamese and translates the plan, which the script prints in
-English. Say "lưu", "lưu lại" or "lưu từng bước" to save a workspace.
+**Which language should I write requests in?**
+English. The knowledge base keywords and the skills' trigger phrases are in English, so English
+requests match best. The plan the script prints is in English too. Say "save step-by-step" to
+save a workspace.
 
 **Which skill do I use for a bug?**
 `/code.debug` (code-solving). `/solve` is for business, product and organizational problems.

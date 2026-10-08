@@ -18,7 +18,7 @@ from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
 
-from core import (default_output_dir, display_width, find_row, fold, load_csv, match_tokens, pad_display,
+from core import (default_output_dir, display_width, find_row, load_csv, match_tokens, pad_display,
                   query_grams, rank_by_signals, save_docs, search_domain, slugify, wrap_display)
 import journal
 import workspace
@@ -43,71 +43,49 @@ TYPE_PRIORITY = ["Time-Pressured Decision", "Group / Stakeholder Decision", "Dec
                  "Operational / Tactical"]
 
 # ============ OPTIONS ============
-# Patterns are written without accents: they run on a folded copy of the text
-# (same length, see _fold_keep) so 'nên chọn' and 'nen chon' both match, and
-# the options are cut from the original text with its accents.
-_SEPARATORS = r"or|vs\.?|versus|hay la|hay|hoac la|hoac|so voi"
+# Patterns are lowercase. They run on a lowercase copy of the text with the same
+# length (see _lower_keep), so positions found in the copy apply to the original
+# text, and the options are cut from the original text with their spelling.
+_SEPARATORS = r"or|vs\.?|versus"
 _OPENERS = re.compile(
     r"\b(?:(?:should|shall|do|can) (?:we|i|you|they)(?: (?:use|go with|choose|pick|select))?"
     r"|is it better to|would it be better to"
     r"|whether(?: to| we should| i should)?|torn between|between|decide(?: between)?|deciding(?: between)?"
-    r"|choos(?:e|ing)(?: between)?|pick(?:ing)?(?: between)?|select|compare|comparing"
-    r"|co nen dung|co nen chon|co nen|nen chon|nen dung|nen su dung|nen|chon giua|lua chon giua|phan van giua"
-    r"|phan van|chon|giua|so sanh"
-    r"|quyet dinh)\b", re.I)
-_TRAILING_CONTEXT = re.compile(
-    r"\s+(?:for|because|since|given|so that|after|before|cho|de|vi|sau khi|truoc khi|trong khi|khi|neu)\s+.*$",
-    re.I)
-_TRAILING_FILLER = re.compile(r"\s+(?:the nao|nhu the nao|ra sao|khong|nhi|nhe|then|instead)$", re.I)
-_YES_NO = re.compile(r"^(?P<x>.+?)\s+(?:hay|or|hoac)\s+(?:khong|not|chua|no)$", re.I)
-_VIETNAMESE = re.compile(r"[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]")
-
-
-def is_vietnamese(text: str) -> bool:
-    return bool(_VIETNAMESE.search(str(text).lower()))
-
-
-@lru_cache(maxsize=None)
-def _fold_char(ch: str) -> str:
-    base = fold(ch).lower()
-    if len(base) == 1:
-        return base
-    low = ch.lower()
-    return low if len(low) == 1 else ch
+    r"|choos(?:e|ing)(?: between)?|pick(?:ing)?(?: between)?|select|compare|comparing)\b", re.I)
+_TRAILING_CONTEXT = re.compile(r"\s+(?:for|because|since|given|so that|after|before)\s+.*$", re.I)
+_TRAILING_FILLER = re.compile(r"\s+(?:then|instead)$", re.I)
+_YES_NO = re.compile(r"^(?P<x>.+?)\s+or\s+(?:not|no)$", re.I)
+NOT_OPTION = "Not (keep things as they are)"
 
 
 @lru_cache(maxsize=512)
-def _fold_keep(text: str) -> str:
-    """Lowercase accent-folded copy of text with the same length (one character per character)."""
+def _lower_keep(text: str) -> str:
+    """Lowercase copy of text with the same length (one character per character)."""
     if text.isascii():
         return text.lower()
-    return "".join(_fold_char(ch) for ch in text)
+    return "".join(ch.lower() if len(ch.lower()) == 1 else ch for ch in text)
 
 
 def _split(text: str, pattern) -> list:
-    """Split the original text where pattern matches its folded copy."""
-    folded, pieces, start = _fold_keep(text), [], 0
-    for m in pattern.finditer(folded):
+    """Split the original text where pattern matches its lowercase copy."""
+    lowered, pieces, start = _lower_keep(text), [], 0
+    for m in pattern.finditer(lowered):
         pieces.append(text[start:m.start()])
         start = m.end()
     return pieces + [text[start:]]
 
 
 def _sub_end(text: str, pattern) -> str:
-    """Text with the part matching pattern (anchored at the end, on the folded copy) removed."""
-    m = pattern.search(_fold_keep(text))
+    """Text with the part matching pattern (anchored at the end, on the lowercase copy) removed."""
+    m = pattern.search(_lower_keep(text))
     return text[:m.start()] if m else text
 
 
-def _not_option(text: str) -> str:
-    return "Không (giữ nguyên hiện trạng)" if is_vietnamese(text) else "Not (keep things as they are)"
-
-
 def _strip_opener(text: str, limit: int = None) -> tuple:
-    """(text after the last question opener before limit, the opener) - 'should we', 'nên chọn', 'between'."""
-    folded = _fold_keep(text)
+    """(text after the last question opener before limit, the opener) - 'should we', 'between'."""
+    lowered = _lower_keep(text)
     last = None
-    for m in _OPENERS.finditer(folded[: len(text) if limit is None else limit]):
+    for m in _OPENERS.finditer(lowered[: len(text) if limit is None else limit]):
         last = m
     if not last or not text[last.end():].strip():
         return text, ""
@@ -122,8 +100,8 @@ def _shape(word: str) -> str:
     return "word"
 
 
-# Openers after which "A, B and C" lists the options ("choose between", "should we use", "nên chọn")
-_CHOICE_OPENER = re.compile(r"between|choos|pick|select|compar|\buse\b|go with|chon|giua|so sanh|dung")
+# Openers after which "A, B and C" lists the options ("choose between", "should we use")
+_CHOICE_OPENER = re.compile(r"between|choos|pick|select|compar|\buse\b|go with")
 _LIST_ITEM = re.compile(r"^\s*(?:\d{1,2}[.)]|[-*•+]|[a-hA-H][.)])\s+(?P<item>\S.*?)\s*$")
 
 
@@ -150,41 +128,40 @@ def _options_in(sentence: str) -> list:
     # "Which CRM: Salesforce, HubSpot or Pipedrive" - the options follow the colon
     if ":" in s:
         head, tail = s.split(":", 1)
-        if (sep.search(_fold_keep(tail)) or "," in tail) and len(head.split()) <= 12:
+        if (sep.search(_lower_keep(tail)) or "," in tail) and len(head.split()) <= 12:
             s = tail.strip()
             listed = True
-    # "renew it or not", "có ký hợp đồng hay không"
-    yes_no = _YES_NO.match(_fold_keep(s))
+    # "renew it or not"
+    yes_no = _YES_NO.match(_lower_keep(s))
     if yes_no:
         x, _ = _strip_opener(s[: yes_no.end("x")])
-        x = _split(x, re.compile(r"\bco\b"))[-1].strip() or x
-        return [x, _not_option(sentence)] if x else []
+        return [x, NOT_OPTION] if x else []
 
-    first = sep.search(_fold_keep(s))
+    first = sep.search(_lower_keep(s))
     s, opener = _strip_opener(s, first.start() if first else None)
     extra = []
-    if opener.endswith(("between", "giua")):
-        extra.append("and|va")
-    if opener in ("compare", "comparing", "so sanh"):
-        extra.append("with|voi|and|va")
+    if opener.endswith("between"):
+        extra.append("and")
+    if opener in ("compare", "comparing"):
+        extra.append("with|and")
     split = re.compile(r"\s+(?:%s)\s+" % "|".join([_SEPARATORS] + extra), re.I)
     chunks = [c for c in re.split(r"\s*[,;]\s*", s) if c.strip()]
-    # "Salesforce, HubSpot and Pipedrive", "MISA, Fast và Bravo": the last item comes after and/và
-    choice = listed or _CHOICE_OPENER.search(opener) or re.search(r"\b(?:which|nao)\b", _fold_keep(sentence))
+    # "Salesforce, HubSpot and Pipedrive", "MISA, Fast and Bravo": the last item comes after and
+    choice = listed or _CHOICE_OPENER.search(opener) or re.search(r"\bwhich\b", _lower_keep(sentence))
     if len(chunks) >= 2 and choice:
-        tail = _split(chunks[-1], re.compile(r"\s+(?:and|va|&)\s+", re.I))
+        tail = _split(chunks[-1], re.compile(r"\s+(?:and|&)\s+", re.I))
         if len(tail) == 2 and all(t.strip() for t in tail):
             chunks = chunks[:-1] + tail
     pieces = [p.strip() for c in chunks for p in _split(c, split)]
-    pieces = [_split(p, re.compile(r"^(?:or|and|vs\.?|versus|hay|hoac|va)\s+", re.I))[-1].strip() for p in pieces]
+    pieces = [_split(p, re.compile(r"^(?:or|and|vs\.?|versus)\s+", re.I))[-1].strip() for p in pieces]
     pieces = [p for p in pieces if p]
     if len(pieces) < 2:
         return []
-    if not split.search(_fold_keep(s)) and any(len(p.split()) > 3 for p in pieces):
+    if not split.search(_lower_keep(s)) and any(len(p.split()) > 3 for p in pieces):
         return []  # a comma list in prose ("marketing, sales and R&D"), not options
     last = _sub_end(_sub_end(pieces[-1], _TRAILING_CONTEXT), _TRAILING_FILLER).strip()
     pieces[-1] = last or pieces[-1]
-    # "set the price at $29 or $49" -> "$29", "$49"; "đối tác A hay B" -> "A", "B"
+    # "set the price at $29 or $49" -> "$29", "$49"
     first_words, last_words = pieces[0].split(), pieces[-1].split()
     if (len(pieces) == 2 and len(first_words) - len(last_words) >= 3 and len(last_words) <= 2
             and _shape(first_words[-1]) == _shape(last_words[-1]) != "word"):
@@ -192,7 +169,7 @@ def _options_in(sentence: str) -> list:
     options, seen = [], set()
     for p in pieces:
         p = p.strip(" \"'`")
-        key = fold(p).lower()
+        key = p.lower()
         if p and key not in seen:
             seen.add(key)
             options.append(p)
@@ -206,7 +183,7 @@ def parse_options(text: str) -> list:
 
     'React or Vue for our new project?' -> ['React', 'Vue'];
     'Which CRM: Salesforce, HubSpot or Pipedrive' -> ['Salesforce', 'HubSpot', 'Pipedrive'];
-    'nên chọn React hay Vue' -> ['React', 'Vue']; 'giữa A, B và C' -> ['A', 'B', 'C'].
+    'Choose between A, B and C' -> ['A', 'B', 'C'].
     """
     text = unicodedata.normalize("NFC", str(text or ""))
     text = re.sub(r"\b(vs|versus)\.", r"\1", text, flags=re.I)
@@ -294,18 +271,17 @@ def _num(value: float) -> str:
 # ============ REVERSIBILITY ============
 ONE_WAY = ["acquire", "acquisition", "merger", "sign the contract", "contract", "hire", "layoff", "buy a house",
            "buy a home", "mortgage", "relocate", "emigrate", "quit", "resign", "migrate", "migration", "rewrite",
-           "pivot", "irreversible", "long-term", "restructure", "mua nhà", "nghỉ việc", "ký hợp đồng", "hợp đồng",
-           "sáp nhập", "thâu tóm", "tái cấu trúc", "định cư", "cắt giảm", "du học", "tuyển"]
+           "pivot", "irreversible", "long-term", "restructure"]
 TWO_WAY = ["experiment", "pilot", "trial", "a/b", "prototype", "reversible", "try", "sprint", "tool",
-           "feature flag", "test", "thử", "thí điểm", "dùng thử", "thử nghiệm", "tạm thời"]
+           "feature flag", "test"]
 
 
 def assess_reversibility(query: str, type_name: str) -> dict:
     """One-way door (hard to undo) or two-way door, from the request's words and the decision type."""
-    grams, folded = query_grams(query)
+    grams = query_grams(query)
 
     def hits(words):
-        return [w for w in words if tuple(match_tokens(w, folded)) in grams]
+        return [w for w in words if tuple(match_tokens(w)) in grams]
 
     one, two = hits(ONE_WAY), hits(TWO_WAY)
     score = len(one) - len(two) + {"Strategic Direction": 1, "Operational / Tactical": -1}.get(type_name, 0)
@@ -394,7 +370,7 @@ class DecisionAdvisor:
                 seen.add(key)
                 rows.append(row)
         if query_fallback and len(rows) < limit:
-            for row in search_domain(fold(self.query), domain, limit + len(rows)).get("results", []):
+            for row in search_domain(self.query, domain, limit + len(rows)).get("results", []):
                 key = next(iter(row.values()), "")
                 if key not in seen:
                     seen.add(key)
@@ -701,7 +677,7 @@ class DecisionAdvisor:
             if not text.strip():
                 out.append("|" + " " * width + "|")
                 return
-            # Columns, not characters: accents (even typed as combining marks) and wide characters
+            # Columns, not characters: combining marks take no column and wide (CJK, emoji) characters take two
             for line in wrap_display(text, width - 2, indent + " ", indent + "    "):
                 out.append("|" + pad_display(line, width) + "|")
 
@@ -972,7 +948,7 @@ def parse_criteria(spec: str) -> list:
             raise ValueError(f"criterion without a name in {part!r}")
         if weight is not None and weight < 0:
             raise ValueError(f"weight of {name!r} must not be negative")
-        key = fold(name).lower()
+        key = name.lower()
         if key in seen:
             raise ValueError(f"criterion {name!r} is listed twice")
         seen.add(key)
@@ -1094,10 +1070,10 @@ def build_matrix(description: str, custom_criteria: str = None, scores: str = No
         options = [name for name, _ in scored]
     if len(options) < 2 and not scored:
         options = ["Option A", "Option B"]
-    by_key = {fold(o).lower(): o for o in options}
+    by_key = {o.lower(): o for o in options}
     score_map = {}
     for name, values in scored:
-        key = fold(name).lower()
+        key = name.lower()
         if key not in by_key:
             raise ValueError(f"scores given for {name!r}, which is not one of the options: "
                              + ", ".join(options))

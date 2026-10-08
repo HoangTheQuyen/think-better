@@ -119,56 +119,33 @@ def tokenize(text) -> list:
     return [stem(w) for w in text.split() if len(w) > 1 and w not in STOPWORDS]
 
 
-def fold(text) -> str:
-    """Accent-insensitive form: 'Nên chọn' -> 'Nen chon', 'đ' -> 'd'.
-
-    NFC and NFD input give the same result, so text typed on any OS (or
-    without diacritics) matches the knowledge base.
-    """
-    text = unicodedata.normalize("NFKD", str(text))
-    text = "".join(c for c in text if not unicodedata.combining(c))
-    return unicodedata.normalize("NFC", text.replace("đ", "d").replace("Đ", "D"))
-
-
-def has_accents(text) -> bool:
-    """True when text carries diacritics (e.g. Vietnamese typed with its accents)."""
-    text = unicodedata.normalize("NFC", str(text))
-    return fold(text) != text
-
-
-def match_tokens(text, folded: bool = True) -> list:
-    """Lowercased, stemmed words (accents folded unless folded=False) for phrase matching.
+def match_tokens(text) -> list:
+    """Lowercased, stemmed words of text, for phrase matching.
 
     Unlike tokenize(), stopwords and one-letter words are kept, so keyword
-    phrases match only whole: 'how many' never matches 'too many', 'y tế'
-    (health) never matches 'kinh tế' (economy).
+    phrases match only whole: 'how many' never matches 'too many'.
     """
-    text = fold(text) if folded else unicodedata.normalize("NFC", str(text))
-    words = re.sub(r"[^\w\s]", " ", text.lower()).split()
+    words = re.sub(r"[^\w\s]", " ", str(text).lower()).split()
     return [stem(w) for w in words]
 
 
 @lru_cache(maxsize=64)
-def query_grams(query: str, longest: int = 6) -> tuple:
-    """(frozenset of the query's word n-grams, folded) for phrase matching.
+def query_grams(query: str, longest: int = 6) -> frozenset:
+    """The frozenset of the query's word n-grams (1 to `longest` words) for phrase matching.
 
-    Text typed with accents is matched exactly, so 'chi nhánh' (branch) never
-    meets 'nhanh' (fast); text typed without accents is matched against the
-    keywords with their accents folded away. Cached: classifiers call it once
-    per CSV row.
+    Cached: classifiers call it once per CSV row.
     """
-    folded = not has_accents(query)
-    tokens = match_tokens(query, folded)
+    tokens = match_tokens(query)
     grams = set()
     for n in range(1, longest + 1):
         grams.update(tuple(tokens[i:i + n]) for i in range(len(tokens) - n + 1))
-    return frozenset(grams), folded
+    return frozenset(grams)
 
 
 @lru_cache(maxsize=4096)
-def phrase_tokens(phrase: str, folded: bool = True) -> tuple:
+def phrase_tokens(phrase: str) -> tuple:
     """The match_tokens() of one keyword phrase, cached (keyword lists are matched over and over)."""
-    return tuple(match_tokens(phrase, folded))
+    return tuple(match_tokens(phrase))
 
 
 def display_width(text) -> int:
@@ -212,12 +189,8 @@ def wrap_display(text, width: int, indent: str = "", subsequent: str = None) -> 
 
 
 def slugify(text: str, max_len: int = 50) -> str:
-    """Filesystem-safe slug: no separators, no '..', never empty.
-
-    Vietnamese (and other accented Latin) text becomes plain ASCII, so a name
-    typed with or without accents, in NFC or NFD, gives the same folder.
-    """
-    slug = re.sub(r"[^\w\s-]", " ", fold(text).lower())
+    """Filesystem-safe slug: lowercase ASCII words joined by hyphens, no separators, no '..', never empty."""
+    slug = re.sub(r"[^a-z0-9\s_-]", " ", str(text).lower())
     slug = re.sub(r"[\s_-]+", "-", slug).strip("-")[:max_len].strip("-")
     return slug or SLUG_FALLBACK
 
@@ -271,9 +244,9 @@ def read_stdin_query(stream=None) -> str:
     return data.lstrip("\ufeff").strip()
 
 
-def matched_phrases(grams: frozenset, folded: bool, phrases) -> list:
+def matched_phrases(grams: frozenset, phrases) -> list:
     """The phrases (strings) whose words appear next to each other in the query grams."""
-    return [p for p in phrases if phrase_tokens(p, folded) and phrase_tokens(p, folded) in grams]
+    return [p for p in phrases if phrase_tokens(p) and phrase_tokens(p) in grams]
 
 
 # ============ BM25 ============
@@ -413,8 +386,8 @@ def detect_domain(query: str, default: str = "steps") -> str:
     Hints match whole words ('log' is not in 'catalog'); a query that quotes a
     known error message goes to the errors domain.
     """
-    grams, folded = query_grams(query)
-    scores = {d: len(matched_phrases(grams, folded, kws)) for d, kws in DOMAIN_HINTS.items()}
+    grams = query_grams(query)
+    scores = {d: len(matched_phrases(grams, kws)) for d, kws in DOMAIN_HINTS.items()}
     best = max(scores, key=scores.get)
     if match_errors(query, 1):
         return "errors"
@@ -433,17 +406,8 @@ STACK_TRACE = re.compile(
     r"Traceback \(most recent call last\)|^\s*File \"[^\"]+\", line \d+|^\s+at \S.*[(\s][^\s()]+:\d+|"
     r"^\s+at .+ in .+:line \d+|^goroutine \d+ \[|^\s*panic: |Exception in thread|^\s*Caused by: ", re.M)
 # A measured duration ("4 seconds", "300ms") points at performance
-DURATION = re.compile(r"\b\d+(?:[.,]\d+)?\s*(?:ms|s|secs?|seconds?|minutes?|mins?|giây|phút)\b", re.I)
+DURATION = re.compile(r"\b\d+(?:[.,]\d+)?\s*(?:ms|s|secs?|seconds?|minutes?|mins?)\b", re.I)
 DURATION_WEIGHT = 1
-# Common Vietnamese words typed without accents. Two of them make the text Vietnamese, and then
-# one-syllable keywords match without their accents too ('loi' = lỗi); otherwise 'sap' (sập)
-# or 'cham' (chậm) could be English words or names.
-VIETNAMESE_WORDS = {
-    "khong", "duoc", "nhung", "cua", "bi", "voi", "nay", "khi", "minh", "giup", "lam", "nao", "roi",
-    "cung", "dang", "vao", "sua", "cac", "nhieu", "trang", "nguoi", "dung", "chay", "loi", "cham",
-    "nut", "trong", "sau", "truoc", "thi", "la", "cho", "ham", "tu", "sang", "len", "moi", "toi",
-    "doi", "them", "xoa", "tao", "viet", "mat", "khau", "gui", "nhap", "xuat", "hien",
-}
 
 
 def task_type_names() -> list:
@@ -452,35 +416,31 @@ def task_type_names() -> list:
 
 
 @lru_cache(maxsize=64)
-def _keyword_phrases(cell: str, folded: bool) -> tuple:
-    """(tokens, phrase, weight, one Vietnamese syllable?) for each comma-separated keyword."""
+def _keyword_phrases(cell: str) -> tuple:
+    """(tokens, phrase, weight) for each comma-separated keyword; empty cells give nothing."""
     out, seen = [], set()
     for phrase in str(cell).split(","):
-        tokens = phrase_tokens(phrase, folded)
+        tokens = phrase_tokens(phrase)
         if tokens and tokens not in seen:
             seen.add(tokens)
-            lone_accented = len(tokens) == 1 and has_accents(phrase)
-            out.append((tokens, phrase.strip(), PHRASE_WEIGHT if len(tokens) > 1 else 1, lone_accented))
+            out.append((tokens, phrase.strip(), PHRASE_WEIGHT if len(tokens) > 1 else 1))
     return tuple(out)
 
 
 def task_scores(query: str) -> dict:
     """{task type: (score, [matched keywords])} from whole keyword phrases in the request.
 
-    Each keyword counts once however often it appears. Text typed with accents
-    is matched against the accented keywords; text without accents against
-    the keywords with their accents folded.
+    Each keyword counts once however often it appears.
     """
     text = split_identifiers(query)
-    grams, folded = query_grams(text)
-    vietnamese = folded and len(VIETNAMESE_WORDS.intersection(fold(text).lower().split())) >= 2
+    grams = query_grams(text)
     traced = bool(STACK_TRACE.search(query) or match_errors(query, 1))
     timed = bool(DURATION.search(query))
     scores = {}
     for row in _read_rows(DATA_DIR / CSV_CONFIG["task-types"]["file"]):
         score, matched = 0.0, []
-        for tokens, phrase, weight, lone_accented in _keyword_phrases(row["Keywords"], folded):
-            if tokens in grams and not (folded and lone_accented and not vietnamese):
+        for tokens, phrase, weight in _keyword_phrases(row["Keywords"]):
+            if tokens in grams:
                 score += weight
                 matched.append(phrase)
         if row["Type"] == "debug" and traced:

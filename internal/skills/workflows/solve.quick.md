@@ -23,8 +23,7 @@ description: Quick problem scan with fast, essential insights only. Use when use
 - **Output**: present the plan: it is the analysis, so do not replace it with your own. If it says
   no type or context matched, re-run with `--type` / `--category` (values are in the note and in
   SKILL.md) before presenting.
-- **Language**: answer in the user's language. The script's output is in English: translate it when
-  you present it, and keep commands, flags, file names and option names exactly as written.
+- **Language**: Respond in English. The script's output is in English: show it as it is, and keep commands, flags, file names and option names exactly as written.
 - **Next steps**: the plan already ends with a **Next steps** table for this command: show it once,
   at the end of your answer, and do not add another one.
 
@@ -46,4 +45,4 @@ $ARGUMENTS
 THINK_BETTER_EOF_7f3a
 ```
 
-3. Present the plan in the user's language, then help the user work through its first step.
+3. Present the plan in English, then help the user work through its first step.

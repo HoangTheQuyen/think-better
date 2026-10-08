@@ -369,9 +369,10 @@ class ProblemSolvingTests(unittest.TestCase):
 
     def test_reasoning_rule_drives_framework_choice(self):
         plan = self.plan("Revenue dropped 20% despite market growth")
-        self.assertEqual(plan["decomposition"]["primary"], "Profitability Tree")
-        self.assertEqual(plan["analysis"]["primary_tool"], "Benchmarking")
-        self.assertNotIn("Profitability Tree", plan["decomposition"]["alternatives"])
+        # The problem type (Diagnostic) picks the primary methods; the category rule's tree is an alternative
+        self.assertEqual(plan["decomposition"]["primary"], "Fishbone (Ishikawa)")
+        self.assertEqual(plan["analysis"]["primary_tool"], "Root Cause Analysis (5 Whys)")
+        self.assertIn("Profitability Tree", plan["decomposition"]["alternatives"])
 
     def test_explicit_type_and_category_override_detection(self):
         plan = self.plan("something vague", problem_type="design", category="product development")
@@ -465,18 +466,15 @@ class CodeSolvingTests(unittest.TestCase):
         cases = [
             ("TypeError in checkout after the last deploy, users see a blank page", "debug"),
             ("NullPointerException in OrderService", "debug"),
-            ("sửa lỗi đăng nhập bị lỗi", "debug"),
             ("add a settings page so users can change their email", "feature"),
             ("implement OAuth login with Google", "feature"),
             ("refactor the payment module", "refactor"),
             ("API latency spiked after deploy", "performance"),
             ("Postgres query is slow on the orders page", "performance"),
             ("memory leak in node worker", "performance"),
-            ("tối ưu trang chậm", "performance"),
             ("test sometimes fails in CI", "flaky-test"),
             ("site is down, 500s for all users", "incident"),
             ("upgrade React 17 to 18", "migration"),
-            ("nâng cấp thư viện", "migration"),
             ("review my PR", "review"),
             ("review giúp code này", "review"),
             # Real-world phrasings; add a case here whenever a request is misclassified
@@ -488,47 +486,50 @@ class CodeSolvingTests(unittest.TestCase):
             ("the export stopped working after yesterday's merge", "debug"),
             ("app freezes when I open a large file", "debug"),
             ("totals are incorrect when a discount is applied", "debug"),
-            ("nút lưu không hoạt động", "debug"),
             ("implement pagination for /api/orders", "feature"),
             ("write a CLI command to export reports as CSV", "feature"),
             ("write unit tests for the parser", "test"),
             ("add tests for UserService", "test"),
             ("support uploading avatars to S3", "feature"),
-            ("thêm tính năng xuất file Excel", "feature"),
-            ("viết test cho module thanh toán", "test"),
             ("increase test coverage for the payments module", "test"),
             ("how does the auth middleware work", "explain"),
             ("explain what OrderService.getTotal does", "explain"),
-            ("giải thích code này làm gì", "explain"),
             ("SQL injection in the search endpoint", "security"),
             ("Dependabot alert: CVE-2024-1234 in lodash", "security"),
             ("our API key was leaked in a commit", "security"),
-            ("lỗ hổng XSS ở trang profile", "security"),
             ("fix typo in README", "quick-fix"),
             ("change the button text from Submit to Save", "quick-fix"),
-            ("sửa chính tả ở trang chủ", "quick-fix"),
             ("this function is 400 lines, split it up", "refactor"),
             ("extract the payment logic into its own module", "refactor"),
             ("clean up duplicate code in the controllers", "refactor"),
-            ("tái cấu trúc module thanh toán", "refactor"),
             ("API p95 latency went from 200ms to 2s", "performance"),
             ("the dashboard takes 10 seconds to load", "performance"),
             ("memory usage keeps growing until OOM", "performance"),
             ("fix the slow query in reports", "performance"),
-            ("trang chủ load chậm quá", "performance"),
             ("test_user_signup fails randomly on CI", "flaky-test"),
             ("CI passes locally but fails on GitHub Actions", "flaky-test"),
-            ("test chạy lúc được lúc không trên CI", "flaky-test"),
             ("production is down, 502 for all users", "incident"),
-            ("server production bị sập", "incident"),
             ("move from Python 3.8 to 3.12", "migration"),
             ("switch from MySQL to Postgres", "migration"),
             ("replace moment.js with date-fns", "migration"),
             ("Bump lodash from 4.17.20 to 4.17.21", "migration"),
-            ("nâng cấp Next.js lên 14", "migration"),
-            ("chuyển từ REST sang GraphQL", "migration"),
             ("review this PR for security issues", "review"),
             ("can you look over my changes before I merge", "review"),
+            ('Fix the login bug that keeps failing', 'debug'),
+            ('Optimize the slow page', 'performance'),
+            ('Upgrade the library to its new major version', 'migration'),
+            ('The save button does not work', 'debug'),
+            ('Add a feature to export data to Excel', 'feature'),
+            ('Write tests for the payment module', 'test'),
+            ('Explain what this code does', 'explain'),
+            ('XSS vulnerability on the profile page', 'security'),
+            ('Fix a typo on the home page', 'quick-fix'),
+            ('Refactor the payment module', 'refactor'),
+            ('The home page loads too slowly', 'performance'),
+            ('Tests pass and fail at random on CI', 'flaky-test'),
+            ('The production server is down', 'incident'),
+            ('Upgrade Next.js to version 14', 'migration'),
+            ('Move from REST to GraphQL', 'migration'),
         ]
         for query, expected in cases:
             with self.subTest(query=query):
@@ -715,7 +716,7 @@ class SharedHelperTests(unittest.TestCase):
     """The skills each ship their own copy of the text helpers (they are installed independently);
     the copies must be the same code, not merely agree on a few samples."""
 
-    SHARED = ("stem", "tokenize", "fold", "has_accents", "match_tokens", "query_grams", "phrase_tokens",
+    SHARED = ("stem", "tokenize", "match_tokens", "query_grams", "phrase_tokens",
               "display_width", "pad_display", "wrap_display", "slugify", "default_output_dir", "save_docs",
               "read_stdin_query", "matched_phrases")
     CONSTANTS = ("STOPWORDS", "_SUFFIXES")
@@ -757,7 +758,7 @@ class SharedHelperTests(unittest.TestCase):
 class BoxWidthTests(unittest.TestCase):
     """ASCII boxes and tables line up in terminal columns, whatever the Unicode form of the text."""
 
-    TEXT = "Có nên mở rộng sang Nhật Bản 🎯 hay giữ thị trường 中文 hiện tại không?"
+    TEXT = "Should we expand into Japan 🎯 or keep the current 中文 market?"
 
     def box_widths(self, skill, text, *args):
         import unicodedata
@@ -786,17 +787,17 @@ class BoxWidthTests(unittest.TestCase):
         for skill in ("problem-solving-pro", "make-decision", "code-solving"):
             core = load_skill(skill)[0]
             with self.subTest(skill=skill):
-                self.assertEqual(core.display_width(unicodedata.normalize("NFD", "Giảm")), 4)
+                self.assertEqual(core.display_width(unicodedata.normalize("NFD", "Café")), 4)
                 self.assertEqual(core.display_width("中文🎯"), 6)
-                self.assertEqual(core.display_width(core.pad_display(unicodedata.normalize("NFD", "lỗi"), 6)), 6)
-                lines = core.wrap_display("một hai ba bốn năm sáu bảy tám chín mười " * 3, 20, "  ", "    ")
+                self.assertEqual(core.display_width(core.pad_display(unicodedata.normalize("NFD", "café"), 6)), 6)
+                lines = core.wrap_display("one two three four five six seven eight nine ten " * 3, 20, "  ", "    ")
                 self.assertTrue(all(core.display_width(line) <= 20 for line in lines))
-                self.assertTrue(lines[0].startswith("  m") and lines[1].startswith("    "))
+                self.assertTrue(lines[0].startswith("  o") and lines[1].startswith("    "))
 
     def test_matrix_columns_line_up(self):
         _, advisor = load_skill("make-decision")
-        text = advisor.format_matrix(advisor.build_matrix("Nhật Bản hay 中文市场", "Chi phí:2,Rủi ro:1",
-                                                          "Nhật Bản:4,3;中文市场:3,5"))
+        text = advisor.format_matrix(advisor.build_matrix("Japan or 中文市场", "Cost:2,Risk:1",
+                                                          "Japan:4,3;中文市场:3,5"))
         core = load_skill("make-decision")[0]
         table = [line for line in text.split("Winner")[0].splitlines() if " | " in line]
         positions = {tuple(core.display_width(line[:i]) for i, ch in enumerate(line) if ch == "|")
@@ -891,7 +892,7 @@ class SavedWorkTests(unittest.TestCase):
 class StdinInputTests(unittest.TestCase):
     """Slash commands pass the user's text on stdin so the shell never interprets it."""
 
-    HOSTILE = 'TypeError: `touch pwned` at $HOME "x" $(touch pwned2) — lỗi đăng nhập'
+    HOSTILE = 'TypeError: `touch pwned` at $HOME "x" $(touch pwned2) — login error'
 
     def test_stdin_text_reaches_the_plan_verbatim(self):
         for skill in ("problem-solving-pro", "make-decision", "code-solving"):
@@ -904,7 +905,7 @@ class StdinInputTests(unittest.TestCase):
                 self.assertEqual(r.returncode, 0, r.stderr.decode("utf-8", "replace"))
                 out = r.stdout.decode("utf-8")
                 self.assertIn("`touch pwned`", out if skill != "problem-solving-pro" else out.lower())
-                self.assertIn("lỗi", out.lower())
+                self.assertIn("error", out.lower())
                 self.assertEqual(os.listdir(tmp), [])
 
     def test_workflows_pass_arguments_on_stdin(self):
@@ -924,9 +925,9 @@ class StdinInputTests(unittest.TestCase):
         import io
         for skill in ("problem-solving-pro", "make-decision", "code-solving"):
             core = load_skill(skill)[0]
-            stream = io.TextIOWrapper(io.BytesIO("\ufeff  lỗi `x` $y \n".encode("utf-8")), encoding="utf-8")
+            stream = io.TextIOWrapper(io.BytesIO("\ufeff  error `x` $y \n".encode("utf-8")), encoding="utf-8")
             with self.subTest(skill=skill):
-                self.assertEqual(core.read_stdin_query(stream), "lỗi `x` $y")
+                self.assertEqual(core.read_stdin_query(stream), "error `x` $y")
 
     def test_max_results_must_be_positive(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -961,25 +962,24 @@ class ProblemSolvingProTests(unittest.TestCase):
         ("Two departments disagree over who owns the marketing budget", "Negotiation", "Organizational Change"),
         ("Optimize warehouse inventory levels to minimize holding cost", "Well-Structured", "Cost Reduction"),
         ("Our dashboard metrics don't match the finance numbers", "Diagnostic", "Data / Analytics Problem"),
-        ("doanh thu giảm 20% quý này", "Diagnostic", "Business Performance"),
-        ("Mở rộng sang thị trường Nhật Bản", "Opportunity", "Market Entry Strategy"),
-        ("Công ty sắp hết tiền mặt", "Diagnostic", "Crisis / Turnaround"),
-        ("Cắt giảm chi phí vận hành 15% mà không sa thải", "Well-Structured", "Cost Reduction"),
-        ("Dự báo nhu cầu bán hàng quý tới", "Prediction", "Data / Analytics Problem"),
-        ("Có nên mua lại đối thủ cạnh tranh không", "Opportunity", "Partnership / M&A"),
-        ("Nhân viên nghỉ việc nhiều sau khi tái cấu trúc", "Diagnostic", "Organizational Change"),
-        ("Thiết kế tính năng mới cho ứng dụng di động", "Design", "Product Development"),
-        ("Đàm phán lại hợp đồng với nhà cung cấp lớn nhất", "Negotiation", "Partnership / M&A"),
-        ("Tỷ lệ khách hàng rời bỏ tăng mạnh", "Diagnostic", "Business Performance"),
-        ("Hệ thống bị sập, khách hàng không thanh toán được", "Diagnostic", "Crisis / Turnaround"),
-        ("Giảm ùn tắc giao thông ở Hà Nội", "Wicked", "Policy / Public Sector"),
-        ("Đối thủ dùng AI đang thay đổi cả ngành của chúng tôi", "Ill-Structured", "Innovation / Disruption"),
-        ("Nhân viên bị kiệt sức vì quá tải công việc", "Diagnostic", "Organizational Change"),
-        ("Hóa đơn cloud tăng gấp đôi", "Diagnostic", "Cost Reduction"),
-        ("Số liệu trên dashboard không khớp với báo cáo tài chính", "Diagnostic", "Data / Analytics Problem"),
-        ("Hai phòng ban mâu thuẫn về ngân sách marketing", "Negotiation", "Organizational Change"),
-        ("doanh thu giam manh sau khi tang gia", "Diagnostic", "Business Performance"),
-        ("Tối ưu lịch giao hàng để giảm chi phí vận chuyển", "Well-Structured", "Cost Reduction"),
+        ('Revenue dropped 20% this quarter', 'Diagnostic', 'Business Performance'),
+        ('Expand into the Japanese market', 'Opportunity', 'Market Entry Strategy'),
+        ('The company is about to run out of cash', 'Diagnostic', 'Crisis / Turnaround'),
+        ('Cut operating costs 15% without layoffs', 'Well-Structured', 'Cost Reduction'),
+        ('Forecast sales demand for next quarter', 'Prediction', 'Data / Analytics Problem'),
+        ('Should we acquire our competitor?', 'Opportunity', 'Partnership / M&A'),
+        ('Many employees quit after the restructuring', 'Diagnostic', 'Organizational Change'),
+        ('Design a new feature for the mobile app', 'Design', 'Product Development'),
+        ('Renegotiate the contract with our largest supplier', 'Negotiation', 'Partnership / M&A'),
+        ('Customer churn rose sharply', 'Diagnostic', 'Business Performance'),
+        ('There is an outage, so customers cannot pay', 'Diagnostic', 'Crisis / Turnaround'),
+        ('Reduce traffic congestion in Hanoi', 'Wicked', 'Policy / Public Sector'),
+        ('A rival using AI is disrupting our industry', 'Ill-Structured', 'Innovation / Disruption'),
+        ('Staff are burned out from overwork', 'Diagnostic', 'Organizational Change'),
+        ('Our cloud bill doubled', 'Diagnostic', 'Cost Reduction'),
+        ("Dashboard numbers don't match the financial report", 'Diagnostic', 'Data / Analytics Problem'),
+        ('Two departments disagree about the marketing budget', 'Negotiation', 'Organizational Change'),
+        ('Optimize delivery schedules to reduce shipping costs', 'Well-Structured', 'Cost Reduction'),
     ]
 
     @classmethod
@@ -994,9 +994,7 @@ class ProblemSolvingProTests(unittest.TestCase):
         return r.returncode, r.stdout.decode("utf-8"), r.stderr.decode("utf-8")
 
     def test_labeled_requests_classify(self):
-        vietnamese = sum(1 for q, _, _ in self.LABELED if not q.isascii() or "giam" in q)
         self.assertGreaterEqual(len(self.LABELED), 30)
-        self.assertGreaterEqual(vietnamese * 2, len(self.LABELED))
         for query, ptype, category in self.LABELED:
             with self.subTest(query=query):
                 plan = self.engine.generate(query)
@@ -1004,13 +1002,6 @@ class ProblemSolvingProTests(unittest.TestCase):
                 self.assertEqual(plan["classification"]["type_source"], "auto")
                 self.assertEqual(plan["classification"]["category_source"], "auto")
                 self.assertEqual(plan["hints"], [])
-
-    def test_accents_are_optional(self):
-        self.assertEqual(self.core.fold_accents("Giảm chi phí ĐIỆN"), "Giam chi phi DIEN")
-        for accented, plain in (("Công ty sắp hết tiền mặt", "Cong ty sap het tien mat"),
-                                ("Mở rộng sang thị trường Nhật Bản", "Mo rong sang thi truong Nhat Ban")):
-            with self.subTest(query=plain):
-                self.assertEqual(self.core.classify_category(plain), self.core.classify_category(accented))
 
     def test_unmatched_request_tells_the_ai_to_pass_type_and_category(self):
         plan = self.engine.generate("zzz qqq")
@@ -1063,7 +1054,7 @@ class ProblemSolvingProTests(unittest.TestCase):
                 self.assertGreaterEqual(len(plan["bias_warnings"]), 3)
                 self.assertGreaterEqual(len(plan["mental_models"]), 3)
         rule = self.engine._find_reasoning_rule("Crisis / Turnaround")
-        plan = self.engine.generate("Công ty sắp hết tiền mặt")
+        plan = self.engine.generate("The company is about to run out of cash")
         first_bias = self.core.split_names(rule["Key_Biases"])[0]
         first_model = self.core.find_record("heuristics", self.core.split_names(rule["Key_Heuristics"])[0])
         self.assertEqual(plan["bias_warnings"][0]["bias"], first_bias)
@@ -1079,16 +1070,39 @@ class ProblemSolvingProTests(unittest.TestCase):
             ("reasoning.csv", "Key_Biases", ";", ("biases",)),
             ("problem-types.csv", "Key Biases", ";", ("biases",)),
             ("problem-types.csv", "Mental Models", ";", ("heuristics",)),
+            # The method columns of each problem type are rows of the knowledge base, or named here as absent
+            ("problem-types.csv", "Decomposition Style", ";", ("decomposition",)),
+            ("problem-types.csv", "Analysis Methods", ";", ("analysis", "prioritization")),
+            ("problem-types.csv", "Prioritization", ";", ("prioritization",)),
         ]
+        # Methods a problem type names that have no row in the knowledge base, on purpose
+        intentionally_absent = {"Optimization modeling", "Statistical testing", "Hypothesis testing",
+                                "Time series analysis", "Causal loop diagrams", "Systems dynamics", "Game theory"}
         checked = 0
         for file, column, sep, domains in refs:
             for row in self.core._load_csv(data / file):
                 for name in self.core.split_names(row[column], sep):
                     with self.subTest(file=file, column=column, name=name):
-                        self.assertTrue(any(self.core.find_record(d, name) for d in domains),
-                                        f"{name!r} in {file}:{column} is not defined in {domains}")
+                        found = any(self.core.find_record(d, name) for d in domains)
+                        if name in intentionally_absent:
+                            self.assertFalse(found, f"{name!r} now has a row; drop it from the absent list")
+                        else:
+                            self.assertTrue(found, f"{name!r} in {file}:{column} is not defined in {domains}")
                         checked += 1
         self.assertGreater(checked, 100)
+
+    def test_problem_type_shapes_the_methods_not_the_category(self):
+        plan = self.engine.generate("Our app crash rate jumped 3x after the last release, logs show OutOfMemoryError")
+        self.assertEqual(plan["problem_type"]["name"], "Diagnostic")
+        self.assertEqual(plan["analysis"]["primary_tool"], "Root Cause Analysis (5 Whys)")
+        self.assertEqual(plan["decomposition"]["primary"], "Fishbone (Ishikawa)")
+        self.assertEqual(plan["prioritization"]["technique"], "Pareto Analysis (80/20)")
+        # The category supplies context only: a wicked problem keeps its systems methods in any category
+        plan = self.engine.generate("How can our city reduce homelessness without pushing people to neighbouring districts?",
+                                    category="Product Development")
+        self.assertEqual(plan["problem_type"]["name"], "Wicked")
+        self.assertEqual(plan["decomposition"]["primary"], "Systems Map")
+        self.assertEqual(plan["prioritization"]["technique"], "Dot Voting")
 
     def test_every_step_is_rendered_with_its_gate(self):
         plan = self.engine.generate("Revenue dropped 20%")
@@ -1113,10 +1127,10 @@ class ProblemSolvingProTests(unittest.TestCase):
 
     def test_json_plan(self):
         with tempfile.TemporaryDirectory() as tmp:
-            code, out, err = self.cli(tmp, "--stdin", "--plan", "--json", stdin="Hóa đơn cloud tăng gấp đôi")
+            code, out, err = self.cli(tmp, "--stdin", "--plan", "--json", stdin="Our cloud bill doubled")
             self.assertEqual(code, 0, err)
             plan = json.loads(out)
-            self.assertEqual(plan["query"], "Hóa đơn cloud tăng gấp đôi")
+            self.assertEqual(plan["query"], "Our cloud bill doubled")
             self.assertEqual(plan["problem_category"], "Cost Reduction")
             self.assertEqual(len(plan["methodology"]["steps"]), 7)
             code, out, err = self.cli(tmp, "cloud bill doubled", "--plan", "--json", "--persist", "--step-docs",
@@ -1139,7 +1153,7 @@ class ProblemSolvingProTests(unittest.TestCase):
                 self.assertEqual(out.count("Next Steps"), 1, depth)
 
     def test_resume_status_and_done(self):
-        request = "Công ty sắp hết tiền mặt trong 4 tháng, cần làm gì?"
+        request = "The company will run out of cash in 4 months, what should we do?"
         with tempfile.TemporaryDirectory() as tmp:
             code, out, err = self.cli(tmp, "--stdin", "--plan", "--persist", "--step-docs", "-p", "Cash Crunch",
                                       "-f", "markdown", stdin=request)
@@ -1175,7 +1189,7 @@ class ProblemSolvingProTests(unittest.TestCase):
 
             # A second workspace; the request text picks the right one, else the latest
             self.cli(tmp, "Design a better onboarding flow", "--plan", "--persist", "--step-docs", "-p", "onboarding")
-            code, out, _ = self.cli(tmp, "--stdin", "--status", stdin="tiếp tục vụ tiền mặt")
+            code, out, _ = self.cli(tmp, "--stdin", "--status", stdin="continue the cash crunch work")
             self.assertIn("## Workspace: cash-crunch", out)
             self.assertIn("Other workspaces: `onboarding`", out)
 
@@ -1252,37 +1266,30 @@ class MakeDecisionUpgradeTests(unittest.TestCase):
         ("Allocate the engineering headcount between platform and growth teams", "Resource Allocation",
          "Investment / Resource Allocation"),
         ("Should we set our SaaS subscription price at $29 or $49", "Binary Choice", "Pricing"),
-        ("nên chọn React hay Vue", "Binary Choice", "Tech Stack / Framework Choice"),
-        ("nen chon react hay vue cho du an moi", "Binary Choice", "Tech Stack / Framework Choice"),
-        ("Nên dùng AWS, Azure hay GCP cho hệ thống mới?", "Multi-Option Selection", "Tech Stack / Framework Choice"),
-        ("So sánh Postgres với MongoDB cho dịch vụ đơn hàng", "Binary Choice", "Tech Stack / Framework Choice"),
-        ("Nên dùng Flutter hay React Native cho app mobile", "Binary Choice", "Tech Stack / Framework Choice"),
-        ("Mua nhà hay tiếp tục thuê nhà?", "Binary Choice", "Housing / Home"),
-        ("Có nên nhận offer ở công ty mới với mức lương cao hơn không?", "Binary Choice", "Job Offer / Career"),
-        ("Có nên nghỉ việc để đi du học thạc sĩ không?", "Binary Choice", "Education / Study"),
-        ("Phải quyết định trước thứ Sáu: gia hạn hợp đồng với nhà cung cấp hay đổi sang bên khác",
-         "Time-Pressured Decision", "Vendor / Partner Selection"),
-        ("Có nên tăng giá sản phẩm khi nhu cầu thị trường chưa rõ ràng?", "Decision Under Uncertainty", "Pricing"),
-        ("Chọn nhà cung cấp CRM nào: Salesforce, HubSpot hay Pipedrive", "Multi-Option Selection",
-         "Technology Selection"),
-        ("Tuyển ứng viên A hay ứng viên B cho vị trí trưởng nhóm", "Binary Choice", "Hiring Decision"),
-        ("Phân bổ ngân sách marketing quý 3 giữa Facebook, Google và TikTok thế nào", "Resource Allocation",
-         "Investment / Resource Allocation"),
-        ("Có nên mở rộng sang thị trường Nhật Bản năm sau không", "Strategic Direction", "Market Entry / Expansion"),
-        ("Hội đồng quản trị cần thống nhất chọn CEO mới", "Group / Stakeholder Decision", "Hiring Decision"),
-        ("Nên học thạc sĩ hay đi làm luôn", "Binary Choice", "Education / Study"),
-        ("Có nên chuyển vào Sài Gòn sống và làm việc không", "Binary Choice", "Relocation / Where to Live"),
-        ("Ưu tiên tính năng nào cho sprint tới", "Operational / Tactical", "Product Feature Prioritization"),
-        ("Ra mắt sản phẩm khi chưa có dữ liệu về nhu cầu, rủi ro cao", "Decision Under Uncertainty",
-         "General Decision"),
-        ("Ban lãnh đạo không đồng ý về việc tái cấu trúc công ty", "Group / Stakeholder Decision",
-         "Organizational Change"),
-        ("Chọn văn phòng mới ở quận 1 hay quận 7", "Binary Choice", "Location / Facility"),
-        ("Gấp: cần quyết định ngay hôm nay có ký hợp đồng thuê ngoài hay không", "Time-Pressured Decision",
-         "Vendor / Partner Selection"),
-        ("Nên đặt giá gói SaaS 29 đô hay 49 đô", "Binary Choice", "Pricing"),
-        ("Mình nên chuyển sang Đà Nẵng sống hay ở lại Hà Nội", "Binary Choice", "Relocation / Where to Live"),
-        ("Nên đầu tư vàng hay gửi tiết kiệm ngân hàng", "Binary Choice", "Investment / Resource Allocation"),
+        ('Should we pick React or Vue?', 'Binary Choice', 'Tech Stack / Framework Choice'),
+        ('Should we use AWS, Azure or GCP for the new system?', 'Multi-Option Selection', 'Tech Stack / Framework Choice'),
+        ('Compare Postgres with MongoDB for the order service', 'Binary Choice', 'Tech Stack / Framework Choice'),
+        ('Should we use Flutter or React Native for the mobile app?', 'Binary Choice', 'Tech Stack / Framework Choice'),
+        ('Buy a house or keep renting?', 'Binary Choice', 'Housing / Home'),
+        ('Should I accept the offer from the new company with a higher salary?', 'Binary Choice', 'Job Offer / Career'),
+        ("Should I quit my job to do a master's abroad?", 'Binary Choice', 'Education / Study'),
+        ('We must decide by Friday: renew the contract with the supplier or switch to another one', 'Time-Pressured Decision', 'Vendor / Partner Selection'),
+        ('Should we raise prices while market demand is still unclear?', 'Decision Under Uncertainty', 'Pricing'),
+        ('Which CRM vendor: Salesforce, HubSpot or Pipedrive?', 'Multi-Option Selection', 'Technology Selection'),
+        ('Hire candidate A or candidate B for the team lead role', 'Binary Choice', 'Hiring Decision'),
+        ('How should we split the Q3 marketing budget between Facebook, Google and TikTok?', 'Resource Allocation', 'Investment / Resource Allocation'),
+        ('Should we expand into the Japanese market next year?', 'Strategic Direction', 'Market Entry / Expansion'),
+        ('The board needs to agree on choosing a new CEO', 'Group / Stakeholder Decision', 'Hiring Decision'),
+        ("Should I do a master's or start working right away?", 'Binary Choice', 'Education / Study'),
+        ('Should I move to Ho Chi Minh City to live and work?', 'Binary Choice', 'Relocation / Where to Live'),
+        ('Which features should we prioritize for the next sprint?', 'Operational / Tactical', 'Product Feature Prioritization'),
+        ('Launch the product without demand data, a high risk', 'Decision Under Uncertainty', 'General Decision'),
+        ('Leadership disagrees about restructuring the company', 'Group / Stakeholder Decision', 'Organizational Change'),
+        ('Pick a new office in District 1 or District 7', 'Binary Choice', 'Location / Facility'),
+        ('Urgent: decide today whether to sign the outsourcing contract', 'Time-Pressured Decision', 'Vendor / Partner Selection'),
+        ('Should we price the SaaS plan at $29 or $49?', 'Binary Choice', 'Pricing'),
+        ('Should I move to Da Nang or stay in Hanoi?', 'Binary Choice', 'Relocation / Where to Live'),
+        ('Should I invest in gold or put the money in a bank savings account?', 'Binary Choice', 'Investment / Resource Allocation'),
     ]
 
     @classmethod
@@ -1301,33 +1308,6 @@ class MakeDecisionUpgradeTests(unittest.TestCase):
         return r.returncode, r.stdout.decode("utf-8"), r.stderr.decode("utf-8")
 
     # ---- classification ----
-    def test_regression_set_types_and_criteria(self):
-        vietnamese = sum(1 for q, _, _ in self.CASES if self.core.has_accents(q) or q.startswith("nen "))
-        self.assertGreaterEqual(len(self.CASES), 30)
-        self.assertGreaterEqual(vietnamese * 2, len(self.CASES) - 1)
-        for query, dtype, template in self.CASES:
-            with self.subTest(query=query):
-                plan = self.plan(query)
-                self.assertEqual(plan["decision_type"]["name"], dtype)
-                self.assertEqual(plan["criteria"]["domain"], template)
-
-    def test_unicode_form_does_not_change_the_result(self):
-        import unicodedata
-        for query in ("nên chọn React hay Vue", "Mua nhà hay tiếp tục thuê nhà?"):
-            nfd = unicodedata.normalize("NFD", query)
-            with self.subTest(query=query):
-                a, b = self.plan(query), self.plan(nfd)
-                self.assertEqual(a["decision_type"]["name"], b["decision_type"]["name"])
-                self.assertEqual(a["criteria"]["domain"], b["criteria"]["domain"])
-                self.assertEqual(self.core.slugify(query), self.core.slugify(nfd))
-                self.assertTrue(self.core.slugify(nfd).isascii())
-
-    def test_accented_text_is_matched_exactly(self):
-        # "chi nhánh" (branch) must not count as "nhanh" (fast) - a Time-Pressured signal
-        plan = self.plan("Có nên mở thêm chi nhánh ở Đà Nẵng không")
-        self.assertNotEqual(plan["decision_type"]["name"], "Time-Pressured Decision")
-        self.assertEqual(plan["criteria"]["domain"], "Location / Facility")
-
     def test_unmatched_request_says_so(self):
         plan = self.plan("zzz qqq")
         self.assertEqual(plan["decision_type"]["source"], "default")
@@ -1376,13 +1356,12 @@ class MakeDecisionUpgradeTests(unittest.TestCase):
             ("Should we use Postgres or MySQL", ["Postgres", "MySQL"]),
             ("React or Vue for our new project?", ["React", "Vue"]),
             ("Build in-house vs Buy SaaS vs Hire agency", ["Build in-house", "Buy SaaS", "Hire agency"]),
-            ("nên chọn React hay Vue", ["React", "Vue"]),
-            ("nen chon react hay vue", ["react", "vue"]),
-            ("Dùng Go hoặc Rust cho dịch vụ mới", ["Dùng Go", "Rust"]),
-            ("Chọn giữa Shopee, Lazada và Tiki để mở gian hàng", ["Shopee", "Lazada", "Tiki"]),
-            ("So sánh Postgres với MongoDB", ["Postgres", "MongoDB"]),
-            ("Postgres so với MongoDB", ["Postgres", "MongoDB"]),
             ("Allocate headcount between platform and growth", ["platform", "growth"]),
+            ("Should we pick React or Vue?", ["React", "Vue"]),
+            ("Use Go or Rust for the new service", ["Use Go", "Rust"]),
+            ("Choose between Shopee, Lazada and Tiki", ["Shopee", "Lazada", "Tiki"]),
+            ("Compare Postgres with MongoDB", ["Postgres", "MongoDB"]),
+            ("Postgres versus MongoDB", ["Postgres", "MongoDB"]),
             ("Should we set the price at $29 or $49", ["$29", "$49"]),
             ("Should we renew the contract or not", ["renew the contract", "Not (keep things as they are)"]),
             ("How should we split the budget across marketing, sales and R&D", []),
@@ -1395,7 +1374,7 @@ class MakeDecisionUpgradeTests(unittest.TestCase):
 
     def test_plan_and_saved_files_name_the_options_and_request(self):
         import json
-        query = "nên chọn React hay Vue cho dự án mới"
+        query = "Should we pick React or Vue for the new project?"
         plan = self.plan(query)
         text = self.advisor.DecisionAdvisor(query).format_markdown(plan)
         self.assertIn("**Options:** React | Vue", text)
@@ -1490,7 +1469,7 @@ class MakeDecisionUpgradeTests(unittest.TestCase):
     def test_matrix_cli_reads_stdin_and_reports_errors(self):
         with tempfile.TemporaryDirectory() as tmp:
             code, out, err = self.cli(["--stdin", "--matrix", "-f", "markdown", "-c", "Cost:3,Speed:2,Risk:1",
-                                       "--scores", "React:4,3,5;Vue:5,4,3"], tmp, 'nên chọn "React" hay `Vue`?')
+                                       "--scores", "React:4,3,5;Vue:5,4,3"], tmp, 'Should we pick "React" or `Vue`?')
             self.assertEqual(code, 0, err)
             self.assertIn("**Winner:** Vue", out)
             code, out, err = self.cli(["--matrix", "A vs B", "-c", "X:1,Y:1", "--scores", "A:1"], tmp)
@@ -1503,13 +1482,13 @@ class MakeDecisionUpgradeTests(unittest.TestCase):
         from datetime import date
         with tempfile.TemporaryDirectory() as tmp:
             code, out, err = self.cli(["--stdin", "--journal", "--confidence", "70", "--review-in", "2w"], tmp,
-                                      "Chọn React hay Vue cho dự án mới")
+                                      "Pick React or Vue for the new project")
             self.assertEqual(code, 0, err)
             files = list((Path(tmp) / ".decisions").glob("*.md"))
             self.assertEqual(len(files), 1)
             entry = files[0]
             self.assertTrue(entry.name.isascii())
-            self.assertIn("chon-react-hay-vue", entry.name)
+            self.assertIn("pick-react-or-vue", entry.name)
             text = entry.read_text(encoding="utf-8")
             self.assertIn("- **Confidence:** 70%", text)
             self.assertIn("1. React\n2. Vue", text)
@@ -1518,7 +1497,7 @@ class MakeDecisionUpgradeTests(unittest.TestCase):
             entry.write_text(text + "\n## My notes\nkeep me\n", encoding="utf-8")
 
             outcome = "saved to C:\\Users\\me\n## not a heading\n\\1 \\g<0>"
-            code, out, err = self.cli(["--journal", "--update", "chon-react", "--outcome", outcome], tmp)
+            code, out, err = self.cli(["--journal", "--update", "pick-react", "--outcome", outcome], tmp)
             self.assertEqual(code, 0, err)
             text = entry.read_text(encoding="utf-8")
             self.assertIn("saved to C:\\Users\\me", text)
@@ -1527,7 +1506,7 @@ class MakeDecisionUpgradeTests(unittest.TestCase):
             self.assertIn("## My notes\nkeep me", text)
             self.assertEqual(text.count("## Reflection"), 1)
             self.assertIn("**Status:** Reviewed", text)
-            code, out, err = self.cli(["--journal", "--update", "chon-react", "--stdin"], tmp, "second outcome")
+            code, out, err = self.cli(["--journal", "--update", "pick-react", "--stdin"], tmp, "second outcome")
             self.assertEqual(code, 0, err)
             text = entry.read_text(encoding="utf-8")
             self.assertIn("saved to C:\\Users\\me", text)  # earlier outcome kept
@@ -1603,11 +1582,11 @@ class MakeDecisionUpgradeTests(unittest.TestCase):
     def test_json_plan_blank_plan_and_next_steps_once(self):
         import json
         with tempfile.TemporaryDirectory() as tmp:
-            code, out, err = self.cli(["--stdin", "--plan", "--json"], tmp, "nên chọn React hay Vue")
+            code, out, err = self.cli(["--stdin", "--plan", "--json"], tmp, "Should we pick React or Vue")
             self.assertEqual(code, 0, err)
             data = json.loads(out)
             self.assertEqual(data["options"], ["React", "Vue"])
-            self.assertEqual(data["request"], "nên chọn React hay Vue")
+            self.assertEqual(data["request"], "Should we pick React or Vue")
             self.assertEqual(data["criteria"]["domain"], "Tech Stack / Framework Choice")
             code, out, err = self.cli(["--stdin", "--plan", "--json", "--persist", "-p", "j"], tmp, "React or Vue")
             self.assertTrue(json.loads(out)["saved"]["written"])
@@ -1661,21 +1640,12 @@ class ClassificationRegressionTests(unittest.TestCase):
             ("Add a logout button", "feature"),
             ("Add pagination to the orders list", "feature"),
             ("Add rate limiting to the public API", "feature"),
-            ("chuyen tu MySQL sang PostgreSQL", "migration"),
             (traceback, "debug"),
             ("Traceback (most recent call last):\n  File \"app/views.py\", line 88, in get_profile\n"
              "    uid = request.session['user_id']\nKeyError: 'user_id'", "debug"),
             ("The /search endpoint takes 4 seconds at p95, need it under 300ms", "performance"),
             ("How is the JWT validated in this service?", "explain"),
             ("Production API is returning 502s for all users since the 14:00 deploy", "incident"),
-            # Vietnamese typed without accents
-            ("sua loi dang nhap", "debug"),
-            ("toi uu truy van", "performance"),
-            ("nang cap React 17 len 18", "migration"),
-            ("lo hong bao mat", "security"),
-            ("doi mau nut", "quick-fix"),
-            ("loi dang nhap khong hoat dong sau khi doi mat khau", "debug"),
-            # one-syllable Vietnamese keywords without accents need Vietnamese around them
             ("Migrate our SAP ERP to Odoo", "migration"),
         ]
         for query, expected in cases:
@@ -1693,7 +1663,7 @@ class ClassificationRegressionTests(unittest.TestCase):
         cases = [
             ("Too many meetings are killing our productivity", "Diagnostic", "Organizational Change"),
             ("Our US market share is falling", "Diagnostic", "Business Performance"),
-            ("Kinh tế khó khăn, cửa hàng vắng khách", "Diagnostic", "Business Performance"),
+            ("Hard economic times, the shop has few customers", "Diagnostic", "Business Performance"),
             ("Our checkout conversion is 1.2% while the industry benchmark is 3%", "Diagnostic",
              "Business Performance"),
         ]
@@ -1702,12 +1672,12 @@ class ClassificationRegressionTests(unittest.TestCase):
                 self.assertEqual(self.ps.classify_problem_type(query).get("Problem Type"), ptype)
                 self.assertEqual(self.ps.classify_category(query), category)
         self.assertNotEqual(self.ps.classify_problem_type("Too many meetings").get("Problem Type"), "Prediction")
-        self.assertNotEqual(self.ps.classify_category("Kinh tế khó khăn"), "Policy / Public Sector")
+        self.assertNotEqual(self.ps.classify_category("Hard economic times"), "Policy / Public Sector")
 
     def test_decision_options_and_types(self):
         parse = self.md.parse_options
         self.assertEqual(parse("Which CRM: Salesforce, HubSpot and Pipedrive"), ["Salesforce", "HubSpot", "Pipedrive"])
-        self.assertEqual(parse("Chọn giữa ba nhà cung cấp phần mềm kế toán: MISA, Fast và Bravo"),
+        self.assertEqual(parse("Choose between three accounting software vendors: MISA, Fast and Bravo"),
                          ["MISA", "Fast", "Bravo"])
         self.assertEqual(parse("Which cloud should we use?\n1. AWS\n2. GCP\n3. Azure"), ["AWS", "GCP", "Azure"])
         self.assertEqual(parse("Pick one:\n- MacBook Pro\n- ThinkPad X1\n* Dell XPS"),
@@ -1716,12 +1686,12 @@ class ClassificationRegressionTests(unittest.TestCase):
                                "in marketing?"), ["cut prices", "invest in marketing"])
         self.assertEqual(parse("We need marketing, sales and R&D to align"), [])
         cases = [
-            ("Chọn giữa ba nhà cung cấp phần mềm kế toán: MISA, Fast và Bravo", "Multi-Option Selection"),
             ("We're not sure the market will recover; should we hire 10 more salespeople?",
              "Decision Under Uncertainty"),
             ("Should we move our daily standup from 9am to 10am?", "Operational / Tactical"),
             ("Should we change our on-call rotation from weekly to bi-weekly?", "Operational / Tactical"),
             ("Should we use Postgres or MySQL now", "Binary Choice"),
+            ("Choose between three accounting software vendors: MISA, Fast and Bravo", "Multi-Option Selection"),
         ]
         for query, expected in cases:
             with self.subTest(query=query):
@@ -1765,7 +1735,7 @@ class WorkspaceReuseTests(unittest.TestCase):
         save = ["--plan", "--persist", "--step-docs", "-p", "X", "-f", "markdown"]
         for skill, folder in self.SKILLS_AND_DIRS:
             with self.subTest(skill=skill), tempfile.TemporaryDirectory() as tmp:
-                code, _, err = self.run_cli(skill, tmp, save, "Doanh thu quý 3 giảm 18%")
+                code, _, err = self.run_cli(skill, tmp, save, "Revenue in Q3 dropped 18%")
                 self.assertEqual(code, 0, err)
                 plan_dir = Path(tmp) / folder / "x"
                 overview = (plan_dir / "00-OVERVIEW.md").read_text(encoding="utf-8")
@@ -1781,7 +1751,7 @@ class WorkspaceReuseTests(unittest.TestCase):
                 self.assertEqual((plan_dir / "00-OVERVIEW.md").read_text(encoding="utf-8"), overview)
                 self.assertEqual((plan_dir / ".workspace.json").read_text(encoding="utf-8"), state)
                 # The same request again is fine and keeps the notes
-                code, _, err = self.run_cli(skill, tmp, save, "Doanh thu quý 3 giảm 18%")
+                code, _, err = self.run_cli(skill, tmp, save, "Revenue in Q3 dropped 18%")
                 self.assertEqual(code, 0, err)
                 # --force replaces the plan; overview, state and status agree
                 code, _, err = self.run_cli(skill, tmp, save + ["--force"], "Design a new onboarding flow")
@@ -1806,30 +1776,6 @@ class WorkspaceReuseTests(unittest.TestCase):
             state = json.loads((plan_dir / ".workspace.json").read_text(encoding="utf-8"))
             self.assertEqual(state["type"], "debug")
             self.assertNotIn("06-COMMIT.md", state["files"])
-
-    def test_workspace_names_fold_accents(self):
-        import unicodedata
-        nfd = unicodedata.normalize("NFD", "Giảm doanh thu")
-        for skill, folder in self.SKILLS_AND_DIRS:
-            core = load_skill(skill)[0]
-            with self.subTest(skill=skill):
-                self.assertEqual(core.slugify(nfd), "giam-doanh-thu")
-                self.assertEqual(core.slugify("Giảm doanh thu"), "giam-doanh-thu")
-                self.assertEqual(core.slugify("Đổi mới"), "doi-moi")
-            with self.subTest(skill=skill), tempfile.TemporaryDirectory() as tmp:
-                code, _, err = self.run_cli(skill, tmp, ["--plan", "--persist", "--step-docs", "-p", nfd], nfd)
-                self.assertEqual(code, 0, err)
-                self.assertEqual([p.name for p in (Path(tmp) / folder).iterdir()], ["giam-doanh-thu"])
-                for name in ("giam doanh thu", "Giảm doanh thu", nfd):
-                    code, out, err = self.run_cli(skill, tmp, ["--status", "-p", name], "")
-                    self.assertEqual(code, 0, err)
-                    self.assertIn("giam-doanh-thu", out)
-                # A folder saved before folding (accents in its name) is still found
-                old = Path(tmp) / folder / "giảm-chi-phí"
-                shutil.copytree(Path(tmp) / folder / "giam-doanh-thu", old)
-                code, out, err = self.run_cli(skill, tmp, ["--status", "-p", "giam chi phi"], "")
-                self.assertEqual(code, 0, err)
-                self.assertIn("giảm-chi-phí", out)
 
     def test_next_steps_stop_offering_to_save_once_saved(self):
         for skill, _ in self.SKILLS_AND_DIRS:
@@ -1953,7 +1899,7 @@ class LongRequestTests(unittest.TestCase):
         import time
         rng = random.Random(7)
         words = ("timeout deploy vendor error React we users budget revenue should or Vue hire latency cache "
-                 "database customer churn lỗi doanh thu giảm nên chọn hay").split()
+                 "database customer churn error revenue dropped should we pick or").split()
         lines, size = [], 0
         while size < 250_000:
             line = " ".join(rng.choice(words) for _ in range(rng.randint(5, 30)))

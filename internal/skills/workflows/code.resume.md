@@ -1,7 +1,6 @@
 ---
 description: Resume a saved coding workspace (coding-plans/) at the first step whose gate is not met
-  yet. Use when user wants to continue earlier coding work ("continue the fix", "resume", "làm tiếp
-  phần code").
+  yet. Use when user wants to continue earlier coding work ("continue the fix", "resume").
 ---
 
 ## Resume Coding Work
@@ -23,8 +22,7 @@ description: Resume a saved coding workspace (coding-plans/) at the first step w
 - **Output**: `--status` lists each step's file and whether it is done, then the **Next** step with
   its guidance. If it says there is no saved workspace, tell the user and suggest starting one with
   `/code` and asking to save it; do not invent a workspace.
-- **Language**: answer in the user's language. The script's output is in English: translate it when
-  you present it, and keep commands, flags, file names and option names exactly as written.
+- **Language**: Respond in English. The script's output is in English: show it as it is, and keep commands, flags, file names and option names exactly as written.
 - **Next steps**: the status output has no Next steps table; add the one in step 5 once, when every
   gate is met.
 

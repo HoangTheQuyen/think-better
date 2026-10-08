@@ -122,56 +122,33 @@ def tokenize(text) -> list:
     return [stem(w) for w in text.split() if len(w) > 1 and w not in STOPWORDS]
 
 
-def fold(text) -> str:
-    """Accent-insensitive form: 'Nên chọn' -> 'Nen chon', 'đ' -> 'd'.
-
-    NFC and NFD input give the same result, so text typed on any OS (or
-    without diacritics) matches the knowledge base.
-    """
-    text = unicodedata.normalize("NFKD", str(text))
-    text = "".join(c for c in text if not unicodedata.combining(c))
-    return unicodedata.normalize("NFC", text.replace("đ", "d").replace("Đ", "D"))
-
-
-def has_accents(text) -> bool:
-    """True when text carries diacritics (e.g. Vietnamese typed with its accents)."""
-    text = unicodedata.normalize("NFC", str(text))
-    return fold(text) != text
-
-
-def match_tokens(text, folded: bool = True) -> list:
-    """Lowercased, stemmed words (accents folded unless folded=False) for phrase matching.
+def match_tokens(text) -> list:
+    """Lowercased, stemmed words of text, for phrase matching.
 
     Unlike tokenize(), stopwords and one-letter words are kept, so keyword
-    phrases match only whole: 'how many' never matches 'too many', 'y tế'
-    (health) never matches 'kinh tế' (economy).
+    phrases match only whole: 'how many' never matches 'too many'.
     """
-    text = fold(text) if folded else unicodedata.normalize("NFC", str(text))
-    words = re.sub(r"[^\w\s]", " ", text.lower()).split()
+    words = re.sub(r"[^\w\s]", " ", str(text).lower()).split()
     return [stem(w) for w in words]
 
 
 @lru_cache(maxsize=64)
-def query_grams(query: str, longest: int = 6) -> tuple:
-    """(frozenset of the query's word n-grams, folded) for phrase matching.
+def query_grams(query: str, longest: int = 6) -> frozenset:
+    """The frozenset of the query's word n-grams (1 to `longest` words) for phrase matching.
 
-    Text typed with accents is matched exactly, so 'chi nhánh' (branch) never
-    meets 'nhanh' (fast); text typed without accents is matched against the
-    keywords with their accents folded away. Cached: classifiers call it once
-    per CSV row.
+    Cached: classifiers call it once per CSV row.
     """
-    folded = not has_accents(query)
-    tokens = match_tokens(query, folded)
+    tokens = match_tokens(query)
     grams = set()
     for n in range(1, longest + 1):
         grams.update(tuple(tokens[i:i + n]) for i in range(len(tokens) - n + 1))
-    return frozenset(grams), folded
+    return frozenset(grams)
 
 
 @lru_cache(maxsize=4096)
-def phrase_tokens(phrase: str, folded: bool = True) -> tuple:
+def phrase_tokens(phrase: str) -> tuple:
     """The match_tokens() of one keyword phrase, cached (keyword lists are matched over and over)."""
-    return tuple(match_tokens(phrase, folded))
+    return tuple(match_tokens(phrase))
 
 
 def display_width(text) -> int:
@@ -215,12 +192,8 @@ def wrap_display(text, width: int, indent: str = "", subsequent: str = None) -> 
 
 
 def slugify(text: str, max_len: int = 50) -> str:
-    """Filesystem-safe slug: no separators, no '..', never empty.
-
-    Vietnamese (and other accented Latin) text becomes plain ASCII, so a name
-    typed with or without accents, in NFC or NFD, gives the same folder.
-    """
-    slug = re.sub(r"[^\w\s-]", " ", fold(text).lower())
+    """Filesystem-safe slug: lowercase ASCII words joined by hyphens, no separators, no '..', never empty."""
+    slug = re.sub(r"[^a-z0-9\s_-]", " ", str(text).lower())
     slug = re.sub(r"[\s_-]+", "-", slug).strip("-")[:max_len].strip("-")
     return slug or SLUG_FALLBACK
 
@@ -274,9 +247,9 @@ def read_stdin_query(stream=None) -> str:
     return data.lstrip("\ufeff").strip()
 
 
-def matched_phrases(grams: frozenset, folded: bool, phrases) -> list:
+def matched_phrases(grams: frozenset, phrases) -> list:
     """The phrases (strings) whose words appear next to each other in the query grams."""
-    return [p for p in phrases if phrase_tokens(p, folded) and phrase_tokens(p, folded) in grams]
+    return [p for p in phrases if phrase_tokens(p) and phrase_tokens(p) in grams]
 
 
 # ============ BM25 IMPLEMENTATION ============
@@ -326,21 +299,15 @@ class BM25:
         return sorted(scores, key=lambda x: x[1], reverse=True)
 
 
-# ============ MULTILINGUAL MATCHING ============
-# Kept for callers of the old name: fold() drops diacritics, 'giảm' -> 'giam'.
-fold_accents = fold
-
-
+# ============ PHRASE MATCHING ============
 @lru_cache(maxsize=16)
-def _query_phrases(query: str, folded: bool, longest: int = 6) -> frozenset:
+def _query_phrases(query: str, longest: int = 6) -> frozenset:
     """Word n-grams of the query, with and without its stopwords.
 
     'revenue is declining' meets the keyword 'revenue decline', while a
-    keyword is only matched whole: 'how many' never matches 'too many' and
-    'y tế' (health) never matches 'kinh tế' (economy).
+    keyword is only matched whole: 'how many' never matches 'too many'.
     """
-    text = fold(query) if folded else unicodedata.normalize("NFC", str(query))
-    words = re.sub(r"[^\w\s]", " ", text.lower()).split()
+    words = re.sub(r"[^\w\s]", " ", str(query).lower()).split()
     grams = set()
     for tokens in ([stem(w) for w in words], [stem(w) for w in words if w not in STOPWORDS]):
         for n in range(1, longest + 1):
@@ -348,10 +315,10 @@ def _query_phrases(query: str, folded: bool, longest: int = 6) -> frozenset:
     return frozenset(grams)
 
 
-def _row_phrases(name: str, keywords: str, folded: bool) -> list:
+def _row_phrases(name: str, keywords: str) -> list:
     """Whole phrases of a row: its name (each '/' part) and each comma/semicolon separated keyword."""
-    phrases = [phrase_tokens(part, folded) for part in str(name).split("/")]
-    phrases += [phrase_tokens(kw, folded) for kw in re.split(r"[,;]", str(keywords))]
+    phrases = [phrase_tokens(part) for part in str(name).split("/")]
+    phrases += [phrase_tokens(kw) for kw in re.split(r"[,;]", str(keywords))]
     return [p for p in phrases if p]
 
 
@@ -360,33 +327,28 @@ def rank_by_keywords(rows: list, name_col: str, keyword_col: str, query: str) ->
 
     A keyword matches when all its words appear next to each other in the
     query, and counts once however often it appears (BM25 weighting: rare
-    keywords count more). The score adds an exact pass and an accent-folded
-    pass, so 'doanh thu giam' (typed without accents) still matches the
-    keyword 'doanh thu giảm', while a match with the right accents counts double.
+    keywords count more).
     """
-    def rank(folded, k1=1.5, b=0.3):
-        docs = [_row_phrases(r.get(name_col, ""), r.get(keyword_col, ""), folded) for r in rows]
-        df = defaultdict(int)
-        for doc in docs:
-            for phrase in set(doc):
-                df[phrase] += 1
-        avgdl = sum(len(d) for d in docs) / len(docs) or 1
-        grams = _query_phrases(query, folded)
-        scores = []
-        for doc in docs:
-            score, norm = 0.0, 1 - b + b * len(doc) / avgdl
-            for phrase in set(doc):
-                if phrase in grams:
-                    tf = doc.count(phrase)
-                    idf = log((len(docs) - df[phrase] + 0.5) / (df[phrase] + 0.5) + 1)
-                    score += idf * tf * (k1 + 1) / (tf + k1 * norm)
-            scores.append(score)
-        return scores
-
     if not rows:
         return []
-    exact, folded = rank(False), rank(True)
-    ranked = sorted(((i, exact[i] + folded[i]) for i in range(len(rows))), key=lambda x: x[1], reverse=True)
+    k1, b = 1.5, 0.3
+    docs = [_row_phrases(r.get(name_col, ""), r.get(keyword_col, "")) for r in rows]
+    df = defaultdict(int)
+    for doc in docs:
+        for phrase in set(doc):
+            df[phrase] += 1
+    avgdl = sum(len(d) for d in docs) / len(docs) or 1
+    grams = _query_phrases(query)
+    scores = []
+    for doc in docs:
+        score, norm = 0.0, 1 - b + b * len(doc) / avgdl
+        for phrase in set(doc):
+            if phrase in grams:
+                tf = doc.count(phrase)
+                idf = log((len(docs) - df[phrase] + 0.5) / (df[phrase] + 0.5) + 1)
+                score += idf * tf * (k1 + 1) / (tf + k1 * norm)
+        scores.append(score)
+    ranked = sorted(((i, scores[i]) for i in range(len(rows))), key=lambda x: x[1], reverse=True)
     return [(i, score) for i, score in ranked if score > 0]
 
 
@@ -412,14 +374,10 @@ def _search_csv(filepath, search_cols, output_cols, query, max_results):
     # Build documents from search columns
     documents = [" ".join(str(row.get(col, "")) for col in search_cols) for row in data]
 
-    # BM25 search; Vietnamese typed without accents gets a second, accent-folded pass
+    # BM25 search
     bm25 = BM25()
     bm25.fit(documents)
     ranked = bm25.score(query)
-    if not ranked or ranked[0][1] <= 0:
-        bm25 = BM25()
-        bm25.fit([fold_accents(d) for d in documents])
-        ranked = bm25.score(fold_accents(query))
 
     # Get top results with score > 0
     results = []
@@ -445,8 +403,8 @@ def detect_domain(query):
         "team": ["team", "group", "collaboration", "workshop", "facilitation", "red team", "brainstorm", "psychological safety", "conflict", "diversity"]
     }
 
-    grams, folded = query_grams(query)
-    scores = {domain: len(matched_phrases(grams, folded, keywords)) for domain, keywords in domain_keywords.items()}
+    grams = query_grams(query)
+    scores = {domain: len(matched_phrases(grams, keywords)) for domain, keywords in domain_keywords.items()}
     best = max(scores, key=scores.get)
     return best if scores[best] > 0 else "steps"
 
@@ -506,7 +464,7 @@ def classify_category(query: str) -> str:
 def classify_problem_type(query: str) -> dict:
     """The problem-types row whose name and keywords best match the query, or {}.
 
-    Keywords decide first (English and Vietnamese); when none match, the full
+    Keywords decide first; when none match, the full
     description columns are searched as a weaker signal (source "text").
     """
     rows = _load_csv(DATA_DIR / CSV_CONFIG["problem-types"]["file"])
