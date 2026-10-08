@@ -49,7 +49,7 @@ internal/installer/          install / update / uninstall / status logic; manife
 internal/cli/                subcommands
 cmd/think-better/            main package
 scripts/smoke_test_skills.py runs every skill's search.py in CI
-scripts/test_docs.py         docs match the repo: counts, commands, bias names, links
+scripts/test_docs.py         docs match the repo: counts, commands, install paths, bias names, links
 scripts/test_doc_samples.py  the sample outputs in the docs match a real run
 ```
 
@@ -144,7 +144,8 @@ with that skill.
    CI smoke loop in `.github/workflows/ci.yml`.
 3. Document it in the README "Works with" line, the target table and "How a skill is
    picked", the USER-GUIDE install table, and the website (`docs/index.html`);
-   `scripts/test_docs.py` fails until README, guides and website mention it.
+   `scripts/test_docs.py` fails until README, guides and website mention it
+   and the README and USER-GUIDE install tables show its paths.
 
 ## Commits and pull requests
 
