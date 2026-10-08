@@ -110,9 +110,9 @@ with that skill.
   that the script reads with `--stdin` (a test checks this):
 
   ```
-  python3 .agents/skills/<skill>/scripts/search.py --stdin --plan <<'TASK'
+  python3 .agents/skills/<skill>/scripts/search.py --stdin --plan <<'THINK_BETTER_EOF_7f3a'
   $ARGUMENTS
-  TASK
+  THINK_BETTER_EOF_7f3a
   ```
 
   Never write `"$ARGUMENTS"` on a command line: the user's text often holds
