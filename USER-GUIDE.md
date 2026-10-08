@@ -45,6 +45,18 @@ think-better init --ai claude --global
 think-better init --ai claude --skill code-solving
 ```
 
+#### Keeping skills up to date
+
+After upgrading the `think-better` binary, update every install (this project and `--global`) at once:
+
+```bash
+think-better check            # installed / outdated / modified / incomplete, per location (--json, --strict)
+think-better update --dry-run # show what would change
+think-better update           # apply (limit with --ai, --skill or --global)
+```
+
+Each install records what it wrote in `.think-better.json` (and `.think-better-workflows.json` next to the slash commands). Files you edited are never overwritten silently: `update` (and `init` on an existing install) keeps them and writes the new version next to them as `<file>.new`; `--force` replaces them after saving yours as `<file>.bak`. `uninstall` likewise only deletes files you have not modified.
+
 ### 3. Open Your AI Assistant
 
 - **Claude:** Open Claude Code or VS Code with Claude extension

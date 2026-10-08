@@ -1,14 +1,29 @@
-// Package cli provides subcommand handlers for the make-decision CLI.
+// Package cli provides subcommand handlers for the think-better CLI.
 package cli
 
 import (
 	"bufio"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
+	"strconv"
 	"strings"
 
+	"github.com/HoangTheQuyen/think-better/internal/checker"
 	"github.com/HoangTheQuyen/think-better/internal/targets"
+)
+
+// Output streams and hooks, replaceable in tests.
+var (
+	stdout      io.Writer = os.Stdout
+	stderr      io.Writer = os.Stderr
+	checkPython           = checker.CheckPython
+	// interactive reports whether the user can answer prompts. Runs with
+	// stdin redirected (pipes, files, /dev/null, CI) never prompt.
+	interactive = func() bool { return isTerminal(os.Stdin.Fd()) }
+	stdinReader *bufio.Reader
 )
 
 // SharedFlags contains flags common to multiple subcommands.
@@ -17,14 +32,60 @@ type SharedFlags struct {
 	Skill  string
 	Force  bool
 	Global bool
+	DryRun bool
 }
 
-// AddSharedFlags registers the common flags on a FlagSet.
-func AddSharedFlags(fs *flag.FlagSet, sf *SharedFlags) {
+// AddSharedFlags registers the common flags on a FlagSet. forceHelp
+// describes what --force does for the command.
+func AddSharedFlags(fs *flag.FlagSet, sf *SharedFlags, forceHelp string) {
 	fs.StringVar(&sf.AI, "ai", "", "AI target: "+strings.Join(targets.TargetNames(), ", "))
 	fs.StringVar(&sf.Skill, "skill", "", "Skill name")
-	fs.BoolVar(&sf.Force, "force", false, "Skip confirmation prompts")
+	fs.BoolVar(&sf.Force, "force", false, forceHelp)
 	fs.BoolVar(&sf.Global, "global", false, "Use your user account (all projects) instead of the current project")
+}
+
+// newFlagSet creates a flag set for a subcommand; parseFlags reports its errors.
+func newFlagSet(name string) *flag.FlagSet {
+	return flag.NewFlagSet(name, flag.ContinueOnError)
+}
+
+// parseFlags parses args for a subcommand. --help/-h prints the usage to
+// stdout and exits 0; a bad flag or an unexpected positional argument
+// prints an error to stderr and exits 1. ok is false when the command must
+// stop and return code.
+func parseFlags(fs *flag.FlagSet, args []string, usage string) (ok bool, code int) {
+	fs.SetOutput(io.Discard) // errors are reported below
+	fs.Usage = func() {}
+	printUsage := func(w io.Writer) {
+		_, _ = fmt.Fprintln(w, strings.TrimSpace(usage))
+		hasFlags := false
+		fs.VisitAll(func(*flag.Flag) { hasFlags = true })
+		if hasFlags {
+			_, _ = fmt.Fprintln(w, "\nFlags:")
+			fs.SetOutput(w)
+			fs.PrintDefaults()
+			fs.SetOutput(io.Discard)
+		}
+	}
+
+	err := fs.Parse(args)
+	if errors.Is(err, flag.ErrHelp) {
+		printUsage(stdout)
+		return false, 0
+	}
+	if err == nil && fs.NArg() > 0 {
+		arg := fs.Arg(0)
+		err = fmt.Errorf("unexpected argument %q", arg)
+		if targets.ValidTarget(arg) {
+			err = fmt.Errorf("unexpected argument %q (did you mean --ai %s?)", arg, strings.ToLower(arg))
+		}
+	}
+	if err != nil {
+		Errorf("%v", err)
+		_, _ = fmt.Fprintf(stderr, "Run 'think-better %s --help' for usage.\n", fs.Name())
+		return false, 1
+	}
+	return true, 0
 }
 
 // ResolveScope returns the target and base directory to work in: the current
@@ -48,84 +109,77 @@ func ResolveScope(target *targets.AITarget, global bool) (*targets.AITarget, str
 	return g, home, nil
 }
 
-// IsTerminal returns true if stdin is connected to a terminal (not piped/redirected).
-func IsTerminal() bool {
-	fi, err := os.Stdin.Stat()
-	if err != nil {
-		return false
+// readLine reads one answer line from stdin ("" on EOF or error).
+func readLine() string {
+	if stdinReader == nil {
+		stdinReader = bufio.NewReader(os.Stdin)
 	}
-	return fi.Mode()&os.ModeCharDevice != 0
+	line, _ := stdinReader.ReadString('\n')
+	return strings.TrimSpace(line)
 }
 
-// Confirm prompts the user with a y/N question via stderr.
-// Returns true if the user answers "y" or "yes" (case-insensitive).
-// In non-interactive mode, returns false.
-func Confirm(prompt string) bool {
-	if !IsTerminal() {
+// confirm asks a y/N question on stderr. It returns false without asking
+// when the session is not interactive.
+func confirm(prompt string) bool {
+	if !interactive() {
 		return false
 	}
-	fmt.Fprintf(os.Stderr, "%s [y/N]: ", prompt)
-	scanner := bufio.NewScanner(os.Stdin)
-	if scanner.Scan() {
-		answer := strings.TrimSpace(strings.ToLower(scanner.Text()))
-		return answer == "y" || answer == "yes"
-	}
-	return false
+	_, _ = fmt.Fprintf(stderr, "%s [y/N]: ", prompt)
+	answer := strings.ToLower(readLine())
+	return answer == "y" || answer == "yes"
 }
 
-// PromptChoice presents a list of options to the user via stderr and returns the selected value.
-// Returns empty string in non-interactive mode.
-func PromptChoice(prompt string, options []string) string {
-	if !IsTerminal() {
+// promptChoice asks the user to pick one of options (by number or name).
+// It returns "" without asking when the session is not interactive.
+func promptChoice(prompt string, options []string) string {
+	if !interactive() {
 		return ""
 	}
-	fmt.Fprintln(os.Stderr, prompt)
+	_, _ = fmt.Fprintln(stderr, prompt)
 	for i, opt := range options {
-		fmt.Fprintf(os.Stderr, "  %d) %s\n", i+1, opt)
+		_, _ = fmt.Fprintf(stderr, "  %d) %s\n", i+1, opt)
 	}
-	fmt.Fprintf(os.Stderr, "Choose [1-%d]: ", len(options))
-	scanner := bufio.NewScanner(os.Stdin)
-	if scanner.Scan() {
-		input := strings.TrimSpace(scanner.Text())
-		// Try numeric
-		for i, opt := range options {
-			if input == fmt.Sprintf("%d", i+1) || strings.EqualFold(input, opt) {
-				return opt
-			}
+	_, _ = fmt.Fprintf(stderr, "Choose [1-%d]: ", len(options))
+	input := readLine()
+	for i, opt := range options {
+		if input == strconv.Itoa(i+1) || strings.EqualFold(input, opt) {
+			return opt
 		}
 	}
 	return ""
 }
 
-// ValidateAI resolves the --ai flag value: explicit flag > env var > interactive prompt > error.
-func ValidateAI(aiFlag string) (string, error) {
-	if aiFlag != "" {
-		return strings.ToLower(aiFlag), targets.ValidateTarget(aiFlag)
-	}
-
-	// Check environment variables (MAKE_DECISION_AI is the legacy name)
-	for _, name := range []string{"THINK_BETTER_AI", "MAKE_DECISION_AI"} {
-		if env := os.Getenv(name); env != "" {
-			if err := targets.ValidateTarget(env); err != nil {
-				return "", fmt.Errorf("%s env var: %w", name, err)
+// resolveTarget resolves the --ai flag: explicit flag > THINK_BETTER_AI
+// (or the legacy MAKE_DECISION_AI) > interactive prompt > error.
+func resolveTarget(aiFlag string) (*targets.AITarget, error) {
+	name := aiFlag
+	source := "--ai"
+	if name == "" {
+		for _, env := range []string{"THINK_BETTER_AI", "MAKE_DECISION_AI"} {
+			if v := os.Getenv(env); v != "" {
+				name, source = v, env+" env var"
+				break
 			}
-			return strings.ToLower(env), nil
 		}
 	}
-
-	// Interactive prompt
-	if IsTerminal() {
-		choice := PromptChoice("Select AI target:", targets.TargetNames())
-		if choice == "" {
-			return "", fmt.Errorf("no AI target selected")
+	if name == "" {
+		if !interactive() {
+			return nil, fmt.Errorf("--ai is required in non-interactive mode (or set THINK_BETTER_AI env var)")
 		}
-		return choice, nil
+		if name = promptChoice("Select AI target:", targets.TargetNames()); name == "" {
+			return nil, fmt.Errorf("no AI target selected")
+		}
 	}
-
-	return "", fmt.Errorf("--ai is required in non-interactive mode (or set THINK_BETTER_AI env var)")
+	if err := targets.ValidateTarget(name); err != nil {
+		if source != "--ai" {
+			return nil, fmt.Errorf("%s: %w", source, err)
+		}
+		return nil, err
+	}
+	return targets.FindTarget(name), nil
 }
 
 // Errorf prints a formatted error to stderr.
-func Errorf(format string, args ...interface{}) {
-	fmt.Fprintf(os.Stderr, "error: "+format+"\n", args...)
+func Errorf(format string, args ...any) {
+	_, _ = fmt.Fprintf(stderr, "error: "+format+"\n", args...)
 }

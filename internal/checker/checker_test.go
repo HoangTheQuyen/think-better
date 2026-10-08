@@ -26,16 +26,3 @@ func TestCheckPython(t *testing.T) {
 		}
 	}
 }
-
-func TestFormatPythonWarning(t *testing.T) {
-	found := PythonResult{Found: true, Version: "3.12.0", Path: "/usr/bin/python3"}
-	if warning := FormatPythonWarning(found); warning != "" {
-		t.Errorf("FormatPythonWarning(found=true) = %q, want empty", warning)
-	}
-
-	notFound := PythonResult{Found: false}
-	warning := FormatPythonWarning(notFound)
-	if warning == "" {
-		t.Error("FormatPythonWarning(found=false) = empty, want warning message")
-	}
-}

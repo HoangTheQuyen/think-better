@@ -35,11 +35,3 @@ func CheckPython() PythonResult {
 	}
 	return PythonResult{Found: false}
 }
-
-// FormatPythonWarning returns a warning string if Python is not found.
-func FormatPythonWarning(result PythonResult) string {
-	if result.Found {
-		return ""
-	}
-	return "  ✗ Python 3 not found\n    Install from https://python.org or your package manager"
-}
