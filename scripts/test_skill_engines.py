@@ -21,7 +21,7 @@ sys.dont_write_bytecode = True
 
 ROOT = Path(__file__).resolve().parent.parent
 SKILLS = ROOT / ".agents" / "skills"
-MODULES = ("core", "advisor", "search")
+MODULES = ("core", "context", "advisor", "search")
 
 
 def load_skill(name):
@@ -44,6 +44,190 @@ def run_script(script, args, cwd):
     env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", PYTHONIOENCODING="utf-8")
     return subprocess.run([sys.executable, str(script)] + args, cwd=cwd, env=env,
                           capture_output=True, text=True, encoding="utf-8")
+
+
+def git_available():
+    return shutil.which("git") is not None
+
+
+def make_repo(root, files, message="initial"):
+    """Commit files into a git repo at root (created if needed)."""
+    env = dict(os.environ, GIT_AUTHOR_NAME="Dev", GIT_AUTHOR_EMAIL="dev@example.com",
+               GIT_COMMITTER_NAME="Dev", GIT_COMMITTER_EMAIL="dev@example.com")
+    if not (root / ".git").exists():
+        subprocess.run(["git", "init", "-q", "-b", "main", str(root)], check=True, env=env)
+        subprocess.run(["git", "-C", str(root), "config", "core.autocrlf", "false"], check=True)
+    for name, content in files.items():
+        (root / name).parent.mkdir(parents=True, exist_ok=True)
+        (root / name).write_text(content, encoding="utf-8", newline="\n")
+    subprocess.run(["git", "-C", str(root), "add", "-A"], check=True, env=env)
+    subprocess.run(["git", "-C", str(root), "commit", "-q", "-m", message], check=True, env=env)
+
+
+class CodeContextTests(unittest.TestCase):
+    """The plan's "Context from the project": facts found in the code and git."""
+
+    @classmethod
+    def setUpClass(cls):
+        sys.modules.pop("context", None)
+        path = str(SKILLS / "code-solving" / "scripts")
+        sys.path.insert(0, path)
+        try:
+            cls.context = importlib.import_module("context")
+        finally:
+            sys.path.remove(path)
+            sys.modules.pop("context", None)
+        cls.core, cls.advisor = load_skill("code-solving")
+        cls.engine = cls.advisor.CodeSolvingAdvisor()
+
+    FILES = {
+        "app/orders.py": "def get_total(items):\n    return items[0].price\n",
+        "app/json/decoder.py": "x = 1\n",
+        "src/main/java/com/shop/OrderService.java":
+            "package com.shop;\nclass OrderService {\n  public int getTotal() {\n    return items.get(0).price;\n  }\n}\n",
+        "web/src/UserList.tsx": "export function UserList(props) {\n  return props.users.map(u => u.name)\n}\n",
+        "main.go": "package main\n\nfunc main() {\n\tvar m map[string]int\n\tm[\"a\"] = 1\n}\n",
+        "src/lib.rs": "fn parse() {\n    let x: i32 = \"a\".parse().unwrap();\n}\n",
+    }
+
+    def write(self, root, files):
+        for name, content in files.items():
+            (root / name).parent.mkdir(parents=True, exist_ok=True)
+            (root / name).write_text(content, encoding="utf-8", newline="\n")
+
+    def test_trace_frames_resolve_to_project_lines(self):
+        trace = (
+            'Traceback (most recent call last):\n'
+            '  File "/home/ci/work/shop/app/orders.py", line 2, in get_total\n'
+            '  File "/usr/lib/python3.11/json/decoder.py", line 337, in decode\n'
+            "\tat java.base/java.util.ArrayList.get(ArrayList.java:427)\n"
+            "\tat com.shop.OrderService.getTotal(OrderService.java:4)\n"
+            "    at UserList (webpack:///./web/src/UserList.tsx:2:22)\n"
+            "    at renderWithHooks (node_modules/react-dom/cjs/react-dom.development.js:14985:18)\n"
+            "\t/home/runner/build/main.go:5 +0x1d\n"
+            "  --> src/lib.rs:2:18\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.write(root, self.FILES)
+            files = self.context.project_files(root, False)
+            found = [(loc["file"], loc["line"]) for loc in self.context.trace_locations(trace, files, root)]
+            self.assertEqual(found, [("app/orders.py", 2), ("src/main/java/com/shop/OrderService.java", 4),
+                                     ("web/src/UserList.tsx", 2), ("main.go", 5), ("src/lib.rs", 2)])
+            first = self.context.trace_locations(trace, files, root)[0]
+            self.assertEqual(first["code"], "return items[0].price")
+            self.assertEqual(first["func"], "get_total")
+
+    def test_library_frames_never_match_project_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.write(root, self.FILES)
+            files = self.context.project_files(root, False)
+            trace = 'File "/usr/lib/python3.11/json/decoder.py", line 1, in decode'
+            self.assertEqual(self.context.trace_locations(trace, files, root), [])
+            # ...but a project folder that merely looks like one still resolves
+            self.assertEqual(self.context.resolve("src/lib/python_utils.py", ["src/lib/python_utils.py"], root),
+                             "src/lib/python_utils.py")
+
+    def test_named_files_and_symbols(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.write(root, self.FILES)
+            files = self.context.project_files(root, False)
+            text = "TypeError in UserList.tsx when OrderService.getTotal runs get_total"
+            self.assertEqual(self.context.named_files(text, files, root), ["web/src/UserList.tsx"])
+            self.assertEqual(self.context.candidate_symbols(text), ["UserList", "OrderService", "getTotal", "get_total"])
+            self.assertEqual(self.context.candidate_symbols("NullPointerException TypeError the login page"), [])
+
+    def test_plan_context_from_git(self):
+        if not git_available():
+            self.skipTest("git not installed")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            make_repo(root, self.FILES, "add orders")
+            plan = self.engine.generate(
+                'getTotal fails:\n  File "app/orders.py", line 2, in get_total', task_type="debug", project_dir=tmp)
+            ctx = plan["context"]
+            self.assertEqual(ctx["locations"][0]["file"], "app/orders.py")
+            symbols = {s["name"]: s for s in ctx["symbols"]}
+            self.assertEqual(symbols["getTotal"]["defined"], ["src/main/java/com/shop/OrderService.java:3"])
+            self.assertEqual(symbols["get_total"]["defined"], ["app/orders.py:1"])
+            self.assertEqual(ctx["commits"][0]["subject"], "add orders")
+            self.assertEqual(ctx["tree"]["branch"], "main")
+            text = self.advisor.format_markdown(plan)
+            self.assertIn("### Context from the project", text)
+            self.assertIn("`app/orders.py:2` in `get_total`: `return items[0].price`", text)
+
+            plan_dir, _, _ = self.advisor.persist_step_by_step(plan, tmp)
+            change_map = (Path(plan_dir) / "02-CHANGE-MAP.md").read_text(encoding="utf-8")
+            self.assertIn("`app/orders.py:2` | in the stack trace", change_map)
+
+            plain = self.engine.generate("getTotal fails", task_type="debug", project_dir=tmp, context=False)
+            self.assertEqual(plain["context"], {})
+            self.assertNotIn("Context from the project", self.advisor.format_markdown(plain))
+
+    def test_review_includes_diff_and_its_areas_first(self):
+        if not git_available():
+            self.skipTest("git not installed")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            make_repo(root, {"src/auth/login.py": "def login(u, p):\n    return check(u, p)\n"})
+            subprocess.run(["git", "-C", tmp, "checkout", "-q", "-b", "feature"], check=True)
+            make_repo(root, {"src/auth/login.py": "def login(u, p):\n    t = eval(u)\n    return check(u, p)\n",
+                             "migrations/002.sql": "ALTER TABLE users DROP COLUMN email;\n"}, "risky change")
+            # Plans and AI tool folders left untracked do not count as the change under review
+            (root / "coding-plans/x").mkdir(parents=True)
+            (root / "coding-plans/x/PLAN.md").write_text("notes", encoding="utf-8")
+            (root / ".claude/skills/a").mkdir(parents=True)
+            (root / ".claude/skills/a/SKILL.md").write_text("x", encoding="utf-8")
+            plan = self.engine.generate("review my branch", task_type="review", project_dir=tmp)
+            diff = plan["context"]["diff"]
+            self.assertEqual(diff["label"], "main...HEAD")
+            self.assertEqual(sorted(f["file"] for f in diff["files"]), ["migrations/002.sql", "src/auth/login.py"])
+            areas = {a["area"]: a["reasons"] for a in diff["areas"]}
+            self.assertIn("src/auth/login.py adds `eval(`", areas["Security"])
+            self.assertIn("Data Safety", areas)
+            self.assertIn("no test files", areas["Tests"][0])
+            self.assertEqual([r["area"] for r in plan["review"]][:3], ["Security", "Data Safety", "Tests"])
+
+            # Uncommitted changes win in auto mode, new untracked files included;
+            # risky strings in tests and comments are not flagged
+            (root / "src/auth/login.py").write_text("def login(u, p):\n    return True\n", encoding="utf-8")
+            (root / "src/jobs.py").write_text("# eval( is banned here\nimport asyncio\n", encoding="utf-8")
+            (root / "tests").mkdir()
+            (root / "tests/test_login.py").write_text("assert eval('1') == 1\n", encoding="utf-8")
+            uncommitted = self.context.review_diff(root)
+            self.assertEqual(uncommitted["label"], "uncommitted changes")
+            new_files = {f["file"] for f in uncommitted["files"] if f.get("new")}
+            self.assertEqual(new_files, {"src/jobs.py", "tests/test_login.py"})
+            areas = {a["area"]: a["reasons"] for a in uncommitted["areas"]}
+            self.assertEqual(areas["Security"], ["src/auth/login.py"])
+            self.assertIn("src/jobs.py adds `asyncio`", areas["Concurrency"])
+            self.assertEqual(self.context.review_diff(root, "main")["label"], "main")
+            with self.assertRaises(ValueError):
+                self.context.review_diff(root, "--output=/tmp/x")
+
+    def test_not_a_git_repo_says_so(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            plan = self.engine.generate("TypeError in UserList.tsx", task_type="debug", project_dir=tmp)
+            self.assertIs(plan["context"]["git"], False)
+            self.assertIn("Not a git repository", self.advisor.format_markdown(plan))
+
+    def test_cli_context_and_bad_diff_base(self):
+        if not git_available():
+            self.skipTest("git not installed")
+        with tempfile.TemporaryDirectory() as tmp:
+            make_repo(Path(tmp), self.FILES)
+            env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", PYTHONIOENCODING="utf-8")
+            r = subprocess.run([sys.executable, str(SKILLS / "code-solving/scripts/search.py"), "--stdin", "--context"],
+                               input='  File "app/orders.py", line 2'.encode("utf-8"), cwd=tmp, env=env,
+                               capture_output=True)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn("app/orders.py:2", r.stdout.decode("utf-8"))
+            r = run_script(SKILLS / "code-solving/scripts/search.py",
+                           ["review", "--plan", "--type", "review", "--diff=-x"], cwd=tmp)
+            self.assertEqual(r.returncode, 2)
+            self.assertIn("invalid --diff base", r.stderr)
 
 
 class ProblemSolvingTests(unittest.TestCase):

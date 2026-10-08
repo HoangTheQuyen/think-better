@@ -16,6 +16,8 @@ cat .agents/skills/code-solving/SKILL.md
    Keep the request between the two `TASK` lines exactly as given: it is read from stdin, so
    quotes, backticks and `$` in it are safe. Never move it onto the command line or into quotes
    (PowerShell: see "Passing the user's text" in SKILL.md).
+   If the user shared an error or stack trace, keep all of it in the request: the plan maps its
+   frames to project files and lines under "Context from the project".
 // turbo
 ```
 python3 .agents/skills/code-solving/scripts/search.py --stdin --plan --type debug -f markdown <<'TASK'

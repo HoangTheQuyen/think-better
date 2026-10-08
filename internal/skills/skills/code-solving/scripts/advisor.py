@@ -14,6 +14,7 @@ Usage:
 from datetime import datetime
 from pathlib import Path
 
+from context import gather as gather_context
 from core import (
     classify_task, detect_project_commands, find_named, load_csv, save_docs, search,
     slugify, default_output_dir, task_type_names,
@@ -57,11 +58,16 @@ class CodeSolvingAdvisor:
     """Assembles a plan from the task type's own recommendations plus search."""
 
     def generate(self, query: str, project_name: str = None, depth: str = "standard",
-                 task_type: str = None, project_dir: str = None) -> dict:
+                 task_type: str = None, project_dir: str = None, context: bool = True,
+                 diff: str = None) -> dict:
         """Build the plan dict.
 
+        context: look up what the request points at in the project (stack-trace
+        locations, named files and symbols, recent commits, working tree).
+        diff: base to review against ("auto" picks one); reviews default to "auto".
+
         Raises:
-            ValueError: if task_type or depth is unknown.
+            ValueError: if task_type, depth or the diff base is invalid.
         """
         if depth not in DEPTH_CONFIG:
             raise ValueError(f"unknown depth {depth!r}; choose one of: {', '.join(VALID_DEPTHS)}")
@@ -103,6 +109,18 @@ class CodeSolvingAdvisor:
         except OSError:
             commands = []
 
+        ctx = {}
+        if context:
+            if diff is None and task["Type"] == "review":
+                diff = "auto"
+            ctx = gather_context(query, Path(project_dir) if project_dir else default_output_dir(), diff)
+
+        # Review areas the diff touches come first, and are never cut by depth
+        diff_areas = [a["area"] for a in ctx.get("diff", {}).get("areas", [])]
+        focus = [n.strip() for n in task["Review Focus"].split(";") if n.strip()]
+        review_names = diff_areas + [n for n in focus if n not in diff_areas]
+        review_count = max(cfg["review"], len(diff_areas))
+
         return {
             "depth": depth,
             "query": query,
@@ -134,17 +152,77 @@ class CodeSolvingAdvisor:
             ],
             "review": [
                 {"area": r["Area"], "check": r["What to Check"], "red_flags": r["Red Flags"], "how": r["How to Verify"]}
-                for r in find_named("review", task["Review Focus"])[:cfg["review"]]
+                for r in find_named("review", review_names)[:review_count]
             ],
             "artifact": {"name": artifact.get("Artifact", "Pull Request Description"),
                          "structure": artifact.get("Structure", "")},
             "anti_patterns": task["Anti-Patterns"],
             "escalate": task["Escalate"],
             "commands": [{"purpose": p, "command": c, "source": s} for p, c, s in commands],
+            "context": ctx,
         }
 
 
 # ============ FORMATTING ============
+def _context_lines(ctx: dict) -> list:
+    """The context section: facts found in the project, for Step 2 to start from."""
+    lines = []
+    if ctx.get("locations"):
+        lines.append("**Where the error points** (project frames only):")
+        for loc in ctx["locations"]:
+            where = f"`{loc['file']}:{loc['line']}`" + (f" in `{loc['func']}`" if loc["func"] else "")
+            lines.append(f"- {where}" + (f": `{loc['code']}`" if loc["code"] else ""))
+    if ctx.get("files"):
+        lines.append("**Files named in the request:** " + ", ".join(f"`{f}`" for f in ctx["files"]))
+    if ctx.get("symbols"):
+        lines.append("**Symbols:**")
+        for s in ctx["symbols"]:
+            defined = ("defined at " + ", ".join(f"`{d}`" for d in s["defined"])) if s["defined"] \
+                else "definition not found"
+            plural = "" if s["files"] == 1 else "s"
+            lines.append(f"- `{s['name']}`: {defined}; mentioned in {s['files']} file{plural}")
+    if ctx.get("commits"):
+        scope = "these files" if ctx.get("touched") else "the repository"
+        lines.append(f"**Recent commits touching {scope}** (check them first for regressions):")
+        lines += [f"- `{c['sha']}` {c['date']} {c['author']}: {c['subject']}" for c in ctx["commits"]]
+    tree = ctx.get("tree")
+    if tree and tree.get("branch"):
+        line = f"**Working tree:** branch `{tree['branch']}`"
+        if tree["change_count"]:
+            shown = ", ".join(f"`{c}`" for c in tree["changes"][:5])
+            more = f" and {tree['change_count'] - 5} more" if tree["change_count"] > 5 else ""
+            line += f", {tree['change_count']} uncommitted changes: {shown}{more}"
+        else:
+            line += ", no uncommitted changes"
+        lines.append(line)
+    diff = ctx.get("diff")
+    if diff:
+        if diff.get("error"):
+            lines.append(f"**Diff:** {diff['error']}")
+        elif not diff.get("files"):
+            lines.append(f"**Diff** (`{diff['label']}`): no changes found. Ask which change to review.")
+        else:
+            files = diff["files"]
+            lines.append(f"**Diff under review** (`{diff['label']}`): {len(files)} file{'' if len(files) == 1 else 's'}, "
+                         f"+{diff['added']} −{diff['removed']}")
+            lines += ["", "| File | + | − |", "|---|---|---|"]
+            lines += [f"| `{f['file']}`{' (new, untracked)' if f.get('new') else ''} | {f['added']} | {f['removed']} |"
+                      for f in files[:15]]
+            if len(files) > 15:
+                lines.append(f"| … {len(files) - 15} more | | |")
+            lines.append("")
+            if diff["areas"]:
+                lines.append("**Review focus from the diff** (checked first in the review checklist):")
+                for a in diff["areas"]:
+                    more = f" (+{a['count'] - len(a['reasons'])} more)" if a["count"] > len(a["reasons"]) else ""
+                    lines.append(f"- **{a['area']}**: " + "; ".join(a["reasons"]) + more)
+    if lines:
+        lines.insert(0, "Found in the code and git history, not guessed. Read these first in Step 2.")
+    elif ctx.get("git") is False:
+        lines.append("Not a git repository: no history or diff available. Search the code by hand in Step 2.")
+    return lines
+
+
 def _sections(plan: dict) -> list:
     """Plan as (heading, [lines]) pairs, lines in light markdown."""
     task = plan["task"]
@@ -158,6 +236,10 @@ def _sections(plan: dict) -> list:
     head.append("Work the steps in order. Do not move on until the step's **Gate** is met "
                 "with evidence you actually produced (command output, test result).")
     out.append(("", head))
+
+    lines = _context_lines(plan.get("context", {}))
+    if lines:
+        out.append(("Context from the project", lines))
 
     for step in plan["steps"]:
         lines = [f"*{step['goal']}*", step["guidance"]]
@@ -283,7 +365,7 @@ def persist_step_by_step(plan: dict, output_dir: str = None, force: bool = False
     """
     plan_dir = _plan_dir(plan, output_dir)
     steps = {s["name"]: s for s in CodeSolvingAdvisor().generate(
-        plan["query"], plan["project_name"], "deep", plan["task"]["type"])["steps"]}
+        plan["query"], plan["project_name"], "deep", plan["task"]["type"], context=False)["steps"]}
     task = plan["task"]
     handoff = HANDOFF_FILES.get(plan["artifact"]["name"], "06-HANDOFF.md")
 
@@ -324,13 +406,21 @@ def persist_step_by_step(plan: dict, output_dir: str = None, force: bool = False
 ## Out of scope
 -
 """
+    ctx = plan.get("context", {})
+    rows = [f"| `{loc['file']}:{loc['line']}` | in the stack trace{', ' + loc['func'] if loc['func'] else ''} |  |"
+            for loc in ctx.get("locations", [])]
+    rows += [f"| `{f}` | named in the request |  |" for f in ctx.get("files", [])]
+    rows += [f"| `{s['defined'][0]}` | defines `{s['name']}` (mentioned in {s['files']} file(s)) |  |"
+             for s in ctx.get("symbols", []) if s["defined"]]
+    rows += [f"| `{f['file']}` | changed in the diff (+{f['added']} −{f['removed']}) |  |"
+             for f in ctx.get("diff", {}).get("files", [])[:15]]
     files["02-CHANGE-MAP.md"] = f"""# 2. Decompose: change map
 
 {guide('Decompose')}
 
 | Path | Role | Change? |
 |---|---|---|
-|  |  |  |
+{chr(10).join(rows) or '|  |  |  |'}
 
 ## Call path
 <!-- input → ... → output -->
@@ -388,12 +478,12 @@ def persist_step_by_step(plan: dict, output_dir: str = None, force: bool = False
 def generate_code_plan(query: str, project_name: str = None, output_format: str = "markdown",
                        persist: bool = False, output_dir: str = None, depth: str = "standard",
                        step_docs: bool = False, task_type: str = None, project_dir: str = None,
-                       force: bool = False) -> str:
+                       force: bool = False, context: bool = True, diff: str = None) -> str:
     """Generate a formatted plan; optionally save it (existing files are kept unless force).
 
     Raises ValueError for unknown values.
     """
-    plan = CodeSolvingAdvisor().generate(query, project_name, depth, task_type, project_dir)
+    plan = CodeSolvingAdvisor().generate(query, project_name, depth, task_type, project_dir, context, diff)
     result = format_markdown(plan) if output_format == "markdown" else format_text(plan)
     if persist:
         if step_docs:
