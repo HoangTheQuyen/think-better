@@ -173,9 +173,11 @@ since yesterday's deploy. Repro: add a gift card, then pay.
 | 6. Verify | The Step 1 check passes; your project's test/lint/build commands pass |
 | 7. Communicate | A PR description (or postmortem / design doc / review report) |
 
-The skill finds your project's own commands (npm/pnpm/yarn, Make, Go, Cargo, pytest,
-Maven/Gradle, …): `python3 .claude/skills/code-solving/scripts/search.py --detect`.
+The skill finds your project's own commands (npm/pnpm/yarn, Make, Go, Cargo, pytest with
+uv/Poetry/PDM, Maven/Gradle, …), the command to run a single test, and the check steps your
+CI runs: `python3 .claude/skills/code-solving/scripts/search.py --detect`.
 Say "save step-by-step" to get a `coding-plans/<name>/` workspace with one file per step.
+Saving again keeps the files you already filled in.
 
 ---
 

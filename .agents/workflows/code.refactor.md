@@ -13,9 +13,14 @@ cat .agents/skills/code-solving/SKILL.md
 
 2. Generate the plan:
    Run from the project root (use `python` if `python3` is missing).
+   Keep the request between the two `TASK` lines exactly as given: it is read from stdin, so
+   quotes, backticks and `$` in it are safe. Never move it onto the command line or into quotes
+   (PowerShell: see "Passing the user's text" in SKILL.md).
 // turbo
 ```
-python3 .agents/skills/code-solving/scripts/search.py "$ARGUMENTS" --plan --type refactor -f markdown
+python3 .agents/skills/code-solving/scripts/search.py --stdin --plan --type refactor -f markdown <<'TASK'
+$ARGUMENTS
+TASK
 ```
 
 3. Work the steps in order. Before moving on, produce each step's **Gate** evidence for real
@@ -25,7 +30,9 @@ python3 .agents/skills/code-solving/scripts/search.py "$ARGUMENTS" --plan --type
    Replace `<project-name>` with a short name for this work; files are saved in the project.
 // turbo
 ```
-python3 .agents/skills/code-solving/scripts/search.py "$ARGUMENTS" --plan --type refactor --persist --step-docs -p "<project-name>" -f markdown
+python3 .agents/skills/code-solving/scripts/search.py --stdin --plan --type refactor --persist --step-docs -p "<project-name>" -f markdown <<'TASK'
+$ARGUMENTS
+TASK
 ```
 
 5. Finish with the hand-off from Step 7, then append:

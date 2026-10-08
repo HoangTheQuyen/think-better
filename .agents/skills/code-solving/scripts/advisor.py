@@ -15,7 +15,7 @@ from datetime import datetime
 from pathlib import Path
 
 from core import (
-    classify_task, detect_project_commands, find_named, load_csv, search,
+    classify_task, detect_project_commands, find_named, load_csv, save_docs, search,
     slugify, default_output_dir, task_type_names,
 )
 
@@ -166,7 +166,8 @@ def _sections(plan: dict) -> list:
         if depth in ("deep", "executive"):
             lines.append(f"- **Pitfalls:** {step['pitfalls']}")
         if step["name"] == "Verify" and plan["commands"]:
-            lines.append("- **Run:** the commands under *Project checks* below.")
+            lines.append("- **Run:** the commands under *Project checks* below (`one test` is for "
+                         "the inner loop while you work).")
         out.append((f"{step['number']}. {step['name']}", lines))
 
     if plan["commands"]:
@@ -257,10 +258,6 @@ NEXT_STEPS = """
 
 
 # ============ PERSISTENCE ============
-def _write(path: Path, content: str) -> None:
-    path.write_text(content, encoding="utf-8")
-
-
 def _plan_dir(plan: dict, output_dir: str = None) -> Path:
     base = Path(output_dir) if output_dir else default_output_dir()
     plan_dir = base / "coding-plans" / slugify(plan["project_name"])
@@ -268,16 +265,22 @@ def _plan_dir(plan: dict, output_dir: str = None) -> Path:
     return plan_dir
 
 
-def persist_plan(plan: dict, output_dir: str = None) -> str:
-    """Save the plan as coding-plans/<slug>/PLAN.md and return its path."""
-    path = _plan_dir(plan, output_dir) / "PLAN.md"
+def persist_plan(plan: dict, output_dir: str = None, force: bool = False) -> tuple:
+    """Save the plan as coding-plans/<slug>/PLAN.md; returns (path, written).
+
+    An existing PLAN.md is kept unless force is set.
+    """
+    plan_dir = _plan_dir(plan, output_dir)
     stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-    _write(path, format_markdown(plan) + f"\n---\n*Generated: {stamp}*\n")
-    return str(path)
+    written, _ = save_docs(plan_dir, {"PLAN.md": format_markdown(plan) + f"\n---\n*Generated: {stamp}*\n"}, force)
+    return str(plan_dir / "PLAN.md"), bool(written)
 
 
-def persist_step_by_step(plan: dict, output_dir: str = None) -> tuple:
-    """Write one workspace file per step; returns (dir, [file names])."""
+def persist_step_by_step(plan: dict, output_dir: str = None, force: bool = False) -> tuple:
+    """Write one workspace file per step; returns (dir, written, kept).
+
+    Files that already exist hold the user's notes and are kept unless force is set.
+    """
     plan_dir = _plan_dir(plan, output_dir)
     steps = {s["name"]: s for s in CodeSolvingAdvisor().generate(
         plan["query"], plan["project_name"], "deep", plan["task"]["type"])["steps"]}
@@ -353,7 +356,8 @@ def persist_step_by_step(plan: dict, output_dir: str = None) -> tuple:
 
 {log_table}
 """
-    checks = "\n".join(f"- [ ] `{c['command']}`" for c in plan["commands"]) or "- [ ] <test command>"
+    checks = "\n".join(f"- [ ] `{c['command']}`" for c in plan["commands"]
+                       if c["purpose"] != "one test") or "- [ ] <test command>"
     review = "\n".join(f"- [ ] {r['area']}: {r['check']}" for r in plan["review"]) or "- [ ] Diff reviewed"
     files["05-VERIFY.md"] = f"""# 6. Verify
 
@@ -376,22 +380,30 @@ def persist_step_by_step(plan: dict, output_dir: str = None) -> tuple:
 
 {body}
 """
-    for name, content in files.items():
-        _write(plan_dir / name, content)
-    return str(plan_dir), list(files)
+    written, kept = save_docs(plan_dir, files, force)
+    return str(plan_dir), written, kept
 
 
 # ============ PUBLIC API ============
 def generate_code_plan(query: str, project_name: str = None, output_format: str = "markdown",
                        persist: bool = False, output_dir: str = None, depth: str = "standard",
-                       step_docs: bool = False, task_type: str = None, project_dir: str = None) -> str:
-    """Generate a formatted plan; optionally save it. Raises ValueError for unknown values."""
+                       step_docs: bool = False, task_type: str = None, project_dir: str = None,
+                       force: bool = False) -> str:
+    """Generate a formatted plan; optionally save it (existing files are kept unless force).
+
+    Raises ValueError for unknown values.
+    """
     plan = CodeSolvingAdvisor().generate(query, project_name, depth, task_type, project_dir)
     result = format_markdown(plan) if output_format == "markdown" else format_text(plan)
     if persist:
         if step_docs:
-            plan_dir, files = persist_step_by_step(plan, output_dir)
+            plan_dir, files, kept = persist_step_by_step(plan, output_dir, force)
             result += f"\nWorkspace saved to: {plan_dir}/\n" + "".join(f"  {f}\n" for f in files)
+            if kept:
+                result += (f"Kept {len(kept)} existing files with your notes (add --force to replace them):\n"
+                           + "".join(f"  {f}\n" for f in kept))
         else:
-            result += f"\nPlan saved to: {persist_plan(plan, output_dir)}\n"
+            path, written = persist_plan(plan, output_dir, force)
+            result += (f"\nPlan saved to: {path}\n" if written
+                       else f"\nKept the existing plan at {path} (add --force to replace it).\n")
     return result + NEXT_STEPS

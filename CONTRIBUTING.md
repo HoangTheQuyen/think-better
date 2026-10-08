@@ -104,7 +104,17 @@ with that skill.
   value; strict YAML parsers reject it (a test checks this).
 - Reference skills as `.agents/skills/<skill>/...`; the installer rewrites the
   path for each target (e.g. `.claude/skills/<skill>/...`).
-- Use `$ARGUMENTS` for the user's input.
+- Use `$ARGUMENTS` for the user's input, alone on its line inside a quoted heredoc
+  that the script reads with `--stdin` (a test checks this):
+
+  ```
+  python3 .agents/skills/<skill>/scripts/search.py --stdin --plan <<'TASK'
+  $ARGUMENTS
+  TASK
+  ```
+
+  Never write `"$ARGUMENTS"` on a command line: the user's text often holds
+  backticks, `$` or quotes (pasted errors), and the shell would run or mangle them.
 - A test fails if a workflow references a skill that does not exist.
 
 ## Adding a new AI target

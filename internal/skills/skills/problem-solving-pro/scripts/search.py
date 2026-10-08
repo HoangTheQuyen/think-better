@@ -4,7 +4,10 @@
 Problem Solving Pro Search - BM25 search engine for structured problem-solving.
 Usage: python search.py "<query>" [--domain <domain>] [--max-results 3]
        python search.py "<query>" --plan [-p "Project Name"]
-       python search.py "<query>" --plan --persist [-p "Project Name"]
+       python search.py "<query>" --plan --persist [-p "Project Name"] [--force]
+       python search.py --stdin --plan <<'TASK'   # problem text on stdin, never parsed by the shell
+       <problem>
+       TASK
 
 Domains: steps, problem-types, decomposition, prioritization, analysis, biases,
          communication, heuristics, team
@@ -16,7 +19,7 @@ across all domains and applying reasoning rules to recommend the best approach.
 import argparse
 import sys
 import io
-from core import CSV_CONFIG, MAX_RESULTS, search, problem_type_names, category_names
+from core import CSV_CONFIG, MAX_RESULTS, search, problem_type_names, category_names, read_stdin_query
 from advisor import generate_solving_plan, VALID_DEPTHS
 
 # Force UTF-8 for stdout/stderr to handle Unicode on Windows
@@ -24,6 +27,14 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 if sys.stderr.encoding and sys.stderr.encoding.lower() != 'utf-8':
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
+
+def positive_int(value):
+    """argparse type: an integer >= 1."""
+    number = int(value)
+    if number < 1:
+        raise argparse.ArgumentTypeError(f"must be 1 or more, got {value}")
+    return number
 
 
 def format_output(result):
@@ -50,9 +61,11 @@ def format_output(result):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Problem Solving Pro Search")
-    parser.add_argument("query", help="Problem description or search query")
+    parser.add_argument("query", nargs="?", default="", help="Problem description or search query")
+    parser.add_argument("--stdin", action="store_true",
+                        help="Read the problem from stdin (safe for text with quotes, backticks or $)")
     parser.add_argument("--domain", "-d", choices=list(CSV_CONFIG.keys()), help="Search domain")
-    parser.add_argument("--max-results", "-n", type=int, default=MAX_RESULTS, help="Max results (default: 3)")
+    parser.add_argument("--max-results", "-n", type=positive_int, default=MAX_RESULTS, help="Max results (default: 3)")
     parser.add_argument("--json", action="store_true", help="Output as JSON")
     # Plan generation
     parser.add_argument("--plan", action="store_true", help="Generate comprehensive problem-solving plan")
@@ -65,6 +78,7 @@ if __name__ == "__main__":
     parser.add_argument("--depth", choices=VALID_DEPTHS, default="standard", help="Analysis depth: quick, standard, deep, or executive (default: standard)")
     # Step-by-step docs
     parser.add_argument("--step-docs", action="store_true", help="With --persist, create separate markdown files per step")
+    parser.add_argument("--force", action="store_true", help="With --persist, replace files that already exist")
     # Classification overrides (the AI usually knows better than keyword matching)
     parser.add_argument("--type", "-t", dest="problem_type", default=None,
                         help="Problem type, skips auto-detection: " + ", ".join(problem_type_names()))
@@ -72,6 +86,8 @@ if __name__ == "__main__":
                         help="Problem context, selects the reasoning rule: " + ", ".join(category_names()))
 
     args = parser.parse_args()
+    if args.stdin:
+        args.query = read_stdin_query()
 
     # Validate query is not empty
     if not args.query.strip():
@@ -91,6 +107,7 @@ if __name__ == "__main__":
                 step_docs=args.step_docs,
                 problem_type=args.problem_type,
                 category=args.category,
+                force=args.force,
             )
         except ValueError as e:
             print(f"Error: {e}", file=sys.stderr)
