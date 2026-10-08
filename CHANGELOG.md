@@ -6,6 +6,11 @@ and the project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Docs, website, examples and issue/PR templates are English only: the Vietnamese README section,
+  website text and examples were removed.
+
 ## [1.5.0] - 2026-10-08
 
 ### Breaking
@@ -47,7 +52,7 @@ and the project follows [Semantic Versioning](https://semver.org/).
 - `--exclude-command` / `--include-command` keep individual slash commands out.
 - Slash commands with no text: `/code.review` reviews the current changes, the resume
   commands open the latest workspace, the others ask first. Answers come in your language,
-  and saving accepts "lưu", "lưu lại", "lưu từng bước".
+  and saving accepts "save", "save again" and "save step-by-step".
 - All three skill scripts accept `-p`/`--project-name`/`--project` and
   `-n`/`--max-results`/`--results`; code-solving's executive depth opens with a summary.
 - CI tests upgrading from v1.3.0 and v1.4.0 on Linux and macOS.
