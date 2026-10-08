@@ -13,15 +13,19 @@ cat .agents/skills/problem-solving-pro/SKILL.md
 ```
 
 2. Run the analysis:
+   Run from the project root (use `python` if `python3` is missing). If you can tell the
+   problem type and context, add `--type <type> --category "<context>"` (values are listed
+   in SKILL.md); otherwise omit them and the script auto-detects.
 // turbo
 ```
-cd .agents/skills/problem-solving-pro/scripts && python search.py "$ARGUMENTS" --plan -f markdown
+python3 .agents/skills/problem-solving-pro/scripts/search.py "$ARGUMENTS" --plan -f markdown
 ```
 
 3. If user mentions "save", "persist", "step-by-step", "workspace":
+   Replace `<project-name>` with a short name for this work; files are saved in the project.
 // turbo
 ```
-cd .agents/skills/problem-solving-pro/scripts && python search.py "$ARGUMENTS" --plan --persist --step-docs -p "$PROJECT_NAME" -f markdown
+python3 .agents/skills/problem-solving-pro/scripts/search.py "$ARGUMENTS" --plan --persist --step-docs -p "<project-name>" -f markdown
 ```
 
 4. Present the output, then append:

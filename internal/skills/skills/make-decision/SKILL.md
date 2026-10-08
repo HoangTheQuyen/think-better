@@ -48,6 +48,14 @@ winget install Python.Python.3.12
 
 ---
 
+## Running the Scripts
+
+Run every command from the **project root** with the path shown, e.g.
+`python3 .agents/skills/make-decision/scripts/search.py ...` (the installer adjusts this path for
+your AI tool). Saved plans and journals are written to the project, never inside the skill folder.
+
+---
+
 ## How to Use This Workflow
 
 When user requests decision-making help (decide, choose, compare, evaluate, select, prioritize, trade-off, weigh options), follow this workflow:
@@ -65,7 +73,15 @@ Extract key information from user's decision description:
 **Always start with `--plan`** to get comprehensive recommendations:
 
 ```bash
-python3 scripts/search.py "<decision_description>" --plan [-p "Project Name"]
+python3 .agents/skills/make-decision/scripts/search.py "<decision_description>" --plan [-p "Project Name"]
+```
+
+**Classify it yourself when you can** — you understand the decision better than keyword matching.
+Add `--type "<decision type>"`, one of: Binary Choice, Multi-Option Selection, Resource Allocation, Strategic Direction, Operational / Tactical, Decision Under Uncertainty, Group / Stakeholder Decision, Time-Pressured Decision.
+Omit it to auto-detect ("A vs B" is treated as a Binary Choice, "A vs B vs C" as Multi-Option Selection).
+
+```bash
+python3 .agents/skills/make-decision/scripts/search.py "Postgres vs MongoDB for the orders service" --plan --type "Binary Choice"
 ```
 
 This command:
@@ -79,7 +95,7 @@ This command:
 
 **Example:**
 ```bash
-python3 scripts/search.py "choosing between AWS and Azure for cloud migration" --plan -p "Cloud Migration"
+python3 .agents/skills/make-decision/scripts/search.py "choosing between AWS and Azure for cloud migration" --plan -p "Cloud Migration"
 ```
 
 ### Step 2b: Persist Decision Plan
@@ -87,7 +103,7 @@ python3 scripts/search.py "choosing between AWS and Azure for cloud migration" -
 To save the plan for reference:
 
 ```bash
-python3 scripts/search.py "<decision>" --plan --persist -p "Project Name"
+python3 .agents/skills/make-decision/scripts/search.py "<decision>" --plan --persist -p "Project Name"
 ```
 
 This creates:
@@ -98,7 +114,7 @@ This creates:
 Use when the plan's recommendation needs more detail, OR when user asks about a specific topic (e.g., "what biases should I watch for?"):
 
 ```bash
-python3 scripts/search.py "<keyword>" --domain <domain> [-n <max_results>]
+python3 .agents/skills/make-decision/scripts/search.py "<keyword>" --domain <domain> [-n <max_results>]
 ```
 
 **When to use domain searches:**
@@ -117,7 +133,7 @@ python3 scripts/search.py "<keyword>" --domain <domain> [-n <max_results>]
 Use when user has 2+ named options to compare (e.g., "A vs B vs C"). Generate a comparison matrix:
 
 ```bash
-python3 scripts/search.py --matrix "AWS vs Azure vs GCP" [-c "cost,scalability,security"]
+python3 .agents/skills/make-decision/scripts/search.py --matrix "AWS vs Azure vs GCP" [-c "cost,scalability,security"]
 ```
 
 This generates a weighted comparison matrix with criteria auto-suggested from templates (or custom criteria via `-c`), scoring guide, and calculation instructions.
@@ -128,13 +144,13 @@ Use after reaching a conclusion. Creates a journal entry for future reflection a
 
 ```bash
 # Create journal entry
-python3 scripts/search.py --journal "Choosing cloud provider for Q3 migration"
+python3 .agents/skills/make-decision/scripts/search.py --journal "Choosing cloud provider for Q3 migration"
 
 # Review past decisions
-python3 scripts/search.py --journal --review
+python3 .agents/skills/make-decision/scripts/search.py --journal --review
 
 # Update with actual outcome (weeks/months later)
-python3 scripts/search.py --journal --update "choosing-cloud" --outcome "Chose AWS, migration completed on time, 15% under budget"
+python3 .agents/skills/make-decision/scripts/search.py --journal --update "choosing-cloud" --outcome "Chose AWS, migration completed on time, 15% under budget"
 ```
 
 ---
@@ -167,7 +183,7 @@ python3 scripts/search.py --journal --update "choosing-cloud" --outcome "Chose A
 ### Step 2: Generate Decision Plan
 
 ```bash
-python3 scripts/search.py "build vs buy vs outsource CRM system" --plan -p "CRM Decision"
+python3 .agents/skills/make-decision/scripts/search.py "build vs buy vs outsource CRM system" --plan -p "CRM Decision"
 ```
 
 **Output:** Complete plan with decision type classification (Multi-Option Selection), recommended framework (Weighted Criteria Matrix), Technology Selection criteria with weights, analysis techniques (Sensitivity Analysis, Opportunity Cost), bias warnings (Status Quo Bias, Sunk Cost Fallacy), and decision checklist.
@@ -176,25 +192,25 @@ python3 scripts/search.py "build vs buy vs outsource CRM system" --plan -p "CRM 
 
 ```bash
 # Get detailed framework guidance
-python3 scripts/search.py "weighted criteria evaluation" --domain frameworks
+python3 .agents/skills/make-decision/scripts/search.py "weighted criteria evaluation" --domain frameworks
 
 # Check for relevant biases
-python3 scripts/search.py "status quo sunk cost technology" --domain biases
+python3 .agents/skills/make-decision/scripts/search.py "status quo sunk cost technology" --domain biases
 
 # Get facilitation guidance for team decision
-python3 scripts/search.py "structured debate team" --domain facilitation
+python3 .agents/skills/make-decision/scripts/search.py "structured debate team" --domain facilitation
 ```
 
 ### Step 4: Compare Options
 
 ```bash
-python3 scripts/search.py --matrix "Build in-house vs Buy SaaS vs Hire agency"
+python3 .agents/skills/make-decision/scripts/search.py --matrix "Build in-house vs Buy SaaS vs Hire agency"
 ```
 
 ### Step 5: Document the Decision
 
 ```bash
-python3 scripts/search.py --journal "CRM platform: build vs buy vs outsource" -p "CRM Decision"
+python3 .agents/skills/make-decision/scripts/search.py --journal "CRM platform: build vs buy vs outsource" -p "CRM Decision"
 ```
 
 **Then:** Synthesize the plan, searches, and matrix into a structured decision recommendation for the user, walking them through each step of the recommended framework.
@@ -207,10 +223,10 @@ The `--plan` flag supports two output formats:
 
 ```bash
 # ASCII box (default) - best for terminal display
-python3 scripts/search.py "market entry strategy" --plan
+python3 .agents/skills/make-decision/scripts/search.py "market entry strategy" --plan
 
 # Markdown - best for documentation
-python3 scripts/search.py "market entry strategy" --plan -f markdown
+python3 .agents/skills/make-decision/scripts/search.py "market entry strategy" --plan -f markdown
 ```
 
 ---

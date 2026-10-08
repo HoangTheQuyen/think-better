@@ -13,8 +13,10 @@ from math import log
 from collections import defaultdict
 
 # ============ CONFIGURATION ============
-DATA_DIR = Path(__file__).parent.parent / "data"
+SKILL_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = SKILL_DIR / "data"
 MAX_RESULTS = 3
+REASONING_FILE = "reasoning.csv"
 
 CSV_CONFIG = {
     "steps": {
@@ -24,7 +26,7 @@ CSV_CONFIG = {
     },
     "problem-types": {
         "file": "problem-types.csv",
-        "search_cols": ["Problem Type", "Keywords", "Characteristics", "Recommended Approach"],
+        "search_cols": ["Problem Type", "Keywords", "Characteristics", "Recommended Approach", "Example Domains"],
         "output_cols": ["Problem Type", "Keywords", "Complexity", "Characteristics", "Recommended Approach", "Decomposition Style", "Analysis Methods", "Common Mistakes", "Example Domains", "Time Frame", "Team Size"]
     },
     "decomposition": {
@@ -65,6 +67,43 @@ CSV_CONFIG = {
 }
 
 
+# ============ TEXT PROCESSING ============
+STOPWORDS = {
+    "a", "an", "and", "are", "as", "at", "be", "been", "but", "by", "can", "do", "does",
+    "for", "from", "had", "has", "have", "how", "i", "if", "in", "into", "is", "it", "its",
+    "me", "my", "of", "on", "or", "our", "should", "so", "that", "the", "their", "them",
+    "then", "there", "these", "this", "to", "us", "was", "we", "were", "what", "when",
+    "which", "who", "why", "will", "with", "would", "you", "your",
+}
+
+_SUFFIXES = ("ations", "ation", "ings", "ing", "ies", "ied", "ed", "es", "ly", "s")
+
+
+def stem(word: str) -> str:
+    """Light suffix stemmer so 'declining', 'declined' and 'decline' match."""
+    for suffix in _SUFFIXES:
+        if word.endswith(suffix) and len(word) - len(suffix) >= 3:
+            word = word[: -len(suffix)]
+            if suffix in ("ies", "ied"):
+                word += "y"
+            break
+    if len(word) > 4 and word.endswith("e"):
+        word = word[:-1]
+    # dropp -> drop, scal(l) stays readable enough for matching
+    if len(word) > 3 and word[-1] == word[-2] and word[-1] not in "aeiouls":
+        word = word[:-1]
+    return word
+
+
+def tokenize(text) -> list:
+    """Lowercase, strip punctuation, drop stopwords, stem.
+
+    Two-letter tokens are kept on purpose: CI, UI, DB, QA, PR, AI, ML matter.
+    """
+    text = re.sub(r"[^\w\s]", " ", str(text).lower())
+    return [stem(w) for w in text.split() if len(w) > 1 and w not in STOPWORDS]
+
+
 # ============ BM25 IMPLEMENTATION ============
 class BM25:
     """BM25 ranking algorithm for text search."""
@@ -80,9 +119,7 @@ class BM25:
         self.N = 0
 
     def tokenize(self, text):
-        """Lowercase, split, remove punctuation, filter short words."""
-        text = re.sub(r'[^\w\s]', ' ', str(text).lower())
-        return [w for w in text.split() if len(w) > 2]
+        return tokenize(text)
 
     def fit(self, documents) -> None:
         """Build BM25 index from documents."""
@@ -201,3 +238,74 @@ def search(query, domain=None, max_results=MAX_RESULTS):
         "count": len(results),
         "results": results
     }
+
+
+# ============ CLASSIFICATION ============
+def load_reasoning() -> list:
+    """Load reasoning rules (one per problem category)."""
+    filepath = DATA_DIR / REASONING_FILE
+    if not filepath.exists():
+        return []
+    return _load_csv(filepath)
+
+
+def problem_type_names() -> list:
+    """All problem types, for --type choices."""
+    return [row["Problem Type"] for row in _load_csv(DATA_DIR / CSV_CONFIG["problem-types"]["file"])]
+
+
+def category_names() -> list:
+    """All reasoning categories, for --category choices."""
+    return [row["Problem_Category"] for row in load_reasoning()]
+
+
+def classify_category(query: str) -> str:
+    """Pick the reasoning category (business context) that best matches the query.
+
+    Returns "" when nothing matches, so callers fall back to generic defaults.
+    """
+    rules = load_reasoning()
+    if not rules:
+        return ""
+    documents = [f"{r.get('Problem_Category', '')} {r.get('Keywords', '')}" for r in rules]
+    bm25 = BM25()
+    bm25.fit(documents)
+    ranked = bm25.score(query)
+    if not ranked or ranked[0][1] <= 0:
+        return ""
+    return rules[ranked[0][0]].get("Problem_Category", "")
+
+
+def resolve_choice(value: str, choices: list, what: str) -> str:
+    """Case-insensitive lookup of value in choices; raises ValueError if unknown."""
+    for choice in choices:
+        if choice.lower() == value.strip().lower():
+            return choice
+    raise ValueError(f"unknown {what} {value!r}; choose one of: {', '.join(choices)}")
+
+
+# ============ OUTPUT PATHS ============
+def slugify(text: str, max_len: int = 50) -> str:
+    """Filesystem-safe slug: no separators, no '..', never empty."""
+    slug = re.sub(r"[^\w\s-]", " ", str(text).lower())
+    slug = re.sub(r"[\s_-]+", "-", slug).strip("-")[:max_len].strip("-")
+    return slug or "plan"
+
+
+def default_output_dir() -> Path:
+    """Where persisted plans go when --output-dir is not given.
+
+    Normally the current directory (the user's project). If the script is run
+    from inside the installed skill folder (e.g. after `cd .../scripts`),
+    write to the project root instead so plans never land inside the skill,
+    where reinstalling or uninstalling would delete them.
+    """
+    cwd = Path.cwd().resolve()
+    if cwd != SKILL_DIR and SKILL_DIR not in cwd.parents:
+        return cwd
+    for parent in SKILL_DIR.parents:
+        if (parent / ".git").exists():
+            return parent
+    # Skills are installed at <project>/<.target>/<skills|prompts>/<name>/
+    parents = SKILL_DIR.parents
+    return parents[2] if len(parents) > 2 else SKILL_DIR.parent

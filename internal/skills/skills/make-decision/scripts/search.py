@@ -129,6 +129,9 @@ if __name__ == "__main__":
     parser.add_argument("--depth", choices=VALID_DEPTHS, default="standard", help="Analysis depth: quick, standard, deep, or executive (default: standard)")
     # Step-by-step docs
     parser.add_argument("--step-docs", action="store_true", help="With --persist, create separate markdown files per step")
+    # Classification override (the AI usually knows better than keyword matching)
+    parser.add_argument("--type", "-t", dest="decision_type", default=None,
+                        help="Decision type, skips auto-detection: " + ", ".join(DecisionAdvisor.decision_type_names()))
 
     args = parser.parse_args()
 
@@ -148,14 +151,9 @@ if __name__ == "__main__":
                 output_dir=args.output_dir,
                 depth=args.depth,
                 step_docs=args.step_docs,
+                decision_type=args.decision_type,
             )
             print(result)
-            if args.persist:
-                slug = (args.project or args.query[:30]).lower().replace(" ", "-")
-                print(f"\n{'=' * 60}")
-                print(f"  Plan persisted to decision-plans/{slug}/")
-                print(f"    PLAN.md (Decision-Making Plan)")
-                print(f"{'=' * 60}")
 
         # === JOURNAL ===
         elif args.journal is not None:

@@ -12,17 +12,17 @@ Usage:
     result = generate_solving_plan("revenue declining 20%", "Revenue Recovery", persist=True)
 """
 
-import csv
 import json
-import os
+import re
 from datetime import datetime
 from pathlib import Path
-from core import search, DATA_DIR
+from core import (
+    search, load_reasoning, classify_category, problem_type_names, category_names,
+    resolve_choice, slugify, default_output_dir, _load_csv, DATA_DIR, CSV_CONFIG,
+)
 
 
 # ============ CONFIGURATION ============
-REASONING_FILE = "reasoning.csv"
-
 SEARCH_CONFIG = {
     "problem-types": {"max_results": 1},
     "decomposition": {"max_results": 3},
@@ -71,15 +71,7 @@ class ProblemSolvingAdvisor:
     """Generates problem-solving plans from aggregated knowledge base searches."""
 
     def __init__(self):
-        self.reasoning_data = self._load_reasoning()
-
-    def _load_reasoning(self) -> list:
-        """Load reasoning rules from CSV."""
-        filepath = DATA_DIR / REASONING_FILE
-        if not filepath.exists():
-            return []
-        with open(filepath, 'r', encoding='utf-8') as f:
-            return list(csv.DictReader(f))
+        self.reasoning_data = load_reasoning()
 
     def _multi_domain_search(self, query: str, focus_domains: list = None, depth: str = "standard") -> dict:
         """Execute searches across multiple domains, scaled by depth."""
@@ -119,7 +111,7 @@ class ProblemSolvingAdvisor:
 
     def _apply_reasoning(self, category: str) -> dict:
         """Apply reasoning rules to identify best approach."""
-        rule = self._find_reasoning_rule(category)
+        rule = self._find_reasoning_rule(category) if category else {}
 
         if not rule:
             return {
@@ -171,31 +163,76 @@ class ProblemSolvingAdvisor:
         scored.sort(key=lambda x: x[0], reverse=True)
         return scored[0][1] if scored and scored[0][0] > 0 else results[0]
 
+    def _pick_named(self, domain: str, name_col: str, names: list, results: list) -> dict:
+        """Prefer the frameworks a reasoning rule names, even if search ranked them low.
+
+        Walks `names` in order and returns the first row of the domain's CSV
+        whose name matches (ignoring parentheticals such as "(5 Whys)").
+        Falls back to the best keyword match among `results`.
+        """
+        def norm(text):
+            return re.sub(r"\(.*?\)", "", str(text)).strip().lower()
+
+        rows = _load_csv(DATA_DIR / CSV_CONFIG[domain]["file"])
+        for name in names:
+            wanted = norm(name)
+            if len(wanted) < 4:
+                continue
+            for row in rows:
+                have = norm(row.get(name_col, ""))
+                if not have:
+                    continue
+                if have == wanted or have.startswith(wanted) or wanted.startswith(have):
+                    return row
+        return self._select_best_match(results, names)
+
+    @staticmethod
+    def _alternatives(results: list, name_col: str, primary: str, limit: int) -> list:
+        return [r.get(name_col, "") for r in results if r.get(name_col) != primary][:limit]
+
     def _extract_results(self, search_result: dict) -> list:
         """Extract results list from search result dict."""
         return search_result.get("results", [])
 
-    def generate(self, query: str, project_name: str = None, depth: str = "standard") -> dict:
+    def generate(self, query: str, project_name: str = None, depth: str = "standard",
+                 problem_type: str = None, category: str = None) -> dict:
         """Generate comprehensive problem-solving plan.
 
         Args:
             query: Problem description
             project_name: Optional project name
             depth: Analysis depth - quick, standard, deep, or executive
+            problem_type: Problem type (e.g. "Diagnostic"); auto-detected if None
+            category: Reasoning category (e.g. "Business Performance"); auto-detected if None
+
+        Raises:
+            ValueError: if problem_type or category is not a known value.
         """
         depth_cfg = DEPTH_CONFIG.get(depth, DEPTH_CONFIG["standard"])
 
-        # Step 1: Classify the problem type
-        type_result = search(query, "problem-types", 1)
-        type_results = type_result.get("results", [])
-        category = "General"
+        # Step 1: Problem type (how the problem is shaped) — explicit beats auto-detect
+        type_source = "auto"
         problem_type_info = {}
-        if type_results:
-            category = type_results[0].get("Problem Type", "General")
-            problem_type_info = type_results[0]
+        if problem_type:
+            name = resolve_choice(problem_type, problem_type_names(), "problem type")
+            rows = _load_csv(DATA_DIR / CSV_CONFIG["problem-types"]["file"])
+            problem_type_info = next(r for r in rows if r["Problem Type"] == name)
+            type_source = "explicit"
+        else:
+            type_results = search(query, "problem-types", 1).get("results", [])
+            if type_results:
+                problem_type_info = type_results[0]
+        type_name = problem_type_info.get("Problem Type", "General")
 
-        # Step 2: Get reasoning rules for this category
+        # Step 2: Category (business context) selects the reasoning rule
+        category_source = "auto"
+        if category:
+            category = resolve_choice(category, category_names(), "category")
+            category_source = "explicit"
+        else:
+            category = classify_category(query)
         reasoning = self._apply_reasoning(category)
+        type_result = {"results": [problem_type_info] if problem_type_info else []}
 
         # Step 3: Multi-domain search (scaled by depth)
         search_results = self._multi_domain_search(query, depth=depth)
@@ -211,10 +248,26 @@ class ProblemSolvingAdvisor:
         team_results = self._extract_results(search_results.get("team", {}))
         steps_results = self._extract_results(search_results.get("steps", {}))
 
-        best_decomp = self._select_best_match(decomp_results, reasoning.get("decomposition_style", []))
-        best_analysis = self._select_best_match(analysis_results, reasoning.get("analysis_priority", []))
-        best_prioritization = prioritization_results[0] if prioritization_results else {}
-        best_comm = self._select_best_match(comm_results, reasoning.get("communication_style", []))
+        # The category rule decides first; the problem type's own recommendations
+        # come next; keyword search ranking is the last resort.
+        def split(text):
+            return [part.strip() for part in str(text).split(";") if part.strip()]
+
+        type_approach = split(problem_type_info.get("Recommended Approach", ""))
+        type_analysis = split(problem_type_info.get("Analysis Methods", ""))
+        type_decomp = split(problem_type_info.get("Decomposition Style", ""))
+        rule_decomp = reasoning.get("decomposition_style", []) if category else []
+        rule_analysis = reasoning.get("analysis_priority", []) if category else []
+        rule_comm = reasoning.get("communication_style", []) if category else []
+
+        best_decomp = self._pick_named("decomposition", "Framework",
+                                       rule_decomp + type_decomp + type_approach, decomp_results)
+        best_analysis = self._pick_named("analysis", "Tool",
+                                         rule_analysis + type_approach + type_analysis, analysis_results)
+        best_prioritization = self._pick_named("prioritization", "Technique",
+                                               rule_decomp + rule_analysis + type_analysis,
+                                               prioritization_results)
+        best_comm = self._pick_named("communication", "Pattern", rule_comm, comm_results)
 
         # Depth-aware result slicing
         show_alts = depth_cfg.get("show_alternatives", False)
@@ -226,9 +279,14 @@ class ProblemSolvingAdvisor:
         return {
             "depth": depth,
             "project_name": project_name or query.upper(),
-            "problem_category": category,
+            "problem_category": category or "General",
+            "classification": {
+                "type_source": type_source,
+                "category_source": category_source,
+                "rule_applied": bool(category),
+            },
             "problem_type": {
-                "name": problem_type_info.get("Problem Type", category),
+                "name": type_name,
                 "complexity": problem_type_info.get("Complexity", "Medium"),
                 "characteristics": problem_type_info.get("Characteristics", ""),
                 "recommended_approach": problem_type_info.get("Recommended Approach", ""),
@@ -244,7 +302,7 @@ class ProblemSolvingAdvisor:
                 "type": best_decomp.get("Type", ""),
                 "structure": best_decomp.get("Structure Pattern", ""),
                 "mece_test": best_decomp.get("MECE Test", ""),
-                "alternatives": [r.get("Framework", "") for r in decomp_results[1:5]] if show_alts else [r.get("Framework", "") for r in decomp_results[1:3]]
+                "alternatives": self._alternatives(decomp_results, "Framework", best_decomp.get("Framework"), 4 if show_alts else 2)
             },
             "prioritization": {
                 "technique": best_prioritization.get("Technique", "Impact-Feasibility Matrix"),
@@ -255,7 +313,7 @@ class ProblemSolvingAdvisor:
                 "primary_tool": best_analysis.get("Tool", "Benchmarking"),
                 "how_to": best_analysis.get("How to Apply", ""),
                 "data_needed": best_analysis.get("Data Requirements", ""),
-                "alternatives": [r.get("Tool", "") for r in analysis_results[1:5]] if show_alts else [r.get("Tool", "") for r in analysis_results[1:3]]
+                "alternatives": self._alternatives(analysis_results, "Tool", best_analysis.get("Tool"), 4 if show_alts else 2)
             },
             "communication": {
                 "pattern": best_comm.get("Pattern", "Pyramid Principle"),
@@ -336,6 +394,7 @@ def format_ascii_box(plan: dict) -> str:
 
     # Problem Classification (always included)
     lines.append(f"|  PROBLEM TYPE: {problem.get('name', '')}".ljust(BOX_WIDTH) + "|")
+    lines.append(f"|     Context: {plan.get('problem_category', 'General')}".ljust(BOX_WIDTH) + "|")
     lines.append(f"|     Complexity: {problem.get('complexity', '')}".ljust(BOX_WIDTH) + "|")
     if problem.get("time_frame"):
         lines.append(f"|     Time Frame: {problem.get('time_frame', '')}".ljust(BOX_WIDTH) + "|")
@@ -481,6 +540,7 @@ def format_markdown(plan: dict) -> str:
 
     lines.append("### Problem Classification")
     lines.append(f"- **Type:** {problem.get('name', '')}")
+    lines.append(f"- **Context:** {plan.get('problem_category', 'General')}")
     lines.append(f"- **Complexity:** {problem.get('complexity', '')}")
     if problem.get("time_frame"):
         lines.append(f"- **Time Frame:** {problem.get('time_frame', '')}")
@@ -579,8 +639,8 @@ def format_markdown(plan: dict) -> str:
 
 def persist_plan(plan: dict, output_dir: str = None):
     """Save problem-solving plan to a single file."""
-    project_slug = plan.get("project_name", "default").lower().replace(" ", "-")
-    base_dir = Path(output_dir) if output_dir else Path.cwd()
+    project_slug = slugify(plan.get("project_name", "default"))
+    base_dir = Path(output_dir) if output_dir else default_output_dir()
     plan_dir = base_dir / "solving-plans" / project_slug
 
     plan_dir.mkdir(parents=True, exist_ok=True)
@@ -596,8 +656,8 @@ def persist_plan(plan: dict, output_dir: str = None):
 
 def persist_step_by_step(plan: dict, output_dir: str = None):
     """Save problem-solving plan as separate markdown files per step."""
-    project_slug = plan.get("project_name", "default").lower().replace(" ", "-")
-    base_dir = Path(output_dir) if output_dir else Path.cwd()
+    project_slug = slugify(plan.get("project_name", "default"))
+    base_dir = Path(output_dir) if output_dir else default_output_dir()
     plan_dir = base_dir / "solving-plans" / project_slug
     plan_dir.mkdir(parents=True, exist_ok=True)
 
@@ -624,6 +684,7 @@ def persist_step_by_step(plan: dict, output_dir: str = None):
 
 ## Problem Classification
 - **Type:** {problem.get('name', '')}
+- **Context:** {plan.get('problem_category', 'General')}
 - **Complexity:** {problem.get('complexity', '')}
 - **Time Frame:** {problem.get('time_frame', 'N/A')}
 - **Recommended Team:** {problem.get('team_size', 'N/A')}
@@ -947,7 +1008,8 @@ NEXT_STEPS = {
 # ============ PUBLIC API ============
 def generate_solving_plan(query: str, project_name: str = None, output_format: str = "ascii",
                           persist: bool = False, output_dir: str = None,
-                          depth: str = "standard", step_docs: bool = False) -> str:
+                          depth: str = "standard", step_docs: bool = False,
+                          problem_type: str = None, category: str = None) -> str:
     """Generate a comprehensive problem-solving plan.
 
     Args:
@@ -958,12 +1020,15 @@ def generate_solving_plan(query: str, project_name: str = None, output_format: s
         output_dir: Output directory for persistence
         depth: Analysis depth - quick, standard, deep, or executive
         step_docs: If True with persist, create separate markdown files per step
+        problem_type: Problem type override (see --type)
+        category: Reasoning category override (see --category)
 
     Returns:
         Formatted problem-solving plan
     """
     advisor = ProblemSolvingAdvisor()
-    plan = advisor.generate(query, project_name, depth=depth)
+    plan = advisor.generate(query, project_name, depth=depth,
+                            problem_type=problem_type, category=category)
 
     if output_format == "markdown":
         result = format_markdown(plan)

@@ -20,7 +20,8 @@ from pathlib import Path
 
 # ============ PATHS ============
 SCRIPT_DIR = Path(__file__).resolve().parent
-DATA_DIR = SCRIPT_DIR.parent / "data"
+SKILL_DIR = SCRIPT_DIR.parent
+DATA_DIR = SKILL_DIR / "data"
 MAX_RESULTS = 3
 
 # ============ CSV CONFIGURATION ============
@@ -58,6 +59,66 @@ CSV_CONFIG = {
 }
 
 
+# ============ TEXT PROCESSING ============
+STOPWORDS = {
+    "a", "an", "and", "are", "as", "at", "be", "been", "but", "by", "can", "do", "does",
+    "for", "from", "had", "has", "have", "how", "i", "if", "in", "into", "is", "it", "its",
+    "me", "my", "of", "on", "or", "our", "should", "so", "that", "the", "their", "them",
+    "then", "there", "these", "this", "to", "us", "was", "we", "were", "what", "when",
+    "which", "who", "why", "will", "with", "would", "you", "your",
+}
+
+_SUFFIXES = ("ations", "ation", "ings", "ing", "ies", "ied", "ed", "es", "ly", "s")
+
+
+def stem(word: str) -> str:
+    """Light suffix stemmer so 'choosing', 'chose' and 'choose' style variants match."""
+    for suffix in _SUFFIXES:
+        if word.endswith(suffix) and len(word) - len(suffix) >= 3:
+            word = word[: -len(suffix)]
+            if suffix in ("ies", "ied"):
+                word += "y"
+            break
+    if len(word) > 4 and word.endswith("e"):
+        word = word[:-1]
+    if len(word) > 3 and word[-1] == word[-2] and word[-1] not in "aeiouls":
+        word = word[:-1]
+    return word
+
+
+def tokenize(text) -> list:
+    """Lowercase, strip punctuation, drop stopwords, stem. Keeps 2-letter tokens (AI, DB, UI)."""
+    text = re.sub(r"[^\w\s]", " ", str(text).lower())
+    return [stem(w) for w in text.split() if len(w) > 1 and w not in STOPWORDS]
+
+
+# ============ OUTPUT PATHS ============
+def slugify(text: str, max_len: int = 50) -> str:
+    """Filesystem-safe slug: no separators, no '..', never empty."""
+    slug = re.sub(r"[^\w\s-]", " ", str(text).lower())
+    slug = re.sub(r"[\s_-]+", "-", slug).strip("-")[:max_len].strip("-")
+    return slug or "decision"
+
+
+def default_output_dir() -> Path:
+    """Where plans and journals go when --output-dir is not given.
+
+    Normally the current directory (the user's project). If the script is run
+    from inside the installed skill folder (e.g. after `cd .../scripts`),
+    use the project root instead so files never land inside the skill,
+    where reinstalling or uninstalling would delete them.
+    """
+    cwd = Path.cwd().resolve()
+    if cwd != SKILL_DIR and SKILL_DIR not in cwd.parents:
+        return cwd
+    for parent in SKILL_DIR.parents:
+        if (parent / ".git").exists():
+            return parent
+    # Skills are installed at <project>/<.target>/<skills|prompts>/<name>/
+    parents = SKILL_DIR.parents
+    return parents[2] if len(parents) > 2 else SKILL_DIR.parent
+
+
 # ============ BM25 ENGINE ============
 class BM25:
     """Okapi BM25 ranking function for CSV-based document search."""
@@ -73,11 +134,7 @@ class BM25:
 
     @staticmethod
     def tokenize(text: str) -> list:
-        """Tokenize text: lowercase, remove punctuation, filter short words."""
-        text = text.lower()
-        text = re.sub(r'[^\w\s]', ' ', text)
-        tokens = text.split()
-        return [t for t in tokens if len(t) > 1]
+        return tokenize(text)
 
     def fit(self, corpus: list) -> None:
         """Build IDF index from a list of document strings."""

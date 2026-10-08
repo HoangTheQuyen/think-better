@@ -76,7 +76,9 @@ Skills are discovered automatically — **no Go code changes are needed**.
    Python standard library and work on Python 3.9+. Any skill with
    `scripts/search.py` is picked up by the smoke test automatically; it must
    accept a query, `--json`, `--plan`, `--format ascii|markdown` and
-   `--depth quick|standard|deep|executive`.
+   `--depth quick|standard|deep|executive`. Classification and output-path
+   behavior is covered by `scripts/test_skill_engines.py`; add a case there
+   when you change keywords or reasoning rules.
 5. `make embed-prep && make check`, then open a PR.
 
 ## Adding knowledge records (CSV rows)

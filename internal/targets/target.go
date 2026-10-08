@@ -86,6 +86,12 @@ func (t *AITarget) SkillsRoot() string {
 	return strings.TrimSuffix(t.InstallPattern, "{skill}/")
 }
 
+// RewriteSkillPaths points ".agents/skills/" paths, as written in the skill
+// sources, at this target's skills root so commands run from the project root.
+func (t *AITarget) RewriteSkillPaths(content string) string {
+	return strings.ReplaceAll(content, sourceSkillsRoot, t.SkillsRoot())
+}
+
 // AdaptWorkflow rewrites a workflow written for the .agents/ layout so it
 // works for this target: skill paths point at the target's skills root, and
 // Antigravity-only "// turbo" annotations are dropped elsewhere.
@@ -93,7 +99,7 @@ func (t *AITarget) AdaptWorkflow(content string) string {
 	if t.SkillsRoot() == sourceSkillsRoot {
 		return content
 	}
-	content = strings.ReplaceAll(content, sourceSkillsRoot, t.SkillsRoot())
+	content = t.RewriteSkillPaths(content)
 	lines := strings.Split(content, "\n")
 	kept := lines[:0]
 	for _, l := range lines {

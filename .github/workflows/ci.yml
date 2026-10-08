@@ -98,6 +98,9 @@ jobs:
             - name: Smoke-test skill scripts
               run: python scripts/smoke_test_skills.py
 
+            - name: Skill engine regression tests
+              run: python scripts/test_skill_engines.py
+
     install-scripts:
         runs-on: ubuntu-latest
         steps:
