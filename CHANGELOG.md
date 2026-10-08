@@ -6,6 +6,62 @@ and the project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-08
+
+### Breaking
+
+- `uninstall --force` now also deletes files you modified (and their `.new`) and warns
+  when it does. To skip the confirmation and keep your edits, use the new `--yes` (`-y`).
+- make-decision exits with code 2 instead of 1 for bad input (empty text, bad matrix or
+  scores, unknown step), like the other two skills.
+
+### Fixed
+
+- Upgrading an install made by v1.3.0 or earlier no longer marks unedited files as
+  modified: `update` wrote a `.new` for almost every file, `uninstall` kept them all and
+  `check` failed. The CLI now knows the files every release shipped.
+- After `uninstall` keeps an edited file, the skill stays uninstalled: `check` passes and
+  `update` no longer installs it again.
+- `init --ai claude` run in the home directory no longer overwrites the user-level
+  install with project paths; it acts as `--global`.
+- Commands run from a project subdirectory find the project's install.
+- Slash commands: user text that contained a line `TASK` could end the heredoc and run the
+  rest as shell commands; the delimiter is now `THINK_BETTER_EOF_7f3a` and the assistant
+  checks for it. SKILL.md examples no longer put user text on the command line.
+- code-solving classifies "Add …" features, unaccented Vietnamese, stack traces and names
+  like MySQL correctly; problem-solving no longer reduces keywords to single generic words;
+  make-decision reads "A, B and C" and numbered option lists.
+- Saving into an existing workspace with a different request or type no longer mixes two
+  plans (it needs `--force` or another `-p`); workspace names fold accents in every skill.
+- C# stack frames with spaces in the path resolve; symbols are found outside git.
+- ASCII boxes line up with Vietnamese text; long requests are up to 5x faster.
+
+### Added
+
+- GitHub Copilot skills install to `.github/skills/`, where Copilot loads them, and
+  support `--global` (`~/.copilot/skills/`). Old installs under `.github/prompts/<skill>/`
+  are moved by `update`.
+- `think-better diff` shows how your edited files differ from the new `.new` versions.
+- `uninstall` finds where a skill is installed (no `--ai` needed) and accepts `--all`
+  and `--yes`.
+- `--exclude-command` / `--include-command` keep individual slash commands out.
+- Slash commands with no text: `/code.review` reviews the current changes, the resume
+  commands open the latest workspace, the others ask first. Answers come in your language,
+  and saving accepts "lưu", "lưu lại", "lưu từng bước".
+- All three skill scripts accept `-p`/`--project-name`/`--project` and
+  `-n`/`--max-results`/`--results`; code-solving's executive depth opens with a summary.
+- CI tests upgrading from v1.3.0 and v1.4.0 on Linux and macOS.
+
+### Changed
+
+- Skill descriptions route requests to the right skill ("Do NOT use for …"), trivial edits
+  skip the code-solving process, and skills ask before installing Python.
+- Docs: README, guides and website match the CLI and real script output (checked in CI),
+  with Troubleshooting, FAQ and Roadmap sections; the website no longer needs the Tailwind
+  CDN or JavaScript to show its content.
+- Releases are published only after every step succeeded (draft first, Homebrew and Scoop
+  updated last) and can be re-run; GitHub Actions are pinned to commit SHAs.
+
 ## [1.4.0] - 2026-10-08
 
 ### Changed
@@ -161,7 +217,8 @@ and the project follows [Semantic Versioning](https://semver.org/).
   bases, plan generation, comparison matrix and decision journal.
 - One-line install scripts for macOS, Linux and Windows and cross-platform release binaries.
 
-[Unreleased]: https://github.com/HoangTheQuyen/think-better/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/HoangTheQuyen/think-better/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/HoangTheQuyen/think-better/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/HoangTheQuyen/think-better/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/HoangTheQuyen/think-better/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/HoangTheQuyen/think-better/compare/v1.1.1...v1.2.0
