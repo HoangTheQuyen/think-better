@@ -26,4 +26,4 @@ Books, papers, or authors this is based on.
 
 ## Are you willing to open the PR?
 
-See [CONTRIBUTING.md](../../CONTRIBUTING.md#adding-a-new-skill).
+See [CONTRIBUTING.md](https://github.com/HoangTheQuyen/think-better/blob/main/CONTRIBUTING.md#adding-a-new-skill).

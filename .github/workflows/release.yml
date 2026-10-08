@@ -24,8 +24,10 @@ jobs:
     preflight:
         name: Validate version
         # Fails (and so stops everything after it) for a manual run outside
-        # main, a tag that is not on main, a malformed or existing tag, or a
-        # tag that does not match the VERSION file.
+        # main, a tag that is not on main, a malformed tag, a tag that exists
+        # on another commit, a version that is already published, or a tag
+        # that does not match the VERSION file. A tag that already exists on
+        # this commit is fine: an earlier run created it and failed later.
         runs-on: ubuntu-latest
         timeout-minutes: 5
         permissions:
@@ -33,7 +35,7 @@ jobs:
         outputs:
             version: ${{ steps.version.outputs.version }}
         steps:
-            - uses: actions/checkout@v7
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   fetch-depth: 0
 
@@ -41,6 +43,7 @@ jobs:
               id: version
               env:
                   INPUT_VERSION: ${{ inputs.version }}
+                  GH_TOKEN: ${{ github.token }}
               run: |
                   set -eu
                   fail() { echo "::error::$*"; exit 1; }
@@ -51,8 +54,10 @@ jobs:
                     [ "$GITHUB_REF" = "refs/heads/main" ] || fail "Run the Release workflow from main (got $GITHUB_REF)."
                     version="${INPUT_VERSION:-$file_version}"
                     case "$version" in v*) ;; *) version="v$version" ;; esac
-                    if git rev-parse -q --verify "refs/tags/$version" >/dev/null; then
-                      fail "Tag $version already exists."
+                    if tag_sha="$(git rev-parse -q --verify "refs/tags/$version^{commit}")"; then
+                      [ "$tag_sha" = "$GITHUB_SHA" ] ||
+                        fail "Tag $version already exists on $tag_sha, not on $GITHUB_SHA."
+                      echo "Tag $version already exists on this commit (created by an earlier run); reusing it."
                     fi
                   else
                     version="$GITHUB_REF_NAME"
@@ -62,6 +67,13 @@ jobs:
 
                   printf '%s' "$version" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$' ||
                     fail "Version must look like v1.2.3 or v1.2.3-rc.1, got '$version'."
+
+                  # The release is published (undrafted) as the very last step,
+                  # so a published release means an earlier run finished.
+                  # (Draft releases are not returned by this endpoint.)
+                  if gh api "repos/$GITHUB_REPOSITORY/releases/tags/$version" --silent 2>/dev/null; then
+                    fail "Release $version is already published."
+                  fi
 
                   # flake.nix reads its version from VERSION, so it must match the tag
                   # (a pre-release v1.4.0-rc.1 matches VERSION 1.4.0).
@@ -88,43 +100,57 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 30
         permissions:
-            contents: write # publish the release, push the tag and the Formula/bucket commit
+            contents: write # create and publish the release, push the tag and the Formula/bucket commits
             id-token: write # keyless cosign signature and build provenance (Sigstore OIDC)
             attestations: write # store the build provenance attestations
         steps:
-            - uses: actions/checkout@v7
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   fetch-depth: 0
 
             # Tags pushed with GITHUB_TOKEN do not trigger another run, so this
             # job does not release twice. The tag goes on the commit the checks
-            # just ran on (github.sha).
+            # just ran on (github.sha). A re-run finds the tag it created
+            # before and goes on with it.
             - name: Create tag (manual run)
               if: github.event_name == 'workflow_dispatch'
               env:
                   VERSION: ${{ needs.preflight.outputs.version }}
               run: |
+                  if existing="$(git rev-parse -q --verify "refs/tags/$VERSION^{commit}")"; then
+                    if [ "$existing" != "$GITHUB_SHA" ]; then
+                      echo "::error::Tag $VERSION exists on $existing, not on $GITHUB_SHA."
+                      exit 1
+                    fi
+                    echo "Tag $VERSION already exists on $GITHUB_SHA; reusing it."
+                    exit 0
+                  fi
                   git config user.name "github-actions[bot]"
                   git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
                   git tag -a "$VERSION" -m "$VERSION" "$GITHUB_SHA"
                   git push origin "refs/tags/$VERSION"
 
-            - uses: actions/setup-go@v7
+            - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
               with:
                   go-version-file: go.mod
+                  # No go.sum (no dependencies), and a release builds from
+                  # scratch: no cache.
+                  cache: false
 
             # SBOMs (`sboms:` in .goreleaser.yaml) and signing (`signs:`).
-            - uses: anchore/sbom-action/download-syft@v0
-            - uses: sigstore/cosign-installer@v3
+            - uses: anchore/sbom-action/download-syft@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+            - uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
 
             # Builds all platforms, writes checksums.txt, SBOMs and the cosign
-            # bundle, publishes the GitHub Release, and commits
-            # Formula/think-better.rb and bucket/think-better.json back to main
-            # (Homebrew tap + Scoop bucket). Uses the built-in GITHUB_TOKEN; if
-            # main is protected, allow github-actions to bypass the rule or the
-            # commit will be rejected.
+            # bundle, and uploads them to a *draft* GitHub Release
+            # (release.draft in .goreleaser.yaml): nothing is public, and
+            # install.sh's "latest" still resolves to the previous release,
+            # until the last step below publishes it. A re-run replaces a
+            # draft left by a failed run (release.replace_existing_draft).
+            # It also writes the Homebrew formula and Scoop manifest to dist/
+            # (skip_upload: they are committed below, once the assets exist).
             # Exact GoReleaser version (same as ci.yml); see .goreleaser.yaml.
-            - uses: goreleaser/goreleaser-action@v7
+            - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
               with:
                   distribution: goreleaser
                   version: v2.18.2
@@ -137,11 +163,40 @@ jobs:
             # checksums.txt lists every asset under its published name (the raw
             # think-better-<os>-<arch> binaries only get that name on upload).
             - name: Attest build provenance (all assets)
-              uses: actions/attest-build-provenance@v4
+              uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
               with:
                   subject-checksums: dist/checksums.txt
 
             - name: Attest build provenance (checksums.txt)
-              uses: actions/attest-build-provenance@v4
+              uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
               with:
                   subject-path: dist/checksums.txt
+
+            # Homebrew tap + Scoop bucket: commits Formula/think-better.rb and
+            # bucket/think-better.json to main (skipped for pre-releases, and
+            # for files already up to date, so a re-run is safe). Uses the
+            # built-in GITHUB_TOKEN; if main is protected, allow github-actions
+            # to bypass the rule or the commit will be rejected.
+            - name: Update Homebrew formula and Scoop manifest
+              if: ${{ !contains(needs.preflight.outputs.version, '-') }}
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  VERSION: ${{ needs.preflight.outputs.version }}
+              run: sh .github/scripts/publish-package-manifests.sh "$VERSION"
+
+            # Last step: make the release public. Until here it is a draft
+            # (and preflight refuses a version that is already published), so
+            # after a failure anywhere above, fix the cause and re-run the
+            # failed jobs: the tag, the draft and the formula/bucket commits
+            # are reused or replaced. Only between the formula/bucket commits
+            # and this call do they point at assets that are not public yet.
+            - name: Publish the release
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  VERSION: ${{ needs.preflight.outputs.version }}
+              run: |
+                  case "$VERSION" in
+                    *-*) gh release edit "$VERSION" --repo "$GITHUB_REPOSITORY" --draft=false ;;
+                    *) gh release edit "$VERSION" --repo "$GITHUB_REPOSITORY" --draft=false --latest ;;
+                  esac
+                  gh release view "$VERSION" --repo "$GITHUB_REPOSITORY" --json url,isDraft,isPrerelease

@@ -29,6 +29,10 @@ type testEnv struct {
 func newEnv(t *testing.T) *testEnv {
 	t.Helper()
 	e := &testEnv{t: t, project: t.TempDir(), home: t.TempDir(), python: true}
+	// A repository root: commands never look for installs above it.
+	if err := os.Mkdir(filepath.Join(e.project, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	t.Chdir(e.project)
 	t.Setenv("HOME", e.home)
 	t.Setenv("USERPROFILE", e.home) // Windows
@@ -150,7 +154,6 @@ func TestBadArguments(t *testing.T) {
 	e.mustRun(1, RunInit, "--ai", "claude", "--skill", "nope")
 	e.mustRun(1, RunUpdate, "--ai", "nope")
 	e.mustRun(1, RunUninstall, "--ai", "claude")
-	e.mustRun(1, RunInit, "--ai", "copilot", "--global")
 }
 
 func TestInitNeedsTargetWhenNonInteractive(t *testing.T) {
@@ -177,7 +180,7 @@ func TestInitPromptsForTarget(t *testing.T) {
 	e := newEnv(t)
 	e.answer("2\n")
 	e.mustRun(0, RunInit, "--skill", "make-decision")
-	if !exists(e.file(".github", "prompts", "make-decision", "SKILL.md")) {
+	if !exists(e.file(".github", "skills", "make-decision", "SKILL.md")) {
 		t.Error("choice 2 (copilot) not installed")
 	}
 }
@@ -277,8 +280,8 @@ func TestUninstallCommand(t *testing.T) {
 
 	e.mustRun(0, RunInit, "--ai", "claude", "--skill", "code-solving")
 	e.mustRun(1, RunUninstall, "--ai", "claude", "--skill", "code-solving")
-	if !strings.Contains(e.err.String(), "--force") {
-		t.Errorf("non-interactive uninstall should require --force:\n%s", e.err.String())
+	if !strings.Contains(e.err.String(), "--yes") {
+		t.Errorf("non-interactive uninstall should require --yes:\n%s", e.err.String())
 	}
 
 	dir := e.file(".claude", "skills", "code-solving")

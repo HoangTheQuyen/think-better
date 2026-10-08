@@ -2,11 +2,11 @@ package cli
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/HoangTheQuyen/think-better/internal/installer"
 	"github.com/HoangTheQuyen/think-better/internal/skills"
+	"github.com/HoangTheQuyen/think-better/internal/targets"
 )
 
 const checkUsage = `
@@ -15,7 +15,8 @@ Verify prerequisites and the state of installed skills.
 Checks that Python 3 is available for the analysis scripts (bias detection,
 framework search, data processing), and reports each installed skill, in
 every AI tool, in this project and in your user account, as installed,
-outdated, modified (you edited files) or incomplete.
+outdated, modified (you edited files) or incomplete. Skills at a location
+used by an earlier release (Copilot: .github/prompts/) count as outdated.
 
 Exits 1 when Python 3 is missing or an install is incomplete, and with
 --strict also when an install is outdated. Skills that are not installed
@@ -51,9 +52,9 @@ func RunCheck(args []string) int {
 		return code
 	}
 
-	cwd, err := os.Getwd()
+	cwd, err := currentProject()
 	if err != nil {
-		Errorf("getting working directory: %v", err)
+		Errorf("%v", err)
 		return 1
 	}
 
@@ -72,7 +73,7 @@ func RunCheck(args []string) int {
 	for i := range skills.Registry {
 		skill := &skills.Registry[i]
 		entry := checkSkill{Name: skill.Name, Locations: []locationJSON{}}
-		locations := findSkillLocations(skill, cwd, home)
+		locations := append(findSkillLocations(skill, cwd, home), findLegacyLocations(skill, cwd)...)
 		if len(locations) == 0 {
 			lines = append(lines, fmt.Sprintf("  - Skill %q not installed (install with: think-better init --skill %s)", skill.Name, skill.Name))
 		}
@@ -83,6 +84,13 @@ func RunCheck(args []string) int {
 			where := fmt.Sprintf("for %s (%s)", loc.Label, loc.Path)
 			fix := updateCommand(skill.Name, loc)
 			switch {
+			case loc.Target.IsLegacy():
+				current := targets.FindTarget(loc.Target.Name)
+				lines = append(lines, fmt.Sprintf("  ⚠ Skill %q for %s is at an old location (%s); %s loads skills from %s (move it with: %s)",
+					skill.Name, loc.Target.Name, loc.Path, current.DisplayName, current.InstallDir(skill.Name), fix))
+				if *strict || st.Status == installer.StatusIncomplete {
+					problems++
+				}
 			case st.Status == installer.StatusIncomplete:
 				lines = append(lines, fmt.Sprintf("  ✗ Skill %q incomplete %s: %s missing (fix with: %s)",
 					skill.Name, where, plural(len(st.Missing), "file", "files"), fix))

@@ -5,7 +5,7 @@
 **Type:** Multi-Option Selection (Strategic)  
 **Skill Used:** make-decision  
 **Duration:** ~2 hours (with stakeholder input)  
-**Outcome:** ✅ AWS (score: 4.2/5.0)
+**Outcome:** ✅ AWS (weighted score 4.75 of 5)
 
 ---
 
@@ -28,70 +28,82 @@
 
 ## 🔬 Process
 
+Commands run from the project root. `$DECIDE` is the skill's script, for a Claude Code install
+`DECIDE=.claude/skills/make-decision/scripts/search.py` (other tools: see the
+[User Guide](../USER-GUIDE.md#running-the-scripts-yourself)). In a chat, `/decide <question>`
+runs the same plan for you.
+
 ### Step 1: Generate comprehensive decision plan
 
 ```bash
-python scripts/search.py "choosing cloud provider for enterprise migration: AWS vs Azure vs GCP with HIPAA compliance" \
+python3 $DECIDE "AWS vs Azure vs GCP for our enterprise migration with HIPAA workloads" \
   --plan -p "Cloud Migration Strategy" -f markdown
 ```
 
-**Output:**
+**Output (shortened):**
 ```
-Decision Type: Multi-Option Selection (Strategic, High Uncertainty)
-Recommended Framework: Weighted Criteria Matrix + Sensitivity Analysis
-```
-
-**Bias Warnings:**
-- ⚠️ **Status Quo Bias** — Team comfortable with on-prem may resist change
-- ⚠️ **Anchoring** — First price quote influences all comparisons
-- ⚠️ **Affinity Bias** — Team with AWS experience may favor AWS regardless of fit
-
-### Step 2: Get evaluation criteria template
-
-```bash
-python scripts/search.py "technology evaluation" --domain criteria -n 1
+Decision type: Multi-Option Selection (matched: 3 options)
+Options: AWS | Azure | GCP
+Recommended framework: Weighted Criteria Matrix
+  (alternatives: Logic Tree Option Decomposition, Sensitivity Analysis Decision)
+Evaluation criteria (Tech Stack / Framework Choice): team expertise 25, ecosystem 20,
+  performance 20, maintainability 20, cost and licensing 15
 ```
 
-**Output (adapted for cloud providers):**
-- Cost optimization (TCO, not just compute)
-- Team expertise/learning curve
-- Service coverage (managed services we need)
+**Bias warnings** (from the plan, with how they applied here):
+- ⚠️ **Anchoring Effect** [High]: the first price quote influences all comparisons
+- ⚠️ **Availability Heuristic** [Medium]: one vivid outage story about a provider outweighs the base rates
+- ⚠️ **Confirmation Bias** [High]: a team with AWS experience looks for evidence that AWS fits
+
+### Step 2: Adapt the criteria
+
+The template's five criteria are a starting point. For a regulated migration we kept five, at most
+(merging "migration tools" into service coverage):
+
+- TCO over 5 years (not just compute)
+- Team skills and learning curve
+- Service coverage (managed services we need, migration tooling)
 - Enterprise support quality
 - Compliance certifications (HIPAA, SOC2)
-- Migration tools/assistance program
 
-### Step 3: Generate comparison matrix
+`python3 $DECIDE "technology vendor cloud" --domain criteria` shows other templates
+(Technology Selection, Vendor / Partner Selection) to borrow from.
+
+### Step 3: Score each option
 
 ```bash
-python scripts/search.py --matrix "AWS vs Azure vs GCP" \
-  -c "tco_5year,team_skills,service_coverage,enterprise_support,compliance,migration_tools"
+python3 $DECIDE --matrix "AWS vs Azure vs GCP" -f markdown \
+  -c "TCO (5-year):25,Team skills:25,Service coverage:20,Enterprise support:15,Compliance:15" \
+  --scores "AWS:4,5,5,5,5;Azure:4,3,4,4,5;GCP:5,2,4,3,4"
 ```
-
-### Step 4: Score each option
 
 | Criterion | Weight | AWS | Azure | GCP |
 |-----------|--------|-----|-------|-----|
 | **TCO (5-year)** | 25 | 4 ($2.1M) | 4 ($2.0M) | 5 ($1.8M) |
-| **Team Skills** | 20 | 5 (60% exp) | 3 (30% exp) | 2 (10% exp) |
-| **Service Coverage** | 20 | 5 (all exists) | 4 (mostly) | 4 (mostly) |
-| **Enterprise Support** | 15 | 5 (excellent) | 4 (good) | 3 (adequate) |
-| **Compliance** | 10 | 5 (all certs) | 5 (all certs) | 4 (missing 1) |
-| **Migration Tools** | 10 | 4 (good) | 5 (Azure Migrate) | 3 (basic) |
-| **TOTAL** | 100 | **4.5** | **3.9** | **3.7** |
+| **Team skills** | 25 | 5 (60% exp) | 3 (30% exp) | 2 (10% exp) |
+| **Service coverage** | 20 | 5 (all exists) | 4 (mostly) | 4 (mostly) |
+| **Enterprise support** | 15 | 5 (excellent) | 4 (good) | 3 (adequate) |
+| **Compliance** | 15 | 5 (all certs) | 5 (all certs) | 4 (missing 1) |
+| **Weighted (script)** | 100 | **4.75** | **3.90** | **3.60** |
 
-### Step 5: Sensitivity analysis
+### Step 4: Sensitivity analysis
 
-**Question:** What if team skills were less important (weight: 10 instead of 20)?
+The same command prints the sensitivity check (this is the actual output):
 
-| Provider | Original Score | New Score |
-|----------|----------------|-----------|
-| AWS | 4.5 | **4.3** ⬇️ |
-| Azure | 3.9 | **4.0** ⬆️ |
-| GCP | 3.7 | **4.0** ⬆️ |
+```
+Winner: AWS ahead of Azure by 0.85 (weighted average of the scores).
+Smallest change that flips the winner: if the weight of TCO (5-year) rises from 25 to 140
+(+115; its share of the total goes from 25% to 65%), GCP ties with AWS; beyond that it wins.
+Team skills, Service coverage, Enterprise support, Compliance: no single change flips it.
+```
 
-**Insight:** AWS lead narrows significantly. The decision hinges on whether we value existing team skills.
+We also asked: what if team skills mattered less (weight 10 instead of 25)? Re-running gives
+AWS 4.71, Azure 4.06, GCP 3.88: the lead narrows but AWS still wins.
 
-### Step 6: Group facilitation
+**Insight:** The result is robust. Only cost, weighted at about two thirds of the decision,
+would make GCP the winner.
+
+### Step 5: Group facilitation
 
 Used **Structured Debate** technique:
 1. Split team into 3 groups (one champions each provider)
@@ -131,13 +143,13 @@ Debate revealed:
 Created decision journal entry:
 
 ```bash
-python scripts/search.py --journal "Cloud provider selection: AWS chosen for enterprise migration" \
-  -p "Cloud Migration Strategy"
+python3 $DECIDE --journal "Cloud provider selection: AWS chosen for enterprise migration" \
+  -p "Cloud Migration Strategy" --confidence 75 --review-in 6m
 ```
 
 **6-Month Retrospective (to be updated):**
 ```bash
-python scripts/search.py --journal --update "cloud-provider-selection" \
+python3 $DECIDE --journal --update "cloud-provider-selection" \
   --outcome "Migration 40% complete, on schedule, team velocity high due to AWS expertise"
 ```
 
@@ -164,8 +176,8 @@ This is a **Build vs. Buy vs. Partner** pattern applied to infrastructure:
 - ❌ **Wrong:** Got AWS quote first ($2.1M), then compared others to it
 - ✅ **Right:** Generated independent estimates for all three, revealed in parallel
 
-**Affinity Bias:**
-- ❌ **Wrong:** AWS engineers dominated the conversation
+**Confirmation Bias:**
+- ❌ **Wrong:** AWS engineers dominated the conversation and argued only for AWS
 - ✅ **Right:** Used anonymous voting + structured debate to surface minority views
 
 **Status Quo Bias:**
@@ -173,12 +185,13 @@ This is a **Build vs. Buy vs. Partner** pattern applied to infrastructure:
 - ✅ **Right:** Reframed as "what if we keep on-prem?" to reveal true costs ($3.5M/year)
 
 ### Sensitivity Analysis Value
-The sensitivity test revealed that **team skills was the swing factor**:
-- If we had multi-cloud experience → GCP would win
-- If we had Azure/.NET shops → Azure would win
-- Since we have AWS depth → AWS wins
+The sensitivity test showed that **no reasonable weight change flips the result**: only cost,
+at about two thirds of the total weight, would make GCP the winner. Team skills widen AWS's lead,
+but even without them AWS wins on support, coverage and compliance. Had the team's experience been
+on Azure, the Team skills scores (not the weights) would change and Azure could win.
 
-**Actionable:** For future decisions, identify the "swing criteria" early and validate it thoroughly.
+**Actionable:** Read the "smallest change that flips the winner" line before debating weights;
+if no plausible change flips it, spend the time on the scores instead.
 
 ### Applicability
 Use this framework for:

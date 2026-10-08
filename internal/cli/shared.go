@@ -62,9 +62,7 @@ func parseFlags(fs *flag.FlagSet, args []string, usage string) (ok bool, code in
 		fs.VisitAll(func(*flag.Flag) { hasFlags = true })
 		if hasFlags {
 			_, _ = fmt.Fprintln(w, "\nFlags:")
-			fs.SetOutput(w)
-			fs.PrintDefaults()
-			fs.SetOutput(io.Discard)
+			printFlagDefaults(w, fs)
 		}
 	}
 
@@ -88,15 +86,47 @@ func parseFlags(fs *flag.FlagSet, args []string, usage string) (ok bool, code in
 	return true, 0
 }
 
-// ResolveScope returns the target and base directory to work in: the current
-// project, or the home directory with the target's user-level paths for --global.
+// ResolveScope returns the target and base directory an existing install is
+// in: the home directory with the target's user-level paths for --global,
+// otherwise the current project (see currentProject), so commands run from
+// a subdirectory find the project's install.
 func ResolveScope(target *targets.AITarget, global bool) (*targets.AITarget, string, error) {
+	return resolveScope(target, global, false)
+}
+
+// ResolveInstallScope is ResolveScope for init: the project is the current
+// directory, with a warning when a parent directory already has an install.
+func ResolveInstallScope(target *targets.AITarget, global bool) (*targets.AITarget, string, error) {
+	return resolveScope(target, global, true)
+}
+
+func resolveScope(target *targets.AITarget, global, install bool) (*targets.AITarget, string, error) {
 	if !global {
-		cwd, err := os.Getwd()
-		if err != nil {
-			return nil, "", fmt.Errorf("getting working directory: %w", err)
+		var dir string
+		if install {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return nil, "", fmt.Errorf("getting working directory: %w", err)
+			}
+			dir = cwd
+			if root := findProject(cwd, userHome()); root != "" && root != cwd && hasInstall(root) {
+				_, _ = fmt.Fprintf(stderr, "warning: %s already has skills installed; installing into the current directory %s instead (run from %s to update that install)\n", root, cwd, root)
+			}
+		} else {
+			var err error
+			if dir, err = currentProject(); err != nil {
+				return nil, "", err
+			}
 		}
-		return target, cwd, nil
+		// In the home directory, a target whose project and user-level
+		// paths are the same (claude: ~/.claude/skills) would write its
+		// user-level install with project-relative paths. That directory is
+		// the user-level install, so treat the command as --global.
+		home := userHome()
+		if home == "" || target.InstallPattern != target.GlobalInstallPattern || !isSameDir(dir, home) {
+			return target, dir, nil
+		}
+		_, _ = fmt.Fprintf(stderr, "note: in your home directory, %s skills are your user-level install; using --global\n", target.Name)
 	}
 	g, err := target.Global()
 	if err != nil {
@@ -107,6 +137,25 @@ func ResolveScope(target *targets.AITarget, global bool) (*targets.AITarget, str
 		return nil, "", fmt.Errorf("finding home directory: %w", err)
 	}
 	return g, home, nil
+}
+
+// currentProject returns the project directory commands that look for an
+// existing install work in: the nearest directory, from the current one up,
+// that holds an install or is a repository root (see findProject), or else
+// the current directory.
+func currentProject() (string, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("getting working directory: %w", err)
+	}
+	root := findProject(cwd, userHome())
+	if root == "" {
+		return cwd, nil
+	}
+	if root != cwd {
+		_, _ = fmt.Fprintf(stderr, "note: using the project at %s\n", root)
+	}
+	return root, nil
 }
 
 // readLine reads one answer line from stdin ("" on EOF or error).
@@ -139,12 +188,15 @@ func promptChoice(prompt string, options []string) string {
 	for i, opt := range options {
 		_, _ = fmt.Fprintf(stderr, "  %d) %s\n", i+1, opt)
 	}
-	_, _ = fmt.Fprintf(stderr, "Choose [1-%d]: ", len(options))
-	input := readLine()
-	for i, opt := range options {
-		if input == strconv.Itoa(i+1) || strings.EqualFold(input, opt) {
-			return opt
+	for range promptAttempts {
+		_, _ = fmt.Fprintf(stderr, "Choose [1-%d]: ", len(options))
+		input := readLine()
+		for i, opt := range options {
+			if input == strconv.Itoa(i+1) || strings.EqualFold(input, opt) {
+				return opt
+			}
 		}
+		_, _ = fmt.Fprintf(stderr, "%q is not one of the choices.\n", input)
 	}
 	return ""
 }

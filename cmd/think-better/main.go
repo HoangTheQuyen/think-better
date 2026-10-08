@@ -27,6 +27,7 @@ var commands = map[string]func([]string) int{
 	"update":    cli.RunUpdate,
 	"list":      cli.RunList,
 	"uninstall": cli.RunUninstall,
+	"diff":      cli.RunDiff,
 	"check":     cli.RunCheck,
 	"version":   cli.RunVersion,
 }
@@ -70,34 +71,40 @@ func run(args []string, stdout, stderr io.Writer) int {
 }
 
 func printUsage(w io.Writer) {
-	_, _ = fmt.Fprintln(w, `think-better — AI-powered decision-making framework & problem-solving toolkit
+	_, _ = fmt.Fprintln(w, `think-better — decision-making, problem-solving and coding skills for AI assistants
 
-Install decision frameworks and critical thinking skills for Claude Code,
-GitHub Copilot, Antigravity and OpenCode. Includes cognitive bias detection,
-strategic planning frameworks, and systematic problem-solving methodologies.
+Install skills and slash commands for Claude Code, GitHub Copilot, Antigravity
+and OpenCode: decision frameworks with cognitive bias detection (make-decision),
+systematic problem-solving methods (problem-solving-pro) and coding workflows
+for debugging, features, refactoring, reviews, tests and performance (code-solving).
 
 Usage:
   think-better <command> [options]
 
 Commands:
-  init        Install AI assistant skills and slash commands (updates an existing install)
+  init        Install skills and slash commands (updates an existing install)
   update      Update installed skills everywhere they are installed (project and global)
-  list        Show available frameworks and where they are installed
-  uninstall   Remove an installed skill (keeps files you modified)
+  diff        Show the new versions (.new files) waiting to be merged into files you modified
+  list        Show available skills and where they are installed
+  uninstall   Remove installed skills (keeps files you modified unless --force)
   check       Verify prerequisites (Python 3) and installed skills
   version     Show version information (also -v, --version)
   help        Show this help message (help <command> for command help)
 
 Common options:
-  --ai string     AI assistant target: claude, copilot, antigravity, opencode
-  --skill string  Skill name (default: all for init and update, required for uninstall)
-  --global        Use your user account (all projects); claude, opencode, antigravity
-  --force         init/update: replace files you modified (saved as .bak first)
-                  uninstall: do not ask for confirmation
-  --dry-run       init/update/uninstall: show what would change
+  --ai <target>    AI assistant target: claude, copilot, antigravity, opencode
+  --skill <name>   Skill name (default: all for init and update; uninstall needs --skill or --all)
+  --global         Use your user account (all projects) instead of the current project
+  --dry-run        init/update/uninstall: show what would change
+  --force          init/update: replace files you modified (yours are saved as .bak)
+                   uninstall: also delete files you modified (implies --yes)
+  -y, --yes        uninstall: do not ask for confirmation (files you modified are kept)
+  --exclude-command <command>
+                   init/update: leave out a slash command, e.g. code.perf (remembered)
 
 Files you modify in an installed skill are never overwritten silently: init
-and update keep them and save the new version next to them as <file>.new.
+and update keep them and save the new version next to them as <file>.new
+(see them with 'think-better diff').
 
 Environment:
   THINK_BETTER_AI  Default for --ai (e.g. claude)

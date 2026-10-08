@@ -15,10 +15,11 @@ import json
 import re
 import unicodedata
 from datetime import datetime
+from functools import lru_cache
 from pathlib import Path
 
-from core import (default_output_dir, find_row, fold, load_csv, match_tokens, query_grams,
-                  rank_by_signals, save_docs, search_domain, slugify)
+from core import (default_output_dir, display_width, find_row, fold, load_csv, match_tokens, pad_display,
+                  query_grams, rank_by_signals, save_docs, search_domain, slugify, wrap_display)
 import journal
 import workspace
 
@@ -66,13 +67,21 @@ def is_vietnamese(text: str) -> bool:
     return bool(_VIETNAMESE.search(str(text).lower()))
 
 
+@lru_cache(maxsize=None)
+def _fold_char(ch: str) -> str:
+    base = fold(ch).lower()
+    if len(base) == 1:
+        return base
+    low = ch.lower()
+    return low if len(low) == 1 else ch
+
+
+@lru_cache(maxsize=512)
 def _fold_keep(text: str) -> str:
     """Lowercase accent-folded copy of text with the same length (one character per character)."""
-    out = []
-    for ch in text:
-        base = fold(ch).lower()
-        out.append(base if len(base) == 1 else ch.lower())
-    return "".join(out)
+    if text.isascii():
+        return text.lower()
+    return "".join(_fold_char(ch) for ch in text)
 
 
 def _split(text: str, pattern) -> list:
@@ -113,14 +122,37 @@ def _shape(word: str) -> str:
     return "word"
 
 
+# Openers after which "A, B and C" lists the options ("choose between", "should we use", "nên chọn")
+_CHOICE_OPENER = re.compile(r"between|choos|pick|select|compar|\buse\b|go with|chon|giua|so sanh|dung")
+_LIST_ITEM = re.compile(r"^\s*(?:\d{1,2}[.)]|[-*•+]|[a-hA-H][.)])\s+(?P<item>\S.*?)\s*$")
+
+
+def _list_options(lines: list) -> list:
+    """The items of the first bulleted or numbered list ('1. AWS', '- GCP'), when they read like options."""
+    items, started = [], False
+    for line in lines:
+        m = _LIST_ITEM.match(line)
+        if m:
+            started = True
+            items.append(m.group("item").replace("**", "").strip().rstrip(".;,").strip())
+        elif started and line.strip():
+            break
+    items = [i for i in items if i]
+    if not 2 <= len(items) <= 8 or any(len(i.split()) > 8 for i in items):
+        return []
+    return list(dict.fromkeys(items))
+
+
 def _options_in(sentence: str) -> list:
     s = sentence.strip().rstrip("?!.;:").strip()
     sep = re.compile(r"\s+(?:%s)\s+" % _SEPARATORS, re.I)
+    listed = False
     # "Which CRM: Salesforce, HubSpot or Pipedrive" - the options follow the colon
     if ":" in s:
         head, tail = s.split(":", 1)
-        if (sep.search(_fold_keep(tail)) or "," in tail) and len(head.split()) <= 8:
+        if (sep.search(_fold_keep(tail)) or "," in tail) and len(head.split()) <= 12:
             s = tail.strip()
+            listed = True
     # "renew it or not", "có ký hợp đồng hay không"
     yes_no = _YES_NO.match(_fold_keep(s))
     if yes_no:
@@ -137,6 +169,12 @@ def _options_in(sentence: str) -> list:
         extra.append("with|voi|and|va")
     split = re.compile(r"\s+(?:%s)\s+" % "|".join([_SEPARATORS] + extra), re.I)
     chunks = [c for c in re.split(r"\s*[,;]\s*", s) if c.strip()]
+    # "Salesforce, HubSpot and Pipedrive", "MISA, Fast và Bravo": the last item comes after and/và
+    choice = listed or _CHOICE_OPENER.search(opener) or re.search(r"\b(?:which|nao)\b", _fold_keep(sentence))
+    if len(chunks) >= 2 and choice:
+        tail = _split(chunks[-1], re.compile(r"\s+(?:and|va|&)\s+", re.I))
+        if len(tail) == 2 and all(t.strip() for t in tail):
+            chunks = chunks[:-1] + tail
     pieces = [p.strip() for c in chunks for p in _split(c, split)]
     pieces = [_split(p, re.compile(r"^(?:or|and|vs\.?|versus|hay|hoac|va)\s+", re.I))[-1].strip() for p in pieces]
     pieces = [p for p in pieces if p]
@@ -172,11 +210,30 @@ def parse_options(text: str) -> list:
     """
     text = unicodedata.normalize("NFC", str(text or ""))
     text = re.sub(r"\b(vs|versus)\.", r"\1", text, flags=re.I)
-    for sentence in re.split(r"(?<=[?!])\s+|\.\s+|\n+", text):
-        options = _options_in(sentence)
-        if options:
-            return options
+    lines = text.splitlines()
+    # Options spelled out in prose win; then a bulleted or numbered list ("1. AWS\n2. GCP")
+    prose = "\n".join(line for line in lines if not _LIST_ITEM.match(line))
+    for part in (prose, None, text):
+        if part is None:
+            options = _list_options(lines)
+            if options:
+                return options
+            continue
+        for sentence in re.split(r"(?<=[?!])\s+|\.\s+|\n+", part):
+            options = _options_in(sentence)
+            if options:
+                return options
     return []
+
+
+def _mask_options(text: str, options: list) -> str:
+    """text with option names that look like proper names ('Fast', 'MISA') blanked out, so a product
+    called 'Fast' is never read as time pressure."""
+    for option in options:
+        words = option.split()
+        if words and len(words) <= 3 and all(not w[0].isalpha() or w[0].isupper() for w in words):
+            text = re.sub(r"(?<!\w)%s(?!\w)" % re.escape(option), " , ", text)
+    return text
 
 
 # ============ SMALL HELPERS ============
@@ -282,11 +339,6 @@ class DecisionAdvisor:
         """All decision types, for --type choices."""
         return [row["Decision Type"] for row in load_csv("types")]
 
-    @staticmethod
-    def _count_options(query: str) -> int:
-        """Number of alternatives the request spells out (0 when it names none)."""
-        return len(parse_options(query))
-
     # ---- Classification ----
     def classify(self) -> dict:
         """{'row', 'source', 'matched'}: explicit --type, else keyword signals plus spelled-out options.
@@ -305,9 +357,10 @@ class DecisionAdvisor:
             raise ValueError(f"unknown decision type {self.decision_type!r}; choose one of: "
                              + ", ".join(r["Decision Type"] for r in rows))
 
-        scores = {row["Decision Type"]: [score, row, list(matched)]
-                  for score, row, matched in rank_by_signals(self.query, "types")}
         options = parse_options(self.query)
+        text = _mask_options(self.query, options)
+        scores = {row["Decision Type"]: [score, row, list(matched)]
+                  for score, row, matched in rank_by_signals(text, "types")}
         if len(options) >= 2:
             name = "Binary Choice" if len(options) == 2 else "Multi-Option Selection"
             if name in scores:
@@ -319,10 +372,6 @@ class DecisionAdvisor:
             return {"row": best[1], "source": "keywords", "matched": best[2]}
         default = next(r for r in rows if r["Decision Type"] == DEFAULT_TYPE)
         return {"row": default, "source": "default", "matched": []}
-
-    def classify_decision_type(self) -> dict:
-        """The decision type row (see classify() for how it was chosen)."""
-        return self.classify()["row"]
 
     def choose_criteria(self) -> dict:
         """{'row', 'source', 'matched'}: the criteria template whose signals the request matches best,
@@ -646,33 +695,29 @@ class DecisionAdvisor:
         """The plan in a terminal box (same content as Markdown, without the markup)."""
         width = 90
         title, sections = self._sections(plan)
-        out = ["+" + "=" * (width - 1) + "+"]
+        out = ["+" + "=" * width + "+"]
 
         def add(text: str = "", indent: str = "  "):
-            if not text:
+            if not text.strip():
                 out.append("|" + " " * width + "|")
                 return
-            words, line = text.split(), indent
-            for word in words:
-                if len(line) + len(word) + 1 > width - 2 and line.strip():
-                    out.append(f"|{line}".ljust(width + 1) + "|")
-                    line = indent + "   "
-                line += ("" if line.endswith(" ") else " ") + word
-            out.append(f"|{line}".ljust(width + 1) + "|")
+            # Columns, not characters: accents (even typed as combining marks) and wide characters
+            for line in wrap_display(text, width - 2, indent + " ", indent + "    "):
+                out.append("|" + pad_display(line, width) + "|")
 
         add(title.upper())
-        out.append("+" + "=" * (width - 1) + "+")
+        out.append("+" + "=" * width + "+")
         for heading, lines in sections:
             if not lines:
                 continue
             if heading:
-                out.append("+" + "-" * (width - 1) + "+")
+                out.append("+" + "-" * width + "+")
                 add(heading.upper())
             for line in lines:
                 plain = re.sub(r"\*\*|`|(?<![\w*])[*_](?=\S)|(?<=\S)[*_](?![\w*])", "", line).replace("\n", " ")
                 add(plain, "    " if heading else "  ")
             add()
-        out.append("+" + "=" * (width - 1) + "+")
+        out.append("+" + "=" * width + "+")
         return "\n".join(out)
 
     # ---- Persisted plans ----
@@ -686,6 +731,8 @@ class DecisionAdvisor:
     def persist_plan(self, plan: dict, output_dir: str = None, force: bool = False) -> tuple:
         """Save the plan as PLAN.md; returns (path, written). An existing PLAN.md is kept unless force."""
         plan_dir = self._plan_dir(plan, output_dir)
+        workspace.prepare_folder(plan_dir, plan.get("request", ""), plan["decision_type"]["name"], ["PLAN.md"],
+                                 force)
         content = self.format_markdown(plan)
         content += f"\n---\n*Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}*\n"
         written, _ = save_docs(plan_dir, {"PLAN.md": content}, force)
@@ -880,18 +927,10 @@ It is 12 months from now and this decision failed. What went wrong?
         """
         plan_dir = self._plan_dir(plan, output_dir)
         docs = self.step_docs(plan)
+        workspace.prepare_folder(plan_dir, plan.get("request", ""), plan["decision_type"]["name"], docs, force)
         written, kept = save_docs(plan_dir, docs, force)
         workspace.record_state(plan_dir, plan, {name: docs[name] for name in written})
         return str(plan_dir), written, kept
-
-    # ---- Comparison Matrix ----
-    def generate_matrix(self, description: str, custom_criteria: str = None, scores: str = None,
-                        output_format: str = "ascii") -> str:
-        """Comparison matrix text (see build_matrix)."""
-        return format_matrix(build_matrix(description, custom_criteria, scores), output_format)
-
-    def _parse_options(self, description: str) -> list:
-        return parse_options(description)
 
     # ---- Decision Journal ----
     def create_journal(self, decision_statement: str, project_name: str = None, output_dir: str = None,
@@ -951,11 +990,14 @@ def parse_criteria(spec: str) -> list:
     return items
 
 
+SCORE_MIN, SCORE_MAX = 1, 5
+
+
 def parse_scores(spec: str, criteria_count: int) -> list:
     """'React:4,3,5;Vue:5,4,3' -> [('React', [4, 3, 5]), ('Vue', [5, 4, 3])].
 
     Raises:
-        ValueError: a score list of the wrong length, a missing name or a non-number.
+        ValueError: a score list of the wrong length, a missing name, a non-number or a score outside 1-5.
     """
     result = []
     for part in re.split(r"[;\n]", str(spec or "")):
@@ -972,8 +1014,10 @@ def parse_scores(spec: str, criteria_count: int) -> list:
             raise ValueError(f"scores of {name!r} must be numbers, got {values.strip()!r}") from None
         if len(numbers) != criteria_count:
             raise ValueError(f"{name!r} has {len(numbers)} scores but there are {criteria_count} criteria")
-        if any(n < 0 for n in numbers):
-            raise ValueError(f"scores of {name!r} must not be negative")
+        bad = [v for v in numbers if not SCORE_MIN <= v <= SCORE_MAX]
+        if bad:
+            raise ValueError(f"scores of {name!r} must be from {SCORE_MIN} to {SCORE_MAX} (5 = best), got "
+                             + ", ".join(_num(v) for v in bad))
         result.append((name, numbers))
     return result
 
@@ -1081,10 +1125,10 @@ def _table(header: list, rows: list, markdown: bool) -> list:
     if markdown:
         return (["| " + " | ".join(header) + " |", "|" + "|".join("---" for _ in header) + "|"]
                 + ["| " + " | ".join(r) + " |" for r in rows])
-    widths = [max(len(str(x)) for x in col) for col in zip(header, *rows)]
+    widths = [max(display_width(x) for x in col) for col in zip(header, *rows)]
 
     def line(cells):
-        return " | ".join(str(c).ljust(w) for c, w in zip(cells, widths)).rstrip()
+        return " | ".join(pad_display(c, w) for c, w in zip(cells, widths)).rstrip()
 
     return [line(header), "-+-".join("-" * w for w in widths)] + [line(r) for r in rows]
 
@@ -1252,4 +1296,11 @@ def generate_decision_plan(query: str, project_name: str = None, output_format: 
             result += f"\n\nPlan saved to: {saved['path']}"
         else:
             result += f"\n\nKept the existing plan at {saved['path']} (add --force to replace it)."
-    return result + NEXT_STEPS.get(depth, NEXT_STEPS["standard"])
+    return result + next_steps_table(NEXT_STEPS.get(depth, NEXT_STEPS["standard"]), bool(saved.get("dir")))
+
+
+def next_steps_table(text: str, saved_step_docs: bool) -> str:
+    """The Next Steps table, without the "save step-by-step" row once the workspace is saved."""
+    if not saved_step_docs:
+        return text
+    return "".join(line for line in text.splitlines(True) if "save step-by-step" not in line)

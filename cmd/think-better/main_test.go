@@ -15,6 +15,8 @@ func TestRun(t *testing.T) {
 	}{
 		{nil, 1, "", "Usage:"},
 		{[]string{"help"}, 0, "update", ""},
+		{[]string{"help"}, 0, "coding workflows", ""},
+		{[]string{"help"}, 0, "  diff ", ""},
 		{[]string{"--help"}, 0, "antigravity, opencode", ""},
 		{[]string{"-h"}, 0, "Commands:", ""},
 		{[]string{"-v"}, 0, "think-better ", ""},
@@ -42,7 +44,7 @@ func TestRun(t *testing.T) {
 
 // Command help is printed by the command and exits 0.
 func TestHelpCommand(t *testing.T) {
-	for _, cmd := range []string{"init", "update", "list", "uninstall", "check", "version"} {
+	for _, cmd := range []string{"init", "update", "diff", "list", "uninstall", "check", "version"} {
 		var out, errOut bytes.Buffer
 		if code := run([]string{"help", cmd}, &out, &errOut); code != 0 {
 			t.Errorf("help %s = %d, want 0", cmd, code)
