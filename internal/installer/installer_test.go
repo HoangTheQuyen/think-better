@@ -11,6 +11,8 @@ import (
 	"github.com/HoangTheQuyen/think-better/internal/targets"
 )
 
+const testVersion = "v1.0.0"
+
 func TestCheckStatusNotInstalled(t *testing.T) {
 	tmpDir := t.TempDir()
 	skill := skills.FindSkill("make-decision")
@@ -18,38 +20,23 @@ func TestCheckStatusNotInstalled(t *testing.T) {
 		t.Fatal("skill make-decision not found in registry")
 	}
 	target := targets.FindTarget("claude")
-	if target == nil {
-		t.Fatal("target claude not found")
-	}
 
-	status, err := CheckStatus(skill, target, tmpDir)
+	status, err := CheckStatus(skill, target, tmpDir, testVersion)
 	if err != nil {
 		t.Fatalf("CheckStatus error: %v", err)
 	}
 	if status.Status != StatusNotInstalled {
 		t.Errorf("Status = %q, want %q", status.Status, StatusNotInstalled)
 	}
-	if status.SkillName != "make-decision" {
-		t.Errorf("SkillName = %q, want %q", status.SkillName, "make-decision")
-	}
-	if status.TargetName != "claude" {
-		t.Errorf("TargetName = %q, want %q", status.TargetName, "claude")
-	}
-	if len(status.InstalledFiles) != 0 {
-		t.Errorf("InstalledFiles = %d, want 0", len(status.InstalledFiles))
+	if status.SkillName != "make-decision" || status.TargetName != "claude" {
+		t.Errorf("status = %+v", status)
 	}
 }
 
 func TestCheckStatusIncomplete(t *testing.T) {
 	tmpDir := t.TempDir()
 	skill := skills.FindSkill("make-decision")
-	if skill == nil {
-		t.Fatal("skill make-decision not found in registry")
-	}
 	target := targets.FindTarget("claude")
-	if target == nil {
-		t.Fatal("target claude not found")
-	}
 
 	// Create partial installation — just PROMPT.md
 	installDir := filepath.Join(tmpDir, target.InstallDir(skill.Name))
@@ -60,18 +47,18 @@ func TestCheckStatusIncomplete(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	status, err := CheckStatus(skill, target, tmpDir)
+	status, err := CheckStatus(skill, target, tmpDir, testVersion)
 	if err != nil {
 		t.Fatalf("CheckStatus error: %v", err)
 	}
 	if status.Status != StatusIncomplete {
 		t.Errorf("Status = %q, want %q", status.Status, StatusIncomplete)
 	}
-	if len(status.InstalledFiles) == 0 {
-		t.Error("InstalledFiles should contain at least PROMPT.md")
+	if len(status.Missing) == 0 {
+		t.Error("Missing should be non-empty for incomplete install")
 	}
-	if len(status.MissingFiles) == 0 {
-		t.Error("MissingFiles should be non-empty for incomplete install")
+	if len(status.Modified) != 1 || !strings.HasSuffix(status.Modified[0], "/PROMPT.md") {
+		t.Errorf("Modified = %v, want PROMPT.md", status.Modified)
 	}
 }
 
@@ -94,10 +81,10 @@ func TestInstallRewritesSkillDocPaths(t *testing.T) {
 	for _, target := range targets.Targets {
 		t.Run(target.Name, func(t *testing.T) {
 			tmpDir := t.TempDir()
-			inst := NewInstaller(tmpDir)
+			inst := NewInstaller(tmpDir, testVersion)
 			for i := range skills.Registry {
 				skill := &skills.Registry[i]
-				if _, err := inst.Install(skill, &target, true, false); err != nil {
+				if _, err := inst.Install(skill, &target, Options{}); err != nil {
 					t.Fatalf("Install(%s): %v", skill.Name, err)
 				}
 				for _, doc := range []string{"SKILL.md", "PROMPT.md"} {
@@ -131,18 +118,18 @@ func TestInstallWorkflowsPerTarget(t *testing.T) {
 		}
 		t.Run(target.Name, func(t *testing.T) {
 			tmpDir := t.TempDir()
-			inst := NewInstaller(tmpDir)
-			if _, err := inst.Install(skill, &target, true, false); err != nil {
-				t.Fatal(err)
-			}
-			created, err := inst.InstallWorkflows(&target, true, skill.Name)
+			res, err := NewInstaller(tmpDir, testVersion).Install(skill, &target, Options{})
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(created) == 0 {
+			if len(res.Workflows) == 0 {
 				t.Fatal("no workflows installed")
 			}
-			for _, name := range created {
+			for _, c := range res.Workflows {
+				name := c.Path
+				if c.Action != ActionCreate {
+					t.Errorf("%s: action %s, want create", name, c.Action)
+				}
 				if !strings.HasPrefix(name, "code") {
 					t.Errorf("installed %s, which does not run %s", name, skill.Name)
 				}
@@ -171,22 +158,19 @@ func TestInstallWorkflowsPerTarget(t *testing.T) {
 func TestUninstallRemovesOnlyThatSkillsWorkflows(t *testing.T) {
 	tmpDir := t.TempDir()
 	target := targets.FindTarget("claude")
-	inst := NewInstaller(tmpDir)
+	inst := NewInstaller(tmpDir, testVersion)
 	for _, name := range []string{"code-solving", "make-decision"} {
-		if _, err := inst.Install(skills.FindSkill(name), target, true, false); err != nil {
+		if _, err := inst.Install(skills.FindSkill(name), target, Options{}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, err := inst.InstallWorkflows(target, true); err != nil {
-		t.Fatal(err)
-	}
 
-	removed, err := NewUninstaller(tmpDir).UninstallWorkflows(skills.FindSkill("code-solving"), target)
+	res, err := inst.Uninstall(skills.FindSkill("code-solving"), target, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(removed) == 0 {
-		t.Fatal("no workflows removed")
+	if res.Count(ActionRemove) == 0 || len(res.Workflows) == 0 {
+		t.Fatal("nothing removed")
 	}
 	dir := filepath.Join(tmpDir, ".claude", "commands")
 	if _, err := os.Stat(filepath.Join(dir, "code.md")); !os.IsNotExist(err) {
@@ -194,6 +178,15 @@ func TestUninstallRemovesOnlyThatSkillsWorkflows(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, "decide.md")); err != nil {
 		t.Error("decide.md belongs to make-decision and should stay")
+	}
+	m, err := readWorkflowManifest(tmpDir, ".claude/commands")
+	if err != nil || m == nil {
+		t.Fatalf("workflow manifest: %v %v", m, err)
+	}
+	for name, e := range m.Files {
+		if e.Skill != "make-decision" {
+			t.Errorf("manifest still lists %s (%s)", name, e.Skill)
+		}
 	}
 }
 
@@ -208,16 +201,11 @@ func TestGlobalInstallPaths(t *testing.T) {
 		}
 		t.Run(target.Name, func(t *testing.T) {
 			home := t.TempDir()
-			inst := NewInstaller(home)
-			var names []string
+			inst := NewInstaller(home, testVersion)
 			for i := range skills.Registry {
-				if _, err := inst.Install(&skills.Registry[i], target, true, false); err != nil {
+				if _, err := inst.Install(&skills.Registry[i], target, Options{}); err != nil {
 					t.Fatal(err)
 				}
-				names = append(names, skills.Registry[i].Name)
-			}
-			if _, err := inst.InstallWorkflows(target, true, names...); err != nil {
-				t.Fatal(err)
 			}
 			checked := 0
 			err := filepath.WalkDir(home, func(p string, d os.DirEntry, err error) error {
