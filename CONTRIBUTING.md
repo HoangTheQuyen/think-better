@@ -12,12 +12,12 @@ clone to merged PR, and explains how to add the things people contribute most:
 git clone https://github.com/<you>/think-better.git && cd think-better
 # ...edit files under .agents/ or internal/...
 make embed-prep   # mirror .agents/ into internal/skills (or: go generate ./internal/skills)
-make check        # vet + Go tests + Python smoke tests — the same checks CI runs
+make check        # vet + Go tests + Python tests + docs checks — the same checks CI runs
 git commit -m "feat(make-decision): add OODA loop framework"
 ```
 
-No `make`? Run the three commands directly:
-`go generate ./internal/skills && go test ./... && python3 scripts/smoke_test_skills.py`.
+No `make`? Run the commands directly:
+`go generate ./internal/skills && go test ./... && python3 scripts/smoke_test_skills.py && python3 scripts/test_skill_engines.py && python3 scripts/test_docs.py`.
 
 ## Development setup
 
@@ -49,7 +49,18 @@ internal/installer/          install / update / uninstall / status logic; manife
 internal/cli/                subcommands
 cmd/think-better/            main package
 scripts/smoke_test_skills.py runs every skill's search.py in CI
+scripts/test_docs.py         docs match the repo: counts, commands, bias names, links
+scripts/test_doc_samples.py  the sample outputs in the docs match a real run
 ```
+
+### When the docs checks fail
+
+`scripts/test_docs.py` fails when a count in README.md, USER-GUIDE.md, QUICK-REFERENCE.md or
+the website no longer matches the CSV files, workflows or AI targets; update the number it
+names. It also runs `scripts/test_doc_samples.py`, which re-runs the requests shown as samples
+(README, website, examples): if you change a knowledge base or the classification and a sample
+changes, re-run the request, update the sample in the docs it names (English and Vietnamese)
+and the expected values in `scripts/test_doc_samples.py`.
 
 The mirror in `internal/skills/` is committed so `go install` works without a
 build step. `TestEmbeddedInSync` fails CI if you forget to regenerate it — the
@@ -129,7 +140,9 @@ with that skill.
    comment next to the paths.
 2. Add the name to the tests in `internal/targets/target_test.go` and to the
    CI smoke loop in `.github/workflows/ci.yml`.
-3. Document it in the README "Works with" line and the target table.
+3. Document it in the README "Works with" line, the target table and "How a skill is
+   picked", the USER-GUIDE install table, and the website (`docs/index.html`);
+   `scripts/test_docs.py` fails until README, guides and website mention it.
 
 ## Commits and pull requests
 
