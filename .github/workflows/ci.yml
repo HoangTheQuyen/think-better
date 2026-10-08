@@ -5,8 +5,48 @@ on:
         branches: [main]
     pull_request:
 
+permissions:
+    contents: read
+
+concurrency:
+    group: ci-${{ github.ref }}
+    cancel-in-progress: true
+
 jobs:
-    build-and-test:
+    go:
+        name: Go (${{ matrix.os }})
+        strategy:
+            fail-fast: false
+            matrix:
+                os: [ubuntu-latest, macos-latest, windows-latest]
+        runs-on: ${{ matrix.os }}
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: actions/setup-go@v5
+              with:
+                  go-version-file: go.mod
+
+            - name: Vet
+              run: go vet ./...
+
+            # Includes TestEmbeddedInSync (internal/skills matches .agents/)
+            # and the skill/workflow structure checks.
+            - name: Test
+              run: go test ./...
+
+            - name: Build and smoke-test binary
+              shell: bash
+              run: |
+                  go build -o bin/think-better ./cmd/think-better
+                  ./bin/think-better version
+                  ./bin/think-better list
+                  tmp="$(mktemp -d)"
+                  for ai in claude copilot antigravity opencode; do
+                    (cd "$tmp" && "$GITHUB_WORKSPACE/bin/think-better" init --ai "$ai" --force)
+                  done
+
+    lint:
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
@@ -15,14 +55,49 @@ jobs:
               with:
                   go-version-file: go.mod
 
-            - name: Prepare embedded skills
-              run: make embed-prep
+            - uses: golangci/golangci-lint-action@v8
+              with:
+                  version: v2.5.0
 
-            - name: Build
-              run: make build
+    python:
+        name: Skill scripts (Python ${{ matrix.python }}, ${{ matrix.os }})
+        strategy:
+            fail-fast: false
+            matrix:
+                os: [ubuntu-latest]
+                python: ["3.9", "3.13"]
+                include:
+                    - os: windows-latest
+                      python: "3.13"
+        runs-on: ${{ matrix.os }}
+        steps:
+            - uses: actions/checkout@v4
 
-            - name: Test
-              run: make test
+            - uses: actions/setup-python@v5
+              with:
+                  python-version: ${{ matrix.python }}
 
-            - name: Verify binary
-              run: ./bin/think-better version
+            - name: Smoke-test skill scripts
+              run: python scripts/smoke_test_skills.py
+
+    install-scripts:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: ShellCheck
+              run: shellcheck install.sh build.sh
+
+            - name: Install latest release with install.sh
+              run: INSTALL_DIR="$RUNNER_TEMP/bin" sh install.sh
+
+    install-script-windows:
+        runs-on: windows-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Install latest release with install.ps1
+              shell: pwsh
+              run: |
+                  $env:INSTALL_DIR = Join-Path $env:RUNNER_TEMP "think-better"
+                  ./install.ps1
