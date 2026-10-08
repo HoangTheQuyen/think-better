@@ -12,7 +12,12 @@ type AITarget struct {
 	DisplayName     string // Human-friendly name
 	InstallPattern  string // Path template with {skill} placeholder
 	WorkflowPattern string // Directory for workflow (slash command) files (empty = no workflow support)
+	WorkflowFormat  string // How workflows are written: "" (Markdown as is) or FormatCopilotPrompt
 }
+
+// FormatCopilotPrompt writes workflows as VS Code Copilot prompt files
+// (<name>.prompt.md, run in agent mode, ${input:task} for the user's text).
+const FormatCopilotPrompt = "copilot-prompt"
 
 // sourceSkillsRoot is where workflows reference skills in the .agents/ sources.
 const sourceSkillsRoot = ".agents/skills/"
@@ -29,7 +34,8 @@ var Targets = []AITarget{
 		Name:            "copilot",
 		DisplayName:     "GitHub Copilot",
 		InstallPattern:  ".github/prompts/{skill}/",
-		WorkflowPattern: "",
+		WorkflowPattern: ".github/prompts/",
+		WorkflowFormat:  FormatCopilotPrompt,
 	},
 	{
 		Name:            "antigravity",
@@ -92,9 +98,19 @@ func (t *AITarget) RewriteSkillPaths(content string) string {
 	return strings.ReplaceAll(content, sourceSkillsRoot, t.SkillsRoot())
 }
 
+// WorkflowFileName is the installed file name for a workflow source file
+// (e.g. "code.debug.md" becomes "code.debug.prompt.md" for Copilot).
+func (t *AITarget) WorkflowFileName(name string) string {
+	if t.WorkflowFormat == FormatCopilotPrompt {
+		return strings.TrimSuffix(name, ".md") + ".prompt.md"
+	}
+	return name
+}
+
 // AdaptWorkflow rewrites a workflow written for the .agents/ layout so it
 // works for this target: skill paths point at the target's skills root, and
-// Antigravity-only "// turbo" annotations are dropped elsewhere.
+// Antigravity-only "// turbo" annotations are dropped elsewhere. Copilot
+// prompt files also run in agent mode and take the user's text as ${input:task}.
 func (t *AITarget) AdaptWorkflow(content string) string {
 	if t.SkillsRoot() == sourceSkillsRoot {
 		return content
@@ -107,7 +123,15 @@ func (t *AITarget) AdaptWorkflow(content string) string {
 			kept = append(kept, l)
 		}
 	}
-	return strings.Join(kept, "\n")
+	content = strings.Join(kept, "\n")
+
+	if t.WorkflowFormat == FormatCopilotPrompt {
+		content = strings.ReplaceAll(content, "$ARGUMENTS", "${input:task}")
+		if rest, ok := strings.CutPrefix(content, "---\n"); ok {
+			content = "---\nagent: agent\nargument-hint: Describe the task\n" + rest
+		}
+	}
+	return content
 }
 
 // HasWorkflows returns true if this target supports workflow installation.

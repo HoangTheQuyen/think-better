@@ -4,11 +4,11 @@
 
 ```bash
 # Install binary
-curl -sSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.sh | sh
 # Or Windows: irm https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.ps1 | iex
 
-# Install skills
-think-better init --ai claude       # or: copilot, antigravity
+# Install skills and slash commands
+think-better init --ai claude       # or: copilot, antigravity, opencode
 
 # List installed skills
 think-better list
@@ -74,13 +74,32 @@ python scripts/search.py "opportunity cost" --domain analysis
 
 ---
 
-### Problem-Solving / Debugging
+### Coding (bugs, features, refactors, performance, reviews)
+```bash
+/code.debug [error message, repro steps, what changed]
+/code.feature [what users can do when it is done]
+/code.refactor [module and the change it should make easier]
+/code.perf [metric, current value, target]
+/code.review [PR or files]
+/code [anything else: flaky tests, incidents, migrations]
+
+# Every step needs evidence before the next:
+# 1 Define: failing test or repro    2 Decompose: change map
+# 3-4 Plan: tasks with tests          5 Execute: small green steps
+# 6 Verify: Step 1 check + project checks pass
+# 7 Communicate: PR description / postmortem
+```
+**Key:** No fix without a test that failed first; no "done" without the checks' output
+
+---
+
+### Problem-Solving (business, product, process)
 ```bash
 # In your AI assistant with problem-solving-pro skill:
 /solve [Describe problem, environment, what you've tried]
 
 # With depth control:
-/solve.quick API latency spiked after deploy
+/solve.quick Signups dropped after the pricing change
 /solve.deep Revenue declining despite growth
 /solve.exec Board-level crisis analysis
 
@@ -206,6 +225,12 @@ python scripts/search.py "keywords" --domain facilitation
 /decide Should we [option A] or [option B]?
 /decide.deep Choosing between [A], [B], and [C] for [purpose].
 /decide.exec Strategic analysis of [major decision] for board discussion
+
+## For Coding
+
+/code.debug [Error]. Repro: [steps]. Started after [change].
+/code.feature [Feature] so that [user outcome]. Out of scope: [x].
+/code.review [PR link or files]
 
 ## For Problem-Solving
 

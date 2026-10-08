@@ -155,3 +155,16 @@ func plainScalarIssues(doc string) []string {
 	}
 	return issues
 }
+
+func TestEveryWorkflowRunsAKnownSkill(t *testing.T) {
+	files, err := WorkflowFiles()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range files {
+		name := WorkflowSkill(f)
+		if FindSkill(name) == nil {
+			t.Errorf("%s: WorkflowSkill = %q, want a registered skill", f, name)
+		}
+	}
+}

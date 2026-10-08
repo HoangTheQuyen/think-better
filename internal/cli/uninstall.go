@@ -93,6 +93,16 @@ Flags:`)
 		fmt.Printf("  Removed %s\n", installPath)
 	}
 
-	fmt.Printf("\n✓ Removed %d files\n", len(removed))
+	// Remove the slash commands that run this skill
+	wfRemoved, err := uninst.UninstallWorkflows(skill, target)
+	for _, f := range wfRemoved {
+		fmt.Printf("  Removed %s\n", filepath.ToSlash(filepath.Join(target.WorkflowDir(), f)))
+	}
+	if err != nil {
+		Errorf("%v", err)
+		return 1
+	}
+
+	fmt.Printf("\n✓ Removed %d files\n", len(removed)+len(wfRemoved))
 	return 0
 }

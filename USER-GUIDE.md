@@ -10,10 +10,12 @@ A step-by-step guide to installing and using the bundled skills for structured t
 
 ```bash
 # macOS / Linux
-curl -sSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.sh | sh
 
 # Windows (PowerShell)
 irm https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.ps1 | iex
+
+# Homebrew / Scoop / go install: see the README
 
 # Or build from source:
 git clone https://github.com/HoangTheQuyen/think-better.git && cd think-better
@@ -32,12 +34,18 @@ think-better init --ai copilot
 
 # For Antigravity
 think-better init --ai antigravity
+
+# For OpenCode
+think-better init --ai opencode
+
+# Only one skill (its slash commands come with it)
+think-better init --ai claude --skill code-solving
 ```
 
 ### 3. Open Your AI Assistant
 
 - **Claude:** Open Claude Code or VS Code with Claude extension
-- **Copilot:** Open VS Code and switch to Copilot Chat
+- **Copilot:** Open VS Code, switch Copilot Chat to agent mode; the commands are prompt files in `.github/prompts/`
 - **Antigravity:** Open your Antigravity-powered editor
 
 ### 4. Start Using
@@ -46,7 +54,8 @@ Just describe your problem naturally, or use a slash command:
 ```
 "Should we migrate to microservices?"
 /decide.deep Should we migrate to microservices?
-/solve.quick API latency spiked after deploy
+/solve.quick Signups dropped 15% after the pricing change
+/code.debug TypeError in checkout after the last deploy
 ```
 
 ---
@@ -63,10 +72,12 @@ Just describe your problem naturally, or use a slash command:
 - Resource allocation (budget distribution)
 - Team decisions (need group consensus)
 
-**How it works:**
+**How it works:** your AI runs these commands for you. To run them yourself, work from the
+skill's folder (`.claude/skills/make-decision` for Claude Code, `.github/prompts/make-decision`
+for Copilot, `.opencode/skills/make-decision` for OpenCode, `.agents/skills/make-decision` for
+Antigravity); plans and journals are still saved in your project root.
 ```bash
-# Inside the skill directory:
-cd .agents/skills/make-decision
+cd .claude/skills/make-decision   # or your AI tool's skill folder
 
 # Step 1: Generate decision plan (always start here!)
 python scripts/search.py "your decision question here" --plan -p "Project Name"
@@ -95,11 +106,12 @@ python scripts/search.py --journal --update "decision-slug" \
 **What it does:** Guides you through structured problem-solving with hypothesis testing, root cause analysis, and systematic investigation.
 
 **Best for:**
-- Production incidents (bugs, performance issues)
-- Debugging intermittent failures
-- Root cause analysis
-- Technical investigations
-- Data quality issues
+- Root cause analysis of business and product problems (revenue, churn, conversion)
+- Organizational and process problems
+- Market, cost and strategy questions
+- Data and analytics investigations
+
+For bugs, incidents and other code changes, use **code-solving** (Skill 3).
 
 **How it works:**
 
@@ -121,6 +133,45 @@ The skill will guide you through:
 4. **Root Cause Identification** — 5 Whys analysis
 5. **Solution Design** — Compare quick fix vs proper fix vs architectural fix
 6. **Prevention** — Monitoring to catch this in future
+
+Add `--type` and `--category` when you know them (e.g. `--type Diagnostic --category "Business Performance"`);
+the plan shows which **Type** and **Context** it used.
+
+### Skill 3: code-solving
+
+**What it does:** Takes your AI through 7 steps for any code change — Define, Decompose,
+Prioritize, Plan, Execute, Verify, Communicate — and requires real evidence at each step
+(a failing test before the fix, passing checks after) instead of "it should work now".
+
+**Best for:**
+- Bugs and crashes (`/code.debug`)
+- New features in small tested slices (`/code.feature`)
+- Refactoring without changing behavior (`/code.refactor`)
+- Slow code and memory leaks (`/code.perf`)
+- Code review with concrete failure scenarios (`/code.review`)
+- Flaky tests, production incidents and migrations (`/code`, auto-detected, or `--type flaky-test|incident|migration`)
+
+**How it works:**
+```
+/code.debug Checkout throws "TypeError: cannot read properties of undefined (reading 'id')"
+since yesterday's deploy. Repro: add a gift card, then pay.
+
+/code.feature Add CSV export to the reports page (date range, max 10k rows)
+/code.deep Migrate the auth module from Express 4 to 5
+```
+
+| Step | What the AI must show before moving on |
+|------|----------------------------------------|
+| 1. Define | A failing test, repro command, benchmark baseline or acceptance criteria |
+| 2. Decompose | The files and functions involved and who calls them |
+| 3–4. Prioritize & Plan | An ordered task list with a test and rollback per task |
+| 5. Execute | Small steps, each ending green; a log of what was tried |
+| 6. Verify | The Step 1 check passes; your project's test/lint/build commands pass |
+| 7. Communicate | A PR description (or postmortem / design doc / review report) |
+
+The skill finds your project's own commands (npm/pnpm/yarn, Make, Go, Cargo, pytest,
+Maven/Gradle, …): `python3 .claude/skills/code-solving/scripts/search.py --detect`.
+Say "save step-by-step" to get a `coding-plans/<name>/` workspace with one file per step.
 
 ---
 

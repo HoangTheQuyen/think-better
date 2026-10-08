@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/HoangTheQuyen/think-better/internal/skills"
@@ -113,8 +114,9 @@ func (inst *Installer) Install(skill *skills.SkillPackage, target *targets.AITar
 }
 
 // InstallWorkflows copies embedded workflow files to the target's workflow directory.
-// Returns the list of created files, or nil if the target doesn't support workflows.
-func (inst *Installer) InstallWorkflows(target *targets.AITarget, force bool) ([]string, error) {
+// When skillNames are given, only workflows that run one of those skills are installed.
+// Returns the installed file names, or nil if the target doesn't support workflows.
+func (inst *Installer) InstallWorkflows(target *targets.AITarget, force bool, skillNames ...string) ([]string, error) {
 	if !target.HasWorkflows() {
 		return nil, nil
 	}
@@ -139,8 +141,12 @@ func (inst *Installer) InstallWorkflows(target *targets.AITarget, force bool) ([
 		if d.IsDir() {
 			return nil
 		}
+		if len(skillNames) > 0 && !slices.Contains(skillNames, skills.WorkflowSkill(path)) {
+			return nil
+		}
 
-		targetPath := filepath.Join(workflowDir, filepath.FromSlash(path))
+		name := target.WorkflowFileName(path)
+		targetPath := filepath.Join(workflowDir, filepath.FromSlash(name))
 
 		// Skip existing files unless force
 		if !force {
@@ -165,7 +171,7 @@ func (inst *Installer) InstallWorkflows(target *targets.AITarget, force bool) ([
 			return fmt.Errorf("writing workflow %s: %w", path, err)
 		}
 
-		created = append(created, path)
+		created = append(created, name)
 		return nil
 	})
 

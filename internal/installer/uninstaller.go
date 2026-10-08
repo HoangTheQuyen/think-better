@@ -114,3 +114,31 @@ func cleanEmptyDirsRecursive(dir string, stopAt string) {
 		current = filepath.Dir(current)
 	}
 }
+
+// UninstallWorkflows removes the installed workflows (slash commands) that run
+// the given skill, so no command is left pointing at deleted scripts.
+// Returns the removed file names.
+func (u *Uninstaller) UninstallWorkflows(skill *skills.SkillPackage, target *targets.AITarget) ([]string, error) {
+	if !target.HasWorkflows() {
+		return nil, nil
+	}
+	files, err := skills.WorkflowFiles()
+	if err != nil {
+		return nil, err
+	}
+	dir := filepath.Join(u.BaseDir, filepath.FromSlash(target.WorkflowDir()))
+	var removed []string
+	for _, f := range files {
+		if skills.WorkflowSkill(f) != skill.Name {
+			continue
+		}
+		name := target.WorkflowFileName(f)
+		err := os.Remove(filepath.Join(dir, filepath.FromSlash(name)))
+		if err == nil {
+			removed = append(removed, name)
+		} else if !os.IsNotExist(err) {
+			return removed, fmt.Errorf("removing workflow %s: %w", name, err)
+		}
+	}
+	return removed, nil
+}

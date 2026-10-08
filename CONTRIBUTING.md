@@ -93,9 +93,14 @@ Most content contributions are rows in `.agents/skills/*/data/*.csv`.
 ## Adding or changing a workflow (slash command)
 
 Workflows live in `.agents/workflows/<command>.md` and are installed as slash
-commands for targets that support them (Antigravity, Claude Code).
+commands for targets that support them: Antigravity and Claude Code as-is,
+GitHub Copilot as `<command>.prompt.md` prompt files (agent mode,
+`$ARGUMENTS` becomes `${input:task}`). A workflow belongs to the skill whose
+`.agents/skills/<skill>/` path it references: it is installed and uninstalled
+with that skill.
 
-- Frontmatter must have a `description`.
+- Frontmatter must have a `description`. Do not put `: ` or ` #` in an unquoted
+  value; strict YAML parsers reject it (a test checks this).
 - Reference skills as `.agents/skills/<skill>/...`; the installer rewrites the
   path for each target (e.g. `.claude/skills/<skill>/...`).
 - Use `$ARGUMENTS` for the user's input.

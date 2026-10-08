@@ -6,6 +6,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -112,8 +113,12 @@ Flags:`)
 	// Install workflow files (slash commands, e.g. /solve, /decide) for targets that support them
 	// Always attempt workflow installation regardless of skill errors —
 	// workflows are independent of skills and should not be blocked by them.
+	installed := make([]string, len(skillsToInstall))
+	for i, s := range skillsToInstall {
+		installed[i] = s.Name
+	}
 	if target.HasWorkflows() {
-		wfCreated, err := inst.InstallWorkflows(target, sf.Force)
+		wfCreated, err := inst.InstallWorkflows(target, sf.Force, installed...)
 		if err != nil {
 			Errorf("installing workflows: %v", err)
 			hasError = true
@@ -142,12 +147,15 @@ Flags:`)
 			for _, s := range skillsToInstall {
 				fmt.Printf("  - Skill %q is available in .agents/skills/%s/\n", s.Name, s.Name)
 			}
-			printSlashCommands("Workflows installed")
-		} else if ai == "claude" {
+			printSlashCommands("Workflows installed", installed)
+		} else if ai == "claude" || ai == "copilot" {
 			for _, s := range skillsToInstall {
-				fmt.Printf("  - Skill %q is available in .claude/skills/%s/\n", s.Name, s.Name)
+				fmt.Printf("  - Skill %q is available in %s\n", s.Name, target.InstallDir(s.Name))
 			}
-			printSlashCommands("Slash commands installed")
+			printSlashCommands("Slash commands installed", installed)
+			if ai == "copilot" {
+				fmt.Println("  - Use them in Copilot Chat (agent mode) by typing / and the command name")
+			}
 		} else if ai == "opencode" {
 			fmt.Println("  - Skills installed as OpenCode skills (SKILL.md entry points)")
 			for _, s := range skillsToInstall {
@@ -174,9 +182,9 @@ Flags:`)
 	return 0
 }
 
-// printSlashCommands lists the bundled workflows as slash commands, one line
-// per group (/code, /code.debug, ... then /decide, ...).
-func printSlashCommands(label string) {
+// printSlashCommands lists the workflows for the installed skills as slash
+// commands, one line per group (/code, /code.debug, ... then /decide, ...).
+func printSlashCommands(label string, installed []string) {
 	files, err := skills.WorkflowFiles()
 	if err != nil {
 		return
@@ -184,6 +192,9 @@ func printSlashCommands(label string) {
 	groups := map[string][]string{}
 	var order []string
 	for _, f := range files {
+		if !slices.Contains(installed, skills.WorkflowSkill(f)) {
+			continue
+		}
 		name := strings.TrimSuffix(path.Base(f), ".md")
 		group, _, _ := strings.Cut(name, ".")
 		if _, ok := groups[group]; !ok {

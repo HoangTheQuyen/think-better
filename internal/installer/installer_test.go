@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/HoangTheQuyen/think-better/internal/skills"
@@ -116,5 +117,82 @@ func TestInstallRewritesSkillDocPaths(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// Workflows are installed only for the chosen skills, in each target's format,
+// and every script path they run exists after install.
+func TestInstallWorkflowsPerTarget(t *testing.T) {
+	pathRe := regexp.MustCompile(`[\w./-]+/scripts/search\.py`)
+	skill := skills.FindSkill("code-solving")
+	for _, target := range targets.Targets {
+		if !target.HasWorkflows() {
+			continue
+		}
+		t.Run(target.Name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			inst := NewInstaller(tmpDir)
+			if _, err := inst.Install(skill, &target, true, false); err != nil {
+				t.Fatal(err)
+			}
+			created, err := inst.InstallWorkflows(&target, true, skill.Name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(created) == 0 {
+				t.Fatal("no workflows installed")
+			}
+			for _, name := range created {
+				if !strings.HasPrefix(name, "code") {
+					t.Errorf("installed %s, which does not run %s", name, skill.Name)
+				}
+				if target.WorkflowFormat == targets.FormatCopilotPrompt && !strings.HasSuffix(name, ".prompt.md") {
+					t.Errorf("copilot workflow %s should end in .prompt.md", name)
+				}
+				data, err := os.ReadFile(filepath.Join(tmpDir, filepath.FromSlash(target.WorkflowDir()), name))
+				if err != nil {
+					t.Fatal(err)
+				}
+				content := string(data)
+				if target.WorkflowFormat == targets.FormatCopilotPrompt &&
+					(strings.Contains(content, "$ARGUMENTS") || !strings.Contains(content, "${input:task}")) {
+					t.Errorf("%s: arguments not adapted for Copilot", name)
+				}
+				for _, ref := range pathRe.FindAllString(content, -1) {
+					if _, err := os.Stat(filepath.Join(tmpDir, filepath.FromSlash(ref))); err != nil {
+						t.Errorf("%s runs %s, which was not installed", name, ref)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestUninstallRemovesOnlyThatSkillsWorkflows(t *testing.T) {
+	tmpDir := t.TempDir()
+	target := targets.FindTarget("claude")
+	inst := NewInstaller(tmpDir)
+	for _, name := range []string{"code-solving", "make-decision"} {
+		if _, err := inst.Install(skills.FindSkill(name), target, true, false); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := inst.InstallWorkflows(target, true); err != nil {
+		t.Fatal(err)
+	}
+
+	removed, err := NewUninstaller(tmpDir).UninstallWorkflows(skills.FindSkill("code-solving"), target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(removed) == 0 {
+		t.Fatal("no workflows removed")
+	}
+	dir := filepath.Join(tmpDir, ".claude", "commands")
+	if _, err := os.Stat(filepath.Join(dir, "code.md")); !os.IsNotExist(err) {
+		t.Error("code.md should be removed")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "decide.md")); err != nil {
+		t.Error("decide.md belongs to make-decision and should stay")
 	}
 }

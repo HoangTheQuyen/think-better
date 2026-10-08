@@ -145,3 +145,19 @@ func TestAdaptWorkflow(t *testing.T) {
 		t.Errorf("claude AdaptWorkflow =\n%s\nwant:\n%s", got, want)
 	}
 }
+
+func TestAdaptWorkflowCopilotPrompt(t *testing.T) {
+	copilot := FindTarget("copilot")
+	if got := copilot.WorkflowFileName("code.debug.md"); got != "code.debug.prompt.md" {
+		t.Errorf("WorkflowFileName = %q, want code.debug.prompt.md", got)
+	}
+	if got := FindTarget("claude").WorkflowFileName("code.debug.md"); got != "code.debug.md" {
+		t.Errorf("claude WorkflowFileName = %q, want unchanged", got)
+	}
+
+	src := "---\ndescription: Fix a bug.\n---\n// turbo\n```\npython3 .agents/skills/code-solving/scripts/search.py \"$ARGUMENTS\" --plan\n```\n"
+	want := "---\nagent: agent\nargument-hint: Describe the task\ndescription: Fix a bug.\n---\n```\npython3 .github/prompts/code-solving/scripts/search.py \"${input:task}\" --plan\n```\n"
+	if got := copilot.AdaptWorkflow(src); got != want {
+		t.Errorf("copilot AdaptWorkflow =\n%s\nwant:\n%s", got, want)
+	}
+}
