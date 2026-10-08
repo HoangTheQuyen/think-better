@@ -127,7 +127,9 @@ with that skill.
 ## Releasing (maintainers)
 
 1. Make sure `main` is green.
-2. `git tag vX.Y.Z && git push origin vX.Y.Z`
+2. Either push a tag: `git tag vX.Y.Z && git push origin vX.Y.Z`,
+   or, without a local checkout, open **Actions → Release → Run workflow** and
+   enter `vX.Y.Z`; the workflow creates the tag on the current `main`.
 3. The `Release` workflow runs [GoReleaser](.goreleaser.yaml): it tests,
    cross-compiles, writes `checksums.txt`, publishes the GitHub Release, and
    commits the Homebrew formula (`Formula/`) and Scoop manifest (`bucket/`)
