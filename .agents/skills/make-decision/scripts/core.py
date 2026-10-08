@@ -114,56 +114,33 @@ def tokenize(text) -> list:
     return [stem(w) for w in text.split() if len(w) > 1 and w not in STOPWORDS]
 
 
-def fold(text) -> str:
-    """Accent-insensitive form: 'Nên chọn' -> 'Nen chon', 'đ' -> 'd'.
-
-    NFC and NFD input give the same result, so text typed on any OS (or
-    without diacritics) matches the knowledge base.
-    """
-    text = unicodedata.normalize("NFKD", str(text))
-    text = "".join(c for c in text if not unicodedata.combining(c))
-    return unicodedata.normalize("NFC", text.replace("đ", "d").replace("Đ", "D"))
-
-
-def has_accents(text) -> bool:
-    """True when text carries diacritics (e.g. Vietnamese typed with its accents)."""
-    text = unicodedata.normalize("NFC", str(text))
-    return fold(text) != text
-
-
-def match_tokens(text, folded: bool = True) -> list:
-    """Lowercased, stemmed words (accents folded unless folded=False) for phrase matching.
+def match_tokens(text) -> list:
+    """Lowercased, stemmed words of text, for phrase matching.
 
     Unlike tokenize(), stopwords and one-letter words are kept, so keyword
-    phrases match only whole: 'how many' never matches 'too many', 'y tế'
-    (health) never matches 'kinh tế' (economy).
+    phrases match only whole: 'how many' never matches 'too many'.
     """
-    text = fold(text) if folded else unicodedata.normalize("NFC", str(text))
-    words = re.sub(r"[^\w\s]", " ", text.lower()).split()
+    words = re.sub(r"[^\w\s]", " ", str(text).lower()).split()
     return [stem(w) for w in words]
 
 
 @lru_cache(maxsize=64)
-def query_grams(query: str, longest: int = 6) -> tuple:
-    """(frozenset of the query's word n-grams, folded) for phrase matching.
+def query_grams(query: str, longest: int = 6) -> frozenset:
+    """The frozenset of the query's word n-grams (1 to `longest` words) for phrase matching.
 
-    Text typed with accents is matched exactly, so 'chi nhánh' (branch) never
-    meets 'nhanh' (fast); text typed without accents is matched against the
-    keywords with their accents folded away. Cached: classifiers call it once
-    per CSV row.
+    Cached: classifiers call it once per CSV row.
     """
-    folded = not has_accents(query)
-    tokens = match_tokens(query, folded)
+    tokens = match_tokens(query)
     grams = set()
     for n in range(1, longest + 1):
         grams.update(tuple(tokens[i:i + n]) for i in range(len(tokens) - n + 1))
-    return frozenset(grams), folded
+    return frozenset(grams)
 
 
 @lru_cache(maxsize=4096)
-def phrase_tokens(phrase: str, folded: bool = True) -> tuple:
+def phrase_tokens(phrase: str) -> tuple:
     """The match_tokens() of one keyword phrase, cached (keyword lists are matched over and over)."""
-    return tuple(match_tokens(phrase, folded))
+    return tuple(match_tokens(phrase))
 
 
 def display_width(text) -> int:
@@ -207,12 +184,8 @@ def wrap_display(text, width: int, indent: str = "", subsequent: str = None) -> 
 
 
 def slugify(text: str, max_len: int = 50) -> str:
-    """Filesystem-safe slug: no separators, no '..', never empty.
-
-    Vietnamese (and other accented Latin) text becomes plain ASCII, so a name
-    typed with or without accents, in NFC or NFD, gives the same folder.
-    """
-    slug = re.sub(r"[^\w\s-]", " ", fold(text).lower())
+    """Filesystem-safe slug: lowercase ASCII words joined by hyphens, no separators, no '..', never empty."""
+    slug = re.sub(r"[^a-z0-9\s_-]", " ", str(text).lower())
     slug = re.sub(r"[\s_-]+", "-", slug).strip("-")[:max_len].strip("-")
     return slug or SLUG_FALLBACK
 
@@ -266,9 +239,9 @@ def read_stdin_query(stream=None) -> str:
     return data.lstrip("\ufeff").strip()
 
 
-def matched_phrases(grams: frozenset, folded: bool, phrases) -> list:
+def matched_phrases(grams: frozenset, phrases) -> list:
     """The phrases (strings) whose words appear next to each other in the query grams."""
-    return [p for p in phrases if phrase_tokens(p, folded) and phrase_tokens(p, folded) in grams]
+    return [p for p in phrases if phrase_tokens(p) and phrase_tokens(p) in grams]
 
 
 # ============ BM25 ENGINE ============
@@ -286,7 +259,7 @@ class BM25:
 
     @staticmethod
     def tokenize(text: str) -> list:
-        return tokenize(fold(text))
+        return tokenize(text)
 
     def fit(self, corpus: list) -> None:
         """Build IDF index from a list of document strings."""
@@ -360,11 +333,11 @@ STRONG_WEIGHT = 3
 
 
 @lru_cache(maxsize=1024)
-def _phrases(cell: str, folded: bool = True) -> tuple:
+def _phrases(cell: str) -> tuple:
     """Comma-separated keyword phrases of a CSV cell as (token tuple, phrase), duplicates removed."""
     seen, phrases = set(), []
     for phrase in str(cell or "").split(","):
-        tokens = phrase_tokens(phrase, folded)
+        tokens = phrase_tokens(phrase)
         if tokens and tokens not in seen:
             seen.add(tokens)
             phrases.append((tokens, phrase.strip()))
@@ -377,10 +350,10 @@ def signal_matches(query: str, row: dict) -> tuple:
     A phrase matches when its words appear next to each other in the query;
     a phrase counts once even when it is listed in both columns.
     """
-    grams, folded = query_grams(query)
+    grams = query_grams(query)
     score, matched, counted = 0, [], set()
     for col, weight in (("Strong Signals", STRONG_WEIGHT), ("Keywords", 1)):
-        for tokens, phrase in _phrases(row.get(col, ""), folded):
+        for tokens, phrase in _phrases(row.get(col, "")):
             if tokens in grams and tokens not in counted:
                 counted.add(tokens)
                 score += weight
@@ -455,7 +428,7 @@ def search_domain(query: str, domain: str, max_results: int = MAX_RESULTS) -> di
 # ============ DOMAIN DETECTION ============
 DOMAIN_KEYWORDS = {
     "frameworks": [
-        "framework", "methodology", "phương pháp", "khung", "approach", "method", "tree", "matrix",
+        "framework", "methodology", "approach", "method", "tree", "matrix",
         "hypothesis", "mece", "decomposition", "evaluation", "pros cons",
         "pre-mortem", "scenario planning", "weighted criteria", "reversibility",
         "iterative", "expected value", "sensitivity",
@@ -466,25 +439,25 @@ DOMAIN_KEYWORDS = {
         "uncertainty", "group decision", "stakeholder", "time-pressured",
     ],
     "biases": [
-        "bias", "cognitive", "fallacy", "thiên kiến", "ngụy biện", "heuristic", "debiasing",
+        "bias", "cognitive", "fallacy", "heuristic", "debiasing",
         "confirmation", "anchoring", "sunk cost", "status quo",
         "overconfidence", "framing", "groupthink", "loss aversion",
         "recency", "survivorship", "planning fallacy", "availability",
     ],
     "analysis": [
-        "analysis", "technique", "phân tích", "quantitative", "qualitative",
+        "analysis", "technique", "quantitative", "qualitative",
         "sensitivity", "break-even", "decision tree", "scenario",
         "scoring", "opportunity cost", "risk-reward", "bayesian",
         "pre-mortem", "reference class", "forecasting",
     ],
     "criteria": [
-        "criteria", "template", "weight", "tiêu chí", "trọng số", "scoring", "evaluation",
+        "criteria", "template", "weight", "scoring", "evaluation",
         "technology selection", "hiring", "vendor", "investment",
         "market entry", "product feature", "organizational change",
         "location", "facility",
     ],
     "facilitation": [
-        "facilitation", "group", "team", "workshop", "voting", "nhóm", "bỏ phiếu",
+        "facilitation", "group", "team", "workshop", "voting",
         "debate", "red team", "devil's advocate", "nominal group",
         "anonymous", "alignment", "workplan", "structured",
     ],
@@ -497,8 +470,8 @@ def auto_detect_domains(query: str, top_n: int = 3) -> list:
     Keywords match whole words only ('team' is not in 'steam'); multi-word
     keywords score higher.
     """
-    grams, folded = query_grams(query)
-    scores = {domain: sum(len(kw.split()) for kw in matched_phrases(grams, folded, keywords))
+    grams = query_grams(query)
+    scores = {domain: sum(len(kw.split()) for kw in matched_phrases(grams, keywords))
               for domain, keywords in DOMAIN_KEYWORDS.items()}
 
     # Sort by score descending, take top_n with positive scores

@@ -4,7 +4,7 @@ Help users make better decisions in minutes instead of hours by applying proven 
 
 # make-decision
 
-Comprehensive decision-making framework for structured evaluation of options. Contains 10 decision frameworks, 8 decision type classifications, 12 cognitive biases with debiasing strategies, 10 analysis techniques, 15 criteria templates (technology, tech stack, hiring, vendors, investment, market entry, product features, pricing, organizational change, location, job offers, relocation, education, housing, and a general fallback) and 8 group facilitation techniques. The plan names the options it found in the request, picks the framework, analysis methods and biases for the decision type, and suggests five weighted criteria. A scoring calculator totals the matrix, names the winner and finds the smallest weight change that would flip it. Vietnamese requests work natively, with or without diacritics.
+Comprehensive decision-making framework for structured evaluation of options. Contains 10 decision frameworks, 8 decision type classifications, 12 cognitive biases with debiasing strategies, 10 analysis techniques, 15 criteria templates (technology, tech stack, hiring, vendors, investment, market entry, product features, pricing, organizational change, location, job offers, relocation, education, housing, and a general fallback) and 8 group facilitation techniques. The plan names the options it found in the request, picks the framework, analysis methods and biases for the decision type, and suggests five weighted criteria. A scoring calculator totals the matrix, names the winner and finds the smallest weight change that would flip it.
 
 ## Prerequisites
 
@@ -94,14 +94,14 @@ python3 .agents/skills/make-decision/scripts/search.py --stdin --plan -f markdow
 THINK_BETTER_EOF_7f3a
 ```
 
-If the user asked to save the work ("save", "step-by-step", "workspace", "lưu", "lưu lại",
-"lưu từng bước"), run the Step 2b command instead of this one: it prints the same plan.
+If the user asked to save the work ("save", "step-by-step", "workspace"), run the Step 2b command
+instead of this one: it prints the same plan.
 
 **Classify it yourself when you can** — you understand the decision better than keyword matching.
 Add `--type "<decision type>"`, one of: Binary Choice, Multi-Option Selection, Resource Allocation, Strategic Direction, Operational / Tactical, Decision Under Uncertainty, Group / Stakeholder Decision, Time-Pressured Decision.
-Without it the script scores each type's signal phrases (English and Vietnamese, e.g. "deadline",
-"hạn chót", "board", "hội đồng", "uncertain", "chưa rõ") and adds the options it found ("A vs B" or
-"A hay B" leans Binary Choice, three or more lean Multi-Option Selection). The plan says what
+Without it the script scores each type's signal phrases (e.g. "deadline", "board", "uncertain") and
+adds the options it found ("A vs B" or "A or B" leans Binary Choice, three or more lean Multi-Option
+Selection). The plan says what
 matched; when nothing did, it says so and lists the `--type` values: then re-run with `--type`.
 
 The plan contains:
@@ -190,7 +190,7 @@ THINK_BETTER_EOF_7f3a
 ```
 
 Options are read from "A vs B vs C", "A, B or C", "Which X: A, B or C", "between A and B",
-"A hay B", "A hoặc B", "giữa A, B và C", "so sánh A với B". With `--scores` the matrix shows the
+"choose between A, B and C", "compare A with B". With `--scores` the matrix shows the
 weighted totals, the **winner**, and the **sensitivity**: for each criterion, the weight at which
 another option would tie the winner, with the smallest such change called out. A winner that flips
 under a small change is fragile: firm up that criterion before deciding. Weights may be any
@@ -217,7 +217,7 @@ Migration finished on time, 15% under budget
 THINK_BETTER_EOF_7f3a
 ```
 
-Journal files live in `.decisions/` with ASCII file names (Vietnamese is transliterated). An
+Journal files live in `.decisions/` with lowercase ASCII file names. An
 `--update` id that matches no entry, or several, is an error (exit code 1) listing the matches.
 
 ---
@@ -335,4 +335,4 @@ re-run; otherwise stop. Never present a plan the script did not produce.
    - Walk through the framework step by step
 3. **Script errors**: Errors go to stderr with exit code 1 (e.g. a journal id with no or several matches, scores that do not match the criteria); fix the input the message names and re-run
 4. **No type matched**: the plan says so and lists the `--type` values; pick one and re-run
-5. **Languages**: English and Vietnamese (with or without diacritics) are matched directly. For other languages, translate the key terms to English before calling `search.py`, and answer in the user's language
+5. **Languages**: the knowledge base and the matching are English only. For other languages, translate the key terms to English before calling `search.py`, and answer in the user's language
