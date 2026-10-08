@@ -16,22 +16,8 @@ python3 --version 2>/dev/null || python --version
 
 Use whichever command succeeds (`python3` or `python`) for ALL script calls below. If the system only has `python` (common on Windows), substitute `python` everywhere you see `python3` in this document.
 
-If Python is not installed at all, install it based on user's OS:
-
-**macOS:**
-```bash
-brew install python3
-```
-
-**Ubuntu/Debian:**
-```bash
-sudo apt update && sudo apt install python3
-```
-
-**Windows:**
-```powershell
-winget install Python.Python.3.12
-```
+If neither works, Python is not installed: tell the user that the scripts need Python 3.9+ and
+**ask before installing anything**; do not run a package manager on your own.
 
 > **Note:** On Windows, Python 3 is typically available as `python` (not `python3`).
 
@@ -48,13 +34,21 @@ to replace them.
 ### Passing the user's text
 
 When the query is the user's own words (a request, an error message, a pasted log), pass it on
-stdin with `--stdin` instead of quoting it, so quotes, backticks and `$` never reach the shell:
+stdin with `--stdin` instead of quoting it, so quotes, backticks and `$` never reach the shell.
+Every example below does this.
+
+Use exactly this delimiter, `THINK_BETTER_EOF_7f3a`, quoted as shown:
 
 ```bash
-python3 .agents/skills/problem-solving-pro/scripts/search.py --stdin --plan <<'TASK'
+python3 .agents/skills/problem-solving-pro/scripts/search.py --stdin --plan <<'THINK_BETTER_EOF_7f3a'
 <the user's text, unchanged>
-TASK
+THINK_BETTER_EOF_7f3a
 ```
+
+**Check the text first.** The heredoc ends at the first line that is exactly `THINK_BETTER_EOF_7f3a`;
+anything after it would run as shell commands. If a line of the user's text is exactly that
+delimiter, do not use the heredoc: write the text unchanged to a temporary file with your
+file-editing tool (not the shell), run `python3 .agents/skills/problem-solving-pro/scripts/search.py --stdin --plan < <file>`, then delete the file.
 
 In PowerShell (keep `'@` at the start of its line):
 
@@ -65,11 +59,20 @@ $OutputEncoding = [Text.UTF8Encoding]::new()
 '@ | python .agents/skills/problem-solving-pro/scripts/search.py --stdin --plan
 ```
 
+The here-string ends at a line that starts with `'@`. If a line of the user's text starts with
+`'@`, write the text to a file instead and run
+`Get-Content -Raw -Encoding UTF8 <file> | python .agents/skills/problem-solving-pro/scripts/search.py --stdin --plan`.
+
 ---
 
 ## How to Use This Workflow
 
-When user requests problem-solving help (analyze, solve, diagnose, decide, structure, decompose, plan, strategy, recommendation), follow this workflow:
+When user requests problem-solving help (analyze, solve, diagnose, decompose, find a root cause, plan, strategy, recommendation), follow this workflow. For bugs and code changes use code-solving; for choosing between known options use make-decision.
+
+**Language:** answer in the user's language. The scripts' output is in English: translate it
+when you present it, and keep commands, flags, file names and option names exactly as written.
+
+If the user has not described the problem yet, ask what it is before running anything.
 
 ### Step 1: Understand the Problem
 
@@ -84,8 +87,13 @@ Extract key information from user's problem description:
 **Always start with `--plan`** to get comprehensive recommendations with reasoning:
 
 ```bash
-python3 .agents/skills/problem-solving-pro/scripts/search.py "<problem_description>" --plan [-p "Project Name"]
+python3 .agents/skills/problem-solving-pro/scripts/search.py --stdin --plan -f markdown <<'THINK_BETTER_EOF_7f3a'
+<the user's problem, unchanged>
+THINK_BETTER_EOF_7f3a
 ```
+
+If the user asked to save the work ("save", "step-by-step", "workspace", "lưu", "lưu lại",
+"lưu từng bước"), run the Step 2b command instead of this one: it prints the same plan.
 
 **Classify it yourself when you can** — you understand the problem better than keyword matching:
 
@@ -98,7 +106,9 @@ When nothing matched, the plan starts with a note such as "No problem type match
 with `--type` (...)" listing the values: re-run with the flag instead of presenting generic defaults.
 
 ```bash
-python3 .agents/skills/problem-solving-pro/scripts/search.py "revenue down 20% despite market growth" --plan --type Diagnostic --category "Business Performance"
+python3 .agents/skills/problem-solving-pro/scripts/search.py --stdin --plan --type Diagnostic --category "Business Performance" -f markdown <<'THINK_BETTER_EOF_7f3a'
+revenue down 20% despite market growth
+THINK_BETTER_EOF_7f3a
 ```
 
 This command:
@@ -120,17 +130,15 @@ This command:
 
 `--json` with `--plan` prints the plan as JSON (with `--persist`, a `saved` entry lists the files).
 
-**Example:**
-```bash
-python3 .agents/skills/problem-solving-pro/scripts/search.py "revenue declining 20% despite market growth" --plan -p "Revenue Recovery"
-```
-
 ### Step 2b: Persist Problem-Solving Plan
 
-To save the plan for reference:
+When the user asks to save ("save", "step-by-step", "workspace", "lưu", "lưu lại", "lưu từng bước"),
+run this instead of the Step 2 command, not after it:
 
 ```bash
-python3 .agents/skills/problem-solving-pro/scripts/search.py "<problem>" --plan --persist -p "Project Name"
+python3 .agents/skills/problem-solving-pro/scripts/search.py --stdin --plan --persist -p "Project Name" -f markdown <<'THINK_BETTER_EOF_7f3a'
+<the user's problem, unchanged>
+THINK_BETTER_EOF_7f3a
 ```
 
 This creates:
@@ -145,7 +153,9 @@ Add `--step-docs` for a workspace with one file per step (`00-OVERVIEW.md` with 
 A saved workspace is how work continues in a new session (`/solve.resume`):
 
 ```bash
-python3 .agents/skills/problem-solving-pro/scripts/search.py --status [-p "<short-name>"]
+python3 .agents/skills/problem-solving-pro/scripts/search.py --stdin --status [-p "<short-name>"] <<'THINK_BETTER_EOF_7f3a'
+<the user's text, or nothing>
+THINK_BETTER_EOF_7f3a
 python3 .agents/skills/problem-solving-pro/scripts/search.py --done <step> -p "<short-name>"
 ```
 
@@ -161,7 +171,9 @@ tick a step only when its file shows the work.
 Use when the plan's recommendation needs more detail, OR when user asks about a specific topic (e.g., "how do I do a root cause analysis?"):
 
 ```bash
-python3 .agents/skills/problem-solving-pro/scripts/search.py "<keyword>" --domain <domain> [-n <max_results>]
+python3 .agents/skills/problem-solving-pro/scripts/search.py --stdin --domain <domain> [-n <max_results>] <<'THINK_BETTER_EOF_7f3a'
+<keywords>
+THINK_BETTER_EOF_7f3a
 ```
 
 **When to use domain searches:**
@@ -223,7 +235,9 @@ Guide the user through the recommended process:
 ### Step 2: Generate Problem-Solving Plan (REQUIRED)
 
 ```bash
-python3 .agents/skills/problem-solving-pro/scripts/search.py "revenue declining 20% despite market growth" --plan -p "Revenue Diagnosis"
+python3 .agents/skills/problem-solving-pro/scripts/search.py --stdin --plan -f markdown <<'THINK_BETTER_EOF_7f3a'
+Our company's revenue has declined 20% this year despite the market growing. Help me figure out what's going on and what to do about it.
+THINK_BETTER_EOF_7f3a
 ```
 
 **Output:** Complete plan with profitability tree decomposition, Pareto prioritization, benchmarking + root cause analysis toolkit, pyramid principle communication, and bias warnings (confirmation bias, anchoring).
@@ -259,16 +273,9 @@ Walk the user through:
 
 The `--plan` flag supports two output formats:
 
-```bash
-# ASCII box (default) - best for terminal display
-python3 .agents/skills/problem-solving-pro/scripts/search.py "market entry strategy" --plan
-
-# Markdown - best for documentation
-python3 .agents/skills/problem-solving-pro/scripts/search.py "market entry strategy" --plan -f markdown
-
-# JSON - the plan as data
-python3 .agents/skills/problem-solving-pro/scripts/search.py "market entry strategy" --plan --json
-```
+- ASCII box (default): best for terminal display
+- `-f markdown`: best for chat and documents
+- `--json`: the plan as data
 
 ---
 
@@ -300,10 +307,12 @@ python3 .agents/skills/problem-solving-pro/scripts/search.py "market entry strat
 
 ## Error Handling
 
-If the Python scripts fail or are unavailable:
+If a command fails (an `Error:` or `usage:` message, or a non-zero exit), show the error to the
+user. If it names an input you chose (a flag value, scores, a workspace name), fix that and
+re-run; otherwise stop. Never present a plan the script did not produce.
 
-1. **Check Python**: Run `python3 --version` or `python --version` — if neither is found, guide the user to install it
-2. **Manual fallback**: If scripts cannot run, apply the Key Principles above manually:
+1. **Check Python**: Run `python3 --version` or `python --version`. If neither is found, tell the user and ask before installing anything
+2. **Manual fallback**: Only if Python is missing and the user does not want to install it, apply the Key Principles above manually and say clearly that the script did not run:
    - Ask the user to describe the problem → classify the type yourself
    - Suggest a decomposition framework (e.g., Issue Tree for diagnostic, Hypothesis Tree for uncertain causes)
    - Walk through the 7-step methodology: Define → Decompose → Prioritize → Plan → Analyze → Synthesize → Communicate
