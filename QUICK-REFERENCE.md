@@ -107,6 +107,11 @@ python scripts/search.py "opportunity cost" --domain analysis
 /solve.deep Revenue declining despite growth
 /solve.exec Board-level crisis analysis
 
+# Continue a saved step-by-step workspace ("save step-by-step") at the first open step:
+/solve.resume [which saved workspace, or nothing for the latest]
+
+# Vietnamese works too: /solve.quick doanh thu giảm 20% quý này
+
 # The skill guides you through:
 # 1. Problem decomposition (break into layers)
 # 2. Hypothesis ranking (by likelihood)

@@ -4,7 +4,7 @@ Help users solve complex problems systematically using proven frameworks — tur
 
 # problem-solving-pro
 
-Comprehensive structured problem-solving framework for tackling any complex challenge. Contains a 7-step methodology, 10 decomposition frameworks, 8 prioritization techniques, 12 analysis tools, 12 cognitive biases with debiasing strategies, 10 communication patterns, 12 mental models, and 10 team dynamics patterns. Searchable database with reasoning-based recommendations that adapts to your specific problem type.
+Comprehensive structured problem-solving framework for tackling any complex challenge. Contains a 7-step methodology, 18 decomposition frameworks, 8 prioritization techniques, 15 analysis tools, 12 cognitive biases with debiasing strategies, 10 communication patterns, 13 mental models, and 10 team dynamics patterns. Searchable database with reasoning-based recommendations that adapts to your specific problem type. Requests can be in English or Vietnamese (with or without accents).
 
 ## Prerequisites
 
@@ -92,18 +92,33 @@ python3 .agents/skills/problem-solving-pro/scripts/search.py "<problem_descripti
 - `--type <type>` — how the problem is shaped: Well-Structured, Ill-Structured, Wicked, Diagnostic, Opportunity, Design, Prediction, Negotiation
 - `--category "<context>"` — selects the reasoning rule (decomposition, analyses, communication style): Business Performance, Market Entry Strategy, Organizational Change, Product Development, Cost Reduction, Innovation / Disruption, Crisis / Turnaround, Data / Analytics Problem, Partnership / M&A, Policy / Public Sector
 
-Omit either flag to auto-detect. The plan reports what it used as **Type** and **Context**.
+Omit either flag to auto-detect (English and Vietnamese keywords). The plan reports what it used as
+**Type** and **Context** and whether each was set by you, auto-detected, a weak guess or no match.
+When nothing matched, the plan starts with a note such as "No problem type matched clearly. Re-run
+with `--type` (...)" listing the values: re-run with the flag instead of presenting generic defaults.
 
 ```bash
 python3 .agents/skills/problem-solving-pro/scripts/search.py "revenue down 20% despite market growth" --plan --type Diagnostic --category "Business Performance"
 ```
 
 This command:
-1. Classifies the problem type automatically
-2. Searches across all 9 knowledge domains in parallel
-3. Applies reasoning rules to select best frameworks and tools
-4. Returns a complete solving plan: methodology, decomposition, analysis, communication, mental models, bias warnings
-5. Includes anti-patterns to avoid and a problem-solving checklist
+1. Classifies the problem type and context (or uses `--type` / `--category`)
+2. Applies the context's reasoning rule: decomposition, analyses, communication style, decision rules
+3. Picks the mental models and bias warnings named for this context and problem type, then fills up from search
+4. Returns a solving plan: the 7 steps with their quality gates, decomposition, prioritization, analysis,
+   decision rules, communication, mental models, bias warnings, anti-patterns and a checklist
+5. Ends with a **Next Steps** table for the depth used: present it once, do not add another
+
+**Depth** (`--depth`) changes what the plan contains:
+
+| Depth | Contents |
+|-------|----------|
+| `quick` | One screen: classification, process, decomposition, main analysis, 2 mental models, 2 biases, anti-patterns, first move |
+| `standard` (default) | Adds the 7 steps with quality gates, prioritization, decision rules, communication, 3 models, 3 biases, team, checklist |
+| `deep` | Adds more alternatives, 5 mental models with danger zones, 4 biases with warning signs, pitfalls per step, strengths and limits of the analysis |
+| `executive` | Everything in `deep` plus an **Executive Summary (SCR)**, **Key Risks** and **Decision Needed** |
+
+`--json` with `--plan` prints the plan as JSON (with `--persist`, a `saved` entry lists the files).
 
 **Example:**
 ```bash
@@ -119,7 +134,27 @@ python3 .agents/skills/problem-solving-pro/scripts/search.py "<problem>" --plan 
 ```
 
 This creates:
-- `solving-plans/project-name/PLAN.md` — Complete problem-solving plan
+- `solving-plans/project-name/PLAN.md` — Complete problem-solving plan (with the original request)
+
+Add `--step-docs` for a workspace with one file per step (`00-OVERVIEW.md` with a **Done?** column,
+`01-PROBLEM-DEFINITION.md` pre-filled with the request, ... `07-RECOMMENDATION.md`, `BIAS-WARNINGS.md`,
+`DECISION-LOG.md`). Each step file starts with what to do and its **Done when** quality gate.
+
+### Step 2c: Resume Later
+
+A saved workspace is how work continues in a new session (`/solve.resume`):
+
+```bash
+python3 .agents/skills/problem-solving-pro/scripts/search.py --status [-p "<short-name>"]
+python3 .agents/skills/problem-solving-pro/scripts/search.py --done <step> -p "<short-name>"
+```
+
+`--status` shows each step's file, whether it was filled in and whether it is done, then the **next**
+step with what to do, its quality gate and pitfalls. Without `-p`, it picks the workspace whose name or
+request matches the text given on stdin, else the most recently changed one. `--done <step>` (1-7 or a
+name: define, decompose, prioritize, plan, analyze, synthesize, communicate) ticks the step in
+`00-OVERVIEW.md`; `--undone <step>` reopens it. Read the files of finished steps before continuing, and
+tick a step only when its file shows the work.
 
 ### Step 3: Deep-Dive Domain Searches
 
@@ -165,12 +200,12 @@ Guide the user through the recommended process:
 |--------|---------|---------|------------------|
 | `steps` | 7 | Understanding each step of the methodology | define, disaggregate, prioritize, analyze, synthesize, communicate |
 | `problem-types` | 8 | Classifying the type of problem | diagnostic, opportunity, wicked, prediction, negotiation, design |
-| `decomposition` | 15 | Choosing how to break down the problem | issue tree, hypothesis tree, MECE, profitability, process, scenario |
+| `decomposition` | 18 | Choosing how to break down the problem | issue tree, hypothesis tree, MECE, profitability, process, scenario |
 | `prioritization` | 8 | Deciding where to focus effort | pareto, impact-feasibility, sensitivity, dot-voting, MoSCoW, weighted |
-| `analysis` | 12 | Selecting analytical methods | benchmark, root cause, regression, scenario, fermi, A/B test, pre-mortem |
+| `analysis` | 15 | Selecting analytical methods | benchmark, root cause, regression, scenario, fermi, A/B test, pre-mortem |
 | `biases` | 12 | Identifying thinking errors to avoid | confirmation, anchoring, sunk cost, groupthink, overconfidence, framing |
 | `communication` | 10 | Structuring findings and recommendations | pyramid, SCR, action titles, BLUF, one-page, storytelling, day-1 answer |
-| `heuristics` | 12 | Applying mental models to the problem | first principles, inversion, second-order, Bayesian, Occam, leverage |
+| `heuristics` | 13 | Applying mental models to the problem | first principles, inversion, second-order, Bayesian, Occam, leverage |
 | `team` | 10 | Improving team problem-solving effectiveness | red team, brainstorm, psychological safety, hypothesis-driven, workplan |
 
 ---
@@ -230,6 +265,9 @@ python3 .agents/skills/problem-solving-pro/scripts/search.py "market entry strat
 
 # Markdown - best for documentation
 python3 .agents/skills/problem-solving-pro/scripts/search.py "market entry strategy" --plan -f markdown
+
+# JSON - the plan as data
+python3 .agents/skills/problem-solving-pro/scripts/search.py "market entry strategy" --plan --json
 ```
 
 ---
@@ -246,6 +284,7 @@ python3 .agents/skills/problem-solving-pro/scripts/search.py "market entry strat
 8. **Iterate** — Update your answer as evidence comes in (Bayesian updating)
 9. **Simple first** — Use the simplest analysis that answers the question (Occam's Razor)
 10. **Communication is the final product** — The best analysis is worthless if you can't drive action
+11. **What you'd have to believe** — When stuck or attached to an idea, ask "what would have to be true for this to be the right answer?" to break framing ruts and rigorously test assumptions.
 
 ---
 
@@ -270,5 +309,6 @@ If the Python scripts fail or are unavailable:
    - Walk through the 7-step methodology: Define → Decompose → Prioritize → Plan → Analyze → Synthesize → Communicate
    - Warn about the 3 most common biases for that problem type
 3. **Script errors**: If `search.py` returns no results, try broader keywords or search a different domain
-4. **Non-English queries**: The knowledge base is English-only. Translate the user's key terms to English before calling `search.py` — this ensures rich results for any language
+4. **Non-English queries**: Classification understands English and Vietnamese (with or without accents); the framework content is in English. For other languages, translate the user's key terms to English, or pass `--type` and `--category` yourself
+5. **"No ... matched clearly"**: the plan used generic defaults. Re-run with `--type` and `--category` (the note lists the values)
 
