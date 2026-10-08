@@ -7,6 +7,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -15,6 +16,8 @@ import (
 
 	"github.com/HoangTheQuyen/think-better/internal/skills/sourcefs"
 )
+
+var dirs = []string{"skills", "workflows"}
 
 func main() {
 	src := flag.String("src", "../../.agents", "path to the .agents source directory")
@@ -27,23 +30,42 @@ func main() {
 	}
 }
 
+// run copies src/{skills,workflows} to dst. Everything is read and written
+// to a staging directory first; the existing copies are only replaced once
+// that succeeded, so a bad -src never leaves dst without its copies.
 func run(src, dst string) error {
-	for _, dir := range []string{"skills", "workflows"} {
+	sources := map[string][]string{}
+	for _, dir := range dirs {
 		from := filepath.Join(src, dir)
-		to := filepath.Join(dst, dir)
-		if err := os.RemoveAll(to); err != nil {
-			return err
+		if fi, err := os.Stat(from); err != nil {
+			return fmt.Errorf("reading sources: %w", err)
+		} else if !fi.IsDir() {
+			return fmt.Errorf("reading sources: %s is not a directory", from)
 		}
 		files, err := sourcefs.Files(os.DirFS(from))
 		if err != nil {
 			return fmt.Errorf("reading %s: %w", from, err)
 		}
-		for _, f := range files {
-			data, err := fs.ReadFile(os.DirFS(from), f)
+		if len(files) == 0 {
+			return fmt.Errorf("no files in %s", from)
+		}
+		sources[dir] = files
+	}
+
+	stage, err := os.MkdirTemp(dst, ".gen-")
+	if err != nil {
+		return err
+	}
+	defer func() { _ = os.RemoveAll(stage) }()
+
+	for _, dir := range dirs {
+		from := os.DirFS(filepath.Join(src, dir))
+		for _, f := range sources[dir] {
+			data, err := fs.ReadFile(from, f)
 			if err != nil {
 				return err
 			}
-			out := filepath.Join(to, filepath.FromSlash(f))
+			out := filepath.Join(stage, dir, filepath.FromSlash(f))
 			if err := os.MkdirAll(filepath.Dir(out), 0o755); err != nil {
 				return err
 			}
@@ -51,7 +73,30 @@ func run(src, dst string) error {
 				return err
 			}
 		}
-		fmt.Printf("gen: %d files -> %s\n", len(files), to)
+	}
+
+	for _, dir := range dirs {
+		if err := swap(filepath.Join(stage, dir), filepath.Join(dst, dir)); err != nil {
+			return err
+		}
+		fmt.Printf("gen: %d files -> %s\n", len(sources[dir]), filepath.Join(dst, dir))
 	}
 	return nil
+}
+
+// swap replaces dir with the staged copy, keeping the old one until the
+// staged copy is in place.
+func swap(staged, dir string) error {
+	old := dir + ".old"
+	if err := os.RemoveAll(old); err != nil {
+		return err
+	}
+	if err := os.Rename(dir, old); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	if err := os.Rename(staged, dir); err != nil {
+		_ = os.Rename(old, dir) // put the previous copies back
+		return err
+	}
+	return os.RemoveAll(old)
 }

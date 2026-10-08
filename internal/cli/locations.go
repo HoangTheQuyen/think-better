@@ -2,6 +2,7 @@ package cli
 
 import (
 	"os"
+	"path/filepath"
 
 	"github.com/HoangTheQuyen/think-better/internal/installer"
 	"github.com/HoangTheQuyen/think-better/internal/skills"
@@ -69,6 +70,49 @@ func isSameDir(a, b string) bool {
 		return false
 	}
 	return os.SameFile(fa, fb)
+}
+
+// hasInstall reports whether dir holds a project install of any target: a
+// skill directory of a known skill, or a workflow manifest.
+func hasInstall(dir string) bool {
+	for i := range targets.Targets {
+		t := &targets.Targets[i]
+		for _, s := range skills.Registry {
+			if fi, err := os.Stat(filepath.Join(dir, filepath.FromSlash(t.InstallDir(s.Name)))); err == nil && fi.IsDir() {
+				return true
+			}
+		}
+		if t.HasWorkflows() {
+			if _, err := os.Stat(filepath.Join(dir, filepath.FromSlash(t.WorkflowDir()), installer.WorkflowManifestName)); err == nil {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// findProject walks up from dir to the nearest directory that holds an
+// install or is a repository root (has .git); the repository root is
+// returned even without an install, as the walk never leaves a repository.
+// It stops before the home directory, whose installs are the user-level
+// ones, and returns "" when nothing is found.
+func findProject(dir, home string) string {
+	for {
+		if home != "" && isSameDir(dir, home) {
+			return ""
+		}
+		if hasInstall(dir) {
+			return dir
+		}
+		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+		dir = parent
+	}
 }
 
 // userHome returns the home directory, or "" if it cannot be determined.

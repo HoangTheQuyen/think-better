@@ -29,6 +29,10 @@ type testEnv struct {
 func newEnv(t *testing.T) *testEnv {
 	t.Helper()
 	e := &testEnv{t: t, project: t.TempDir(), home: t.TempDir(), python: true}
+	// A repository root: commands never look for installs above it.
+	if err := os.Mkdir(filepath.Join(e.project, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	t.Chdir(e.project)
 	t.Setenv("HOME", e.home)
 	t.Setenv("USERPROFILE", e.home) // Windows

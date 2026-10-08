@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/HoangTheQuyen/think-better/internal/installer"
@@ -53,9 +52,9 @@ func RunCheck(args []string) int {
 		return code
 	}
 
-	cwd, err := os.Getwd()
+	cwd, err := currentProject()
 	if err != nil {
-		Errorf("getting working directory: %v", err)
+		Errorf("%v", err)
 		return 1
 	}
 

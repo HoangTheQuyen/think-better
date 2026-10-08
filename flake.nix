@@ -17,6 +17,10 @@
         # plus their commit hash. See CONTRIBUTING.md, "Releasing".
         version = pkgs.lib.fileContents ./VERSION;
         commit = self.shortRev or self.dirtyShortRev or "unknown";
+        # Commit date of the source (lastModifiedDate is YYYYMMDDhhmmss), so
+        # the build date is reproducible, as in GoReleaser builds.
+        lastModified = self.lastModifiedDate or "19700101000000";
+        buildDate = "${builtins.substring 0 4 lastModified}-${builtins.substring 4 2 lastModified}-${builtins.substring 6 2 lastModified}";
 
         think-better = pkgs.buildGoModule {
           pname = "think-better";
@@ -36,7 +40,7 @@
             "-s" "-w"
             "-X main.version=v${version}"
             "-X main.commit=${commit}"
-            "-X main.buildDate=1970-01-01"
+            "-X main.buildDate=${buildDate}"
           ];
 
           # Wrap the binary so Python 3 is available at runtime (used by analysis scripts)

@@ -72,7 +72,7 @@ func RunUninstall(args []string) int {
 		Errorf("%v", err)
 		return 1
 	}
-	cwd, err := os.Getwd()
+	cwd, err := currentProject()
 	if err != nil {
 		Errorf("getting working directory: %v", err)
 		return 1

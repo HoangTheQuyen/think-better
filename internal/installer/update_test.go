@@ -355,8 +355,11 @@ func TestUninstallKeepsModifiedFiles(t *testing.T) {
 	if f.read("SKILL.md") != "my notes" {
 		t.Error("modified SKILL.md was deleted")
 	}
-	if onDisk(t, f.path("PROMPT.md")) || onDisk(t, f.path("scripts")) || onDisk(t, f.path(SkillManifestName)) {
-		t.Error("unmodified files, emptied directories and the manifest should be removed")
+	if onDisk(t, f.path("PROMPT.md")) || onDisk(t, f.path("scripts")) {
+		t.Error("unmodified files and emptied directories should be removed")
+	}
+	if m := f.manifest(); !m.Uninstalled || len(m.Files) != 1 || m.Files["SKILL.md"] == "" {
+		t.Errorf("manifest should become a tombstone listing the kept file, got %+v", m)
 	}
 	if res.DirRemoved {
 		t.Error("install dir still holds SKILL.md and must not be removed")
@@ -366,6 +369,54 @@ func TestUninstallKeepsModifiedFiles(t *testing.T) {
 	}
 	if onDisk(t, filepath.Join(cmdDir, WorkflowManifestName)) {
 		t.Error("workflow manifest should be removed with its last entry")
+	}
+}
+
+// After uninstall keeps modified files, the skill stays uninstalled: check
+// does not report it, a second uninstall has nothing to do, and init
+// installs it again around the kept file.
+func TestUninstallTombstone(t *testing.T) {
+	f := newFixture(t)
+	f.write("SKILL.md", "my notes")
+	if _, err := f.inst.Uninstall(f.skill, f.target, Options{}); err != nil {
+		t.Fatal(err)
+	}
+
+	st, err := CheckStatus(f.skill, f.target, f.base, testVersion)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Status != StatusNotInstalled || len(st.Missing) != 0 {
+		t.Errorf("after uninstall keeping a file: %+v, want not installed", st)
+	}
+	if _, err := f.inst.Uninstall(f.skill, f.target, Options{}); !errors.Is(err, ErrNotInstalled) {
+		t.Errorf("second uninstall: %v, want ErrNotInstalled", err)
+	}
+	if f.read("SKILL.md") != "my notes" {
+		t.Error("kept file must stay")
+	}
+
+	res := f.install(Options{})
+	if res.Existing {
+		t.Error("reinstall over a tombstone should read as a new install")
+	}
+	if got := actionOf(res.Files, "SKILL.md"); got != ActionKeepNew {
+		t.Errorf("kept SKILL.md on reinstall: %q, want keep-new", got)
+	}
+	if m := f.manifest(); m.Uninstalled || len(m.Files) < 2 {
+		t.Errorf("reinstall should write a full manifest, got %+v", m)
+	}
+	if st, _ := CheckStatus(f.skill, f.target, f.base, testVersion); st.Status != StatusModified {
+		t.Errorf("after reinstall: %+v", st)
+	}
+
+	// Once the user reverts the kept file, uninstall can remove it.
+	f.write("SKILL.md", f.read("SKILL.md.new"))
+	if _, err := f.inst.Uninstall(f.skill, f.target, Options{}); err != nil {
+		t.Fatal(err)
+	}
+	if onDisk(t, f.path("")) {
+		t.Error("install dir should be gone")
 	}
 }
 
@@ -567,6 +618,14 @@ func TestVersionOlder(t *testing.T) {
 		{"v1.0.0", "dev", false},
 		{"", "v1.0.0", false},
 		{"v1.0.0+dirty", "v1.0.1", true},
+		// git describe (make build): commits after a tag are newer than it
+		{"v1.4.0-3-gabc1234", "v1.4.0", false},
+		{"v1.4.0", "v1.4.0-3-gabc1234", true},
+		{"v1.4.0-3-gabc1234-dirty", "v1.4.1", true},
+		{"v1.4.0-dirty", "v1.4.0", false},
+		{"v1.4.0-rc.1-2-gabc1234", "v1.4.0", true},
+		{"v1.4.0-rc.1", "v1.4.0-rc.1-2-gabc1234", true},
+		{"v1.4.0-rc.1", "v1.4.0", true},
 	}
 	for _, tt := range tests {
 		if got := versionOlder(tt.a, tt.b); got != tt.want {

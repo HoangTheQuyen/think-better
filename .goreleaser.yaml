@@ -1,7 +1,9 @@
 # GoReleaser config - builds release binaries, archives, checksums, SBOMs and
-# a cosign signature, and commits the Homebrew formula (Formula/) and Scoop
-# manifest (bucket/) back into this repository, so it doubles as the tap and
-# the bucket.
+# a cosign signature, uploads them to a draft GitHub Release, and writes the
+# Homebrew formula and Scoop manifest to dist/. The Release workflow
+# (.github/workflows/release.yml) then attests the assets, commits the formula
+# (Formula/) and manifest (bucket/) back into this repository, so it doubles
+# as the tap and the bucket, and publishes the release as its last step.
 #
 # Docs: https://goreleaser.com
 # Local dry run: make release-snapshot (goreleaser release --snapshot --clean --skip=sign)
@@ -123,6 +125,13 @@ release:
   github:
     owner: HoangTheQuyen
     name: think-better
+  # Keep the release a draft: the Release workflow publishes it only after
+  # every later step (attestations, Formula/bucket commits) has succeeded,
+  # so a failed run never leaves a half-published release. Drafts are not
+  # "latest", so install.sh / install.ps1 keep installing the previous one.
+  draft: true
+  # A re-run after a failure replaces the draft that run left behind.
+  replace_existing_draft: true
   header: |
     ## Install or upgrade
 
@@ -162,8 +171,10 @@ brews:
     commit_author:
       name: github-actions[bot]
       email: 41898282+github-actions[bot]@users.noreply.github.com
-    # Don't point brew users at pre-releases (e.g. v1.2.0-rc1).
-    skip_upload: auto
+    # Written to dist/homebrew/Formula/ only: the Release workflow commits it
+    # (.github/scripts/publish-package-manifests.sh) once the release assets
+    # it points at are uploaded, and not for pre-releases (e.g. v1.2.0-rc1).
+    skip_upload: true
     commit_msg_template: "chore(brew): update formula to {{ .Tag }}"
     test: |
       assert_match version.to_s, shell_output("#{bin}/think-better version")
@@ -191,7 +202,9 @@ scoops:
       name: github-actions[bot]
       email: 41898282+github-actions[bot]@users.noreply.github.com
     commit_msg_template: "chore(scoop): update manifest to {{ .Tag }}"
-    skip_upload: auto
+    # Written to dist/scoop/bucket/ only; committed by the Release workflow
+    # like the Homebrew formula above.
+    skip_upload: true
     # GoReleaser has no `notes` field for Scoop; print the hint after install.
     post_install:
       - "Write-Host 'think-better skill scripts need Python 3 (e.g. scoop install python). Check with: think-better check'"

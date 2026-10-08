@@ -33,11 +33,13 @@ jobs:
         runs-on: ${{ matrix.os }}
         timeout-minutes: 15
         steps:
-            - uses: actions/checkout@v7
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-            - uses: actions/setup-go@v7
+            - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
               with:
                   go-version-file: go.mod
+                  # No go.sum (no dependencies): key the cache on go.mod.
+                  cache-dependency-path: go.mod
 
             - name: Vet
               run: go vet ./...
@@ -62,17 +64,19 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 10
         steps:
-            - uses: actions/checkout@v7
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-            - uses: actions/setup-go@v7
+            - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
               with:
                   go-version-file: go.mod
+                  # No go.sum (no dependencies): key the cache on go.mod.
+                  cache-dependency-path: go.mod
 
             # verify: false skips `golangci-lint config verify`, which downloads
             # the config JSON schema at run time and has timed out in CI. The
             # config is still parsed (and rejected if invalid) by `run`.
             # Keep `version` in sync with the Makefile's GOLANGCI_LINT_VERSION.
-            - uses: golangci/golangci-lint-action@v9
+            - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
               with:
                   version: v2.5.0
                   verify: false
@@ -93,9 +97,9 @@ jobs:
         runs-on: ${{ matrix.os }}
         timeout-minutes: 15
         steps:
-            - uses: actions/checkout@v7
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-            - uses: actions/setup-python@v7
+            - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
               with:
                   python-version: ${{ matrix.python }}
 
@@ -116,19 +120,21 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 20
         steps:
-            - uses: actions/checkout@v7
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   fetch-depth: 0
 
-            - uses: actions/setup-go@v7
+            - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
               with:
                   go-version-file: go.mod
+                  # No go.sum (no dependencies): key the cache on go.mod.
+                  cache-dependency-path: go.mod
 
             # syft generates the SBOMs (`sboms:` in .goreleaser.yaml).
-            - uses: anchore/sbom-action/download-syft@v0
+            - uses: anchore/sbom-action/download-syft@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
 
             # Exact version, same as release.yml; see .goreleaser.yaml for why.
-            - uses: goreleaser/goreleaser-action@v7
+            - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
               with:
                   distribution: goreleaser
                   version: v2.18.2
@@ -148,6 +154,9 @@ jobs:
                     grep -q "  think-better-$asset\$" dist/checksums.txt || { echo "::error::think-better-$asset missing from checksums.txt"; exit 1; }
                   done
                   test "$(find dist -maxdepth 1 -name '*.sbom.json' | wc -l)" -eq 6
+                  # The Release workflow commits these to Formula/ and bucket/.
+                  test -s dist/homebrew/Formula/think-better.rb
+                  test -s dist/scoop/bucket/think-better.json
                   ./dist/think-better_linux_amd64_v1/think-better version
 
             - name: Check the build is reproducible
@@ -156,6 +165,48 @@ jobs:
                   goreleaser release --snapshot --clean --skip=sign,sbom,before
                   grep -v '\.sbom\.json$' dist/checksums.txt | sort > "$RUNNER_TEMP/second.txt"
                   diff -u "$RUNNER_TEMP/first.txt" "$RUNNER_TEMP/second.txt"
+
+    upgrade:
+        name: Upgrade from ${{ matrix.from }} (${{ matrix.os }})
+        # Installs with an older release (install.sh), updates with this
+        # commit's binary: no file may be treated as modified, check must
+        # pass and uninstall must remove everything.
+        strategy:
+            fail-fast: false
+            matrix:
+                os: [ubuntu-latest, macos-latest]
+                # v1.3.0: last release without install manifests.
+                from: [v1.3.0, v1.4.0]
+        runs-on: ${{ matrix.os }}
+        timeout-minutes: 10
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  fetch-depth: 0 # release tags, for the known-hashes check
+
+            - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+              with:
+                  go-version-file: go.mod
+                  cache-dependency-path: go.mod
+
+            - name: Build this commit
+              run: go build -o "$RUNNER_TEMP/new/think-better" ./cmd/think-better
+
+            - name: Install ${{ matrix.from }} with install.sh
+              env:
+                  THINK_BETTER_VERSION: ${{ matrix.from }}
+              run: INSTALL_DIR="$RUNNER_TEMP/old" sh install.sh
+
+            - name: Upgrade, check and uninstall for every target
+              run: sh .github/scripts/upgrade-test.sh "$RUNNER_TEMP/old/think-better" "$RUNNER_TEMP/new/think-better"
+
+            # internal/installer/known_hashes.json lets update recognize
+            # unmodified files from every release; after tagging one, add it
+            # with `make known-hashes`. Releases from before manifests are
+            # what matter, so a missing newer tag is only a warning.
+            - name: known_hashes.json covers every release tag
+              if: runner.os == 'Linux' && matrix.from == 'v1.3.0'
+              run: go run ./internal/installer/gen -check || echo "::warning::internal/installer/known_hashes.json is missing a release; run 'make known-hashes' and commit it"
 
     install-scripts:
         name: install.sh (${{ matrix.os }})
@@ -169,7 +220,7 @@ jobs:
         runs-on: ${{ matrix.os }}
         timeout-minutes: 10
         steps:
-            - uses: actions/checkout@v7
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
             - name: ShellCheck
               if: runner.os == 'Linux'
@@ -214,7 +265,7 @@ jobs:
             run:
                 shell: ${{ matrix.shell }}
         steps:
-            - uses: actions/checkout@v7
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
             - name: PowerShell version and install dir
               run: |

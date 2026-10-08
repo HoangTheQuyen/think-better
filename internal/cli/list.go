@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 	"text/tabwriter"
 
@@ -93,9 +92,9 @@ func RunList(args []string) int {
 		return code
 	}
 
-	cwd, err := os.Getwd()
+	cwd, err := currentProject()
 	if err != nil {
-		Errorf("getting working directory: %v", err)
+		Errorf("%v", err)
 		return 1
 	}
 

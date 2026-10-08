@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -200,19 +201,22 @@ func workflowEntries(m *WorkflowManifest, skill string) map[string]string {
 }
 
 // planSync decides what to do with each file in dirRel so it matches desired.
-// recorded holds the hashes from the manifest (nil for a legacy install).
+// recorded holds the hashes from the manifest (nil for a legacy install);
+// hist is what released versions installed there (see knownhashes.go).
 //
 //   - missing file: create
 //   - same content as the new version: unchanged
-//   - content matches the manifest (not modified by the user): update
+//   - content matches the manifest, or what a release installed (not
+//     modified by the user): update
 //   - modified by the user: with force, back up to <file>.bak and replace;
 //     otherwise keep it and write the new version to <file>.new (nothing is
 //     written when the new version equals what was installed)
-//   - recorded but no longer shipped: remove if unmodified, else keep
+//   - recorded, or installed by a release, but no longer shipped: remove if
+//     unmodified; keep a modified recorded file; ignore other files
 //
-// A file with no manifest entry counts as modified unless it already equals
-// the new version.
-func planSync(base, dirRel string, desired map[string][]byte, recorded map[string]string, force bool) ([]plannedOp, error) {
+// A file with no manifest entry counts as modified unless it equals the new
+// version or a version some release installed.
+func planSync(base, dirRel string, desired map[string][]byte, recorded map[string]string, hist shipped, force bool) ([]plannedOp, error) {
 	var ops []plannedOp
 	for _, rel := range sortedKeys(desired) {
 		data := desired[rel]
@@ -227,7 +231,7 @@ func planSync(base, dirRel string, desired map[string][]byte, recorded map[strin
 			op.Action = ActionCreate
 		case bytes.Equal(cur, data):
 			op.Action = ActionUnchanged
-		case hasRec && curHash == rec:
+		case hasRec && curHash == rec, hist.has(rel, curHash):
 			op.Action = ActionUpdate
 		case force:
 			op.Action = ActionReplace
@@ -249,10 +253,7 @@ func planSync(base, dirRel string, desired map[string][]byte, recorded map[strin
 		ops = append(ops, op)
 	}
 
-	for _, rel := range sortedKeys(recorded) {
-		if _, ok := desired[rel]; ok {
-			continue
-		}
+	for _, rel := range obsolete(desired, recorded, hist) {
 		cur, err := readRegular(base, path.Join(dirRel, rel))
 		if err != nil {
 			return nil, err
@@ -260,13 +261,40 @@ func planSync(base, dirRel string, desired map[string][]byte, recorded map[strin
 		if cur == nil {
 			continue
 		}
-		action := ActionRemove
-		if hashBytes(cur) != recorded[rel] {
+		h := hashBytes(cur)
+		rec, hasRec := recorded[rel]
+		var action Action
+		switch {
+		case hasRec && h == rec, hist.has(rel, h):
+			action = ActionRemove
+		case hasRec:
 			action = ActionKeepRemoved
+		default:
+			continue // never recorded, and not what a release wrote: not ours
 		}
 		ops = append(ops, plannedOp{Change: Change{Path: rel, Action: action}})
 	}
 	return ops, nil
+}
+
+// obsolete returns, sorted, the files recorded in the manifest or installed
+// by an earlier release that are not part of the new version.
+func obsolete(desired map[string][]byte, recorded map[string]string, hist shipped) []string {
+	var out []string
+	for _, rel := range sortedKeys(recorded) {
+		if _, ok := desired[rel]; !ok {
+			out = append(out, rel)
+		}
+	}
+	for _, rel := range sortedKeys(hist) {
+		_, inDesired := desired[rel]
+		_, inRecorded := recorded[rel]
+		if !inDesired && !inRecorded && validRel(rel) {
+			out = append(out, rel)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // backupName picks where to save a modified file before replacing it:
@@ -363,15 +391,18 @@ func (inst *Installer) Install(skill *skills.SkillPackage, target *targets.AITar
 		return nil, fmt.Errorf("skill %q: %w", skill.Name, err)
 	}
 	var recorded map[string]string
-	if m != nil {
+	// A tombstone (uninstalled, modified files kept) records nothing that
+	// is still installed: the kept files are the user's.
+	tombstone := m != nil && m.Uninstalled
+	if m != nil && !tombstone {
 		recorded = m.Files
 	}
-	ops, err := planSync(base, res.Dir, desired, recorded, opts.Force)
+	ops, err := planSync(base, res.Dir, desired, recorded, skillHistory(skill.Name), opts.Force)
 	if err != nil {
 		return nil, fmt.Errorf("skill %q: %w", skill.Name, err)
 	}
 	res.Files = changes(ops)
-	res.Existing = m != nil || res.Count(ActionCreate) < len(res.Files)
+	res.Existing = !tombstone && (m != nil || res.Count(ActionCreate) < len(res.Files))
 
 	var wops []plannedOp
 	var wm *WorkflowManifest
@@ -384,7 +415,7 @@ func (inst *Installer) Install(skill *skills.SkillPackage, target *targets.AITar
 			return nil, fmt.Errorf("workflows for %q: %w", skill.Name, err)
 		}
 		wdesired = withoutExcluded(wdesired, wm, opts.ExcludeWorkflows)
-		if wops, err = planSync(base, res.WorkflowDir, wdesired, workflowEntries(wm, skill.Name), opts.Force); err != nil {
+		if wops, err = planSync(base, res.WorkflowDir, wdesired, workflowEntries(wm, skill.Name), workflowHistory(skill.Name), opts.Force); err != nil {
 			return nil, fmt.Errorf("workflows for %q: %w", skill.Name, err)
 		}
 		res.Workflows = changes(wops)

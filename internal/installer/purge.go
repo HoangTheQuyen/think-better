@@ -47,6 +47,10 @@ func (inst *Installer) RemoveModified(target *targets.AITarget, res *Result, dry
 	if dryRun || len(removed) == 0 {
 		return removed, nil
 	}
+	// The tombstone only listed the kept files, which are now gone.
+	if err := removeFileSafe(base, path.Join(res.Dir, SkillManifestName)); err != nil {
+		return removed, fmt.Errorf("updating manifest: %w", err)
+	}
 	removeEmptyDirs(base, res.Dir, cleanupRoot(target, res.Dir))
 	res.DirRemoved = !exists(filepath.Join(base, filepath.FromSlash(res.Dir)))
 	if res.WorkflowDir != "" {
