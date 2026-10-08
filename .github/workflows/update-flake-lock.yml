@@ -1,0 +1,39 @@
+name: Update flake.lock
+
+# Monthly PR that bumps the nixpkgs / flake-utils pins in flake.lock.
+#
+# Needs "Allow GitHub Actions to create and approve pull requests"
+# (Settings -> Actions -> General). PRs opened with GITHUB_TOKEN do not start
+# other workflows, so close and reopen the PR (or push to its branch) to run
+# CI and the Nix build on it before merging.
+on:
+  schedule:
+    - cron: "23 5 1 * *" # 05:23 UTC on the 1st of each month
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: update-flake-lock
+  cancel-in-progress: false
+
+jobs:
+  update:
+    if: github.repository == 'HoangTheQuyen/think-better'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: DeterminateSystems/update-flake-lock@v24
+        with:
+          pr-title: "chore(nix): update flake.lock"
+          commit-msg: "chore(nix): update flake.lock"
+          pr-labels: |
+            dependencies

@@ -1,11 +1,18 @@
 version: 2
 updates:
+  # Note: dependabot does not touch the tool versions pinned *inside* workflow
+  # inputs (golangci-lint `version:`, GoReleaser `version:`); bump those by hand
+  # (see .goreleaser.yaml and the Makefile). flake.lock has its own monthly
+  # workflow (update-flake-lock.yml).
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
     commit-message:
       prefix: ci
+    groups:
+      github-actions:
+        patterns: ["*"]
 
   - package-ecosystem: gomod
     directory: /
