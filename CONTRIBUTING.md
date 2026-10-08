@@ -43,7 +43,9 @@ internal/skills/             ← GENERATED mirror of .agents/ (embedded into the
 └── sources_test.go          fails if the mirror drifts or a skill is malformed
 
 internal/targets/            AI platforms (claude, copilot, antigravity, opencode)
-internal/installer/          install / uninstall / status logic
+internal/installer/          install / update / uninstall / status logic; manifests
+                             (manifest.go) record what was written, so user edits
+                             are kept; all writes refuse symlinks (safefs.go)
 internal/cli/                subcommands
 cmd/think-better/            main package
 scripts/smoke_test_skills.py runs every skill's search.py in CI
