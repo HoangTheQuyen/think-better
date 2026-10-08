@@ -8,8 +8,8 @@ and the project follows [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- Docs, website, examples and issue/PR templates are English only: the Vietnamese README section,
-  website text and examples were removed.
+- Docs, website and issue/PR templates are English only: the Vietnamese README section and
+  website text were removed.
 
 ## [1.5.0] - 2026-10-08
 
