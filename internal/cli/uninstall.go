@@ -78,7 +78,7 @@ Flags:`)
 	}
 
 	if removed == nil {
-		fmt.Println("Cancelled.")
+		fmt.Println("Canceled.")
 		return 0
 	}
 

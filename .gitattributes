@@ -1,0 +1,7 @@
+# Keep line endings stable across platforms so the embedded copies in
+# internal/skills always match .agents/ byte-for-byte.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.ico binary

@@ -37,7 +37,7 @@
 ### Step 1: Install problem-solving skill
 
 ```bash
-make-decision init --ai claude --skill problem-solving-pro
+think-better init --ai claude --skill problem-solving-pro
 ```
 
 ### Step 2: Use skill to guide investigation

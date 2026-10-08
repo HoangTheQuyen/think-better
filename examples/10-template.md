@@ -42,7 +42,7 @@
 ### Step 1: Use problem-solving skill
 
 ```bash
-make-decision init --ai claude --skill problem-solving-pro
+think-better init --ai claude --skill problem-solving-pro
 ```
 
 In your AI assistant:

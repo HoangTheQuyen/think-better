@@ -98,10 +98,13 @@ func printListJSON(entries []listSkill) int {
 
 func printListTable(entries []listSkill) int {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 4, ' ', 0)
-	fmt.Fprintln(w, "SKILL\tDESCRIPTION\tFILES\tSTATUS")
+	_, _ = fmt.Fprintln(w, "SKILL\tDESCRIPTION\tFILES\tSTATUS")
 	for _, e := range entries {
-		fmt.Fprintf(w, "%s\t%s\t%d\t%s\n", e.Name, e.Description, e.FileCount, e.Status)
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%d\t%s\n", e.Name, e.Description, e.FileCount, e.Status)
 	}
-	w.Flush()
+	if err := w.Flush(); err != nil {
+		Errorf("writing output: %v", err)
+		return 1
+	}
 	return 0
 }

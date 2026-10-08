@@ -31,7 +31,7 @@
 ### Step 1: Install the skill
 
 ```bash
-make-decision init --ai copilot --skill make-decision
+think-better init --ai copilot --skill make-decision
 ```
 
 ### Step 2: Generate decision plan

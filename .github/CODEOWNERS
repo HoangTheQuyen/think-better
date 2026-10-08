@@ -1,0 +1,3 @@
+# Default reviewers for every change. Add owners per skill as the community grows, e.g.:
+# /.agents/skills/make-decision/ @someone
+* @HoangTheQuyen

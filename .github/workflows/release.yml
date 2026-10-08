@@ -20,8 +20,8 @@ jobs:
               with:
                   go-version-file: go.mod
 
-            - name: Prepare embedded skills
-              run: make embed-prep
+            - name: Test
+              run: go test ./...
 
             - name: Cross-compile all platforms
               run: |
@@ -53,7 +53,7 @@ jobs:
                     CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build \
                       -ldflags "$LDFLAGS" \
                       -o "$output" \
-                      ./cmd/make-decision
+                      ./cmd/think-better
                   done
 
                   ls -la dist/

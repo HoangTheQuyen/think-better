@@ -7,14 +7,16 @@ import (
 	"strings"
 )
 
+//go:generate go run ./gen -src ../../.agents -dst .
+
 // Content holds all embedded skill files.
-// The skills/ directory is populated by `make embed-prep` before building.
+// The skills/ directory is mirrored from .agents/skills by `go generate ./internal/skills`.
 //
 //go:embed all:skills
 var Content embed.FS
 
 // Workflows holds all embedded workflow files.
-// The workflows/ directory is populated by `make embed-prep` before building.
+// The workflows/ directory is mirrored from .agents/workflows by `go generate ./internal/skills`.
 //
 //go:embed all:workflows
 var Workflows embed.FS
@@ -78,6 +80,12 @@ func WorkflowFiles() ([]string, error) {
 // ValidateEmbedded checks that all registry skills have at least one file
 // in the embedded filesystem. Call during init to fail fast if build missed files.
 func ValidateEmbedded() error {
+	if len(discoveryErrors) > 0 {
+		return fmt.Errorf("invalid embedded skills:\n  %s", strings.Join(discoveryErrors, "\n  "))
+	}
+	if len(Registry) == 0 {
+		return fmt.Errorf("no embedded skills found (run 'go generate ./internal/skills' before building)")
+	}
 	var missing []string
 	for _, skill := range Registry {
 		files, err := SkillFiles(skill.Name)
@@ -86,7 +94,7 @@ func ValidateEmbedded() error {
 		}
 	}
 	if len(missing) > 0 {
-		return fmt.Errorf("embedded skills missing files: %s (run 'make embed-prep' before building)", strings.Join(missing, ", "))
+		return fmt.Errorf("embedded skills missing files: %s (run 'go generate ./internal/skills' before building)", strings.Join(missing, ", "))
 	}
 	return nil
 }

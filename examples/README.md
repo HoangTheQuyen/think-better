@@ -1,6 +1,6 @@
 # Decision-Making Use Cases & Lessons Learned
 
-Real-world examples demonstrating how to use the `make-decision` CLI tool and bundled skills for structured decision-making and problem-solving.
+Real-world examples demonstrating how to use the `think-better` CLI tool and bundled skills for structured decision-making and problem-solving.
 
 ## 📚 Available Use Cases
 
@@ -60,7 +60,7 @@ Real-world examples demonstrating how to use the `make-decision` CLI tool and bu
 
 ```bash
 # 1. Install the skill
-make-decision init --ai copilot --skill make-decision
+think-better init --ai copilot --skill make-decision
 
 # 2. Generate decision plan (always start here)
 cd .github/prompts/make-decision

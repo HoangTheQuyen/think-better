@@ -79,5 +79,8 @@ Global options:
   --skill string  Skill name (default: all for init, required for uninstall)
   --force         Skip confirmation prompts
 
+Environment:
+  THINK_BETTER_AI  Default for --ai (e.g. claude)
+
 Run 'think-better <command> --help' for command-specific help.`)
 }
