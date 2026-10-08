@@ -166,8 +166,9 @@ jobs:
             - name: goreleaser check
               run: sh .github/scripts/goreleaser-check.sh
 
+            # --skip=before: the `before` hook is `go test ./...`, which the Go job already ran on this commit.
             - name: Snapshot release (no signing)
-              run: goreleaser release --snapshot --clean --skip=sign
+              run: goreleaser release --snapshot --clean --skip=sign,before
 
             - name: Check release assets
               run: |
