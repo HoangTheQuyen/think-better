@@ -66,7 +66,7 @@ are kept (see [Updating](#updating)).
 ```bash
 # Pin a release and pick the directory (no sudo needed)
 curl -fsSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.sh \
-  | THINK_BETTER_VERSION=v1.4.0 INSTALL_DIR="$HOME/bin" sh
+  | THINK_BETTER_VERSION=v1.5.0 INSTALL_DIR="$HOME/bin" sh
 
 # Nix
 nix run github:HoangTheQuyen/think-better -- init --ai claude
