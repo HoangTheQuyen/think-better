@@ -4,17 +4,22 @@
 Code Solving - structured plans for coding tasks.
 
 Usage:
-    python3 search.py --stdin --plan [--type debug] <<'TASK'   # task text on stdin, never parsed by the shell
+    python3 search.py --stdin --plan [--type debug] <<'THINK_BETTER_EOF_7f3a'   # task text on stdin, never parsed by the shell
     <task>
-    TASK
+    THINK_BETTER_EOF_7f3a
+    python3 search.py --stdin --plan --type review <<'THINK_BETTER_EOF_7f3a'   # empty text: review the current changes
+    THINK_BETTER_EOF_7f3a
     python3 search.py "<task>" --plan [--type debug] [--depth quick|standard|deep|executive] [-f markdown|ascii]
     python3 search.py "<task>" --plan --persist [--step-docs] [-p "name"] [-o dir] [--force]
     python3 search.py --detect                      # the project's own test/lint/build commands
-    python3 search.py --stdin --context <<'TASK'    # what an error or request points at in the code
+    python3 search.py --stdin --context <<'THINK_BETTER_EOF_7f3a'    # what an error or request points at in the code
     python3 search.py --status [-p name]            # progress of a saved workspace and the next step
     python3 search.py --done <step> -p name         # tick a step's gate in the workspace
     python3 search.py "<task>" --plan --type review --diff [base]   # review a diff (default: auto)
     python3 search.py "<keywords>" [--domain <domain>] [-n 3] [--json]
+
+The three skills share these spellings: -p/--project-name/--project, -n/--max-results/--results.
+Exit codes: 0 ok, 1 no saved workspace (or a file error), 2 bad input (empty text, unknown value).
 
 Task types: debug, feature, refactor, performance, flaky-test, incident, migration, review,
             test, explain, security, quick-fix
@@ -38,6 +43,9 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 if sys.stderr.encoding and sys.stderr.encoding.lower() != "utf-8":
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8")
+
+
+DEFAULT_REVIEW_REQUEST = "Review the current changes"
 
 
 def positive_int(value: str) -> int:
@@ -111,7 +119,8 @@ def main() -> int:
     parser.add_argument("--persist", action="store_true", help="Save the plan under coding-plans/")
     parser.add_argument("--step-docs", action="store_true", help="With --persist, write one file per step")
     parser.add_argument("--force", action="store_true", help="With --persist, replace files that already exist")
-    parser.add_argument("--project-name", "-p", default=None, help="Name for the saved plan")
+    parser.add_argument("--project-name", "--project", "-p", dest="project_name", default=None,
+                        help="Name for the saved plan / workspace")
     parser.add_argument("--output-dir", "-o", default=None, help="Where to save (default: project root)")
     parser.add_argument("--project-dir", default=None, help="Project to inspect for commands (default: project root)")
     parser.add_argument("--detect", action="store_true", help="List the project's test/lint/build commands")
@@ -125,7 +134,8 @@ def main() -> int:
     parser.add_argument("--done", metavar="STEP", help="Tick STEP's gate (1-7 or a step name) in the workspace")
     parser.add_argument("--undone", metavar="STEP", help="Untick STEP's gate in the workspace")
     parser.add_argument("--domain", "-d", choices=list(CSV_CONFIG), help="Search one knowledge domain")
-    parser.add_argument("--max-results", "-n", type=positive_int, default=MAX_RESULTS, help="Max search results")
+    parser.add_argument("--max-results", "--results", "-n", dest="max_results", type=positive_int,
+                        default=MAX_RESULTS, help="Max search results (default: 3)")
     parser.add_argument("--json", action="store_true", help="JSON output")
     args = parser.parse_args()
     if args.stdin:
@@ -146,9 +156,11 @@ def main() -> int:
         if args.status or args.done or args.undone:
             return show_status(args)
 
+        if not args.query.strip() and args.plan and str(args.task_type or "").strip().lower() == "review":
+            args.query = DEFAULT_REVIEW_REQUEST  # an empty /code.review reviews the current git diff
         if not args.query.strip() and not (args.context and args.diff):
-            parser.print_help()
-            return 1
+            print("Error: describe the task (as the query or on stdin with --stdin).", file=sys.stderr)
+            return 2
 
         if args.context:
             root = args.project_dir or default_output_dir()
@@ -178,6 +190,9 @@ def main() -> int:
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 2
+    except OSError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

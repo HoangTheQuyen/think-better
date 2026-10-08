@@ -15,7 +15,7 @@ from datetime import datetime
 from pathlib import Path
 
 from context import gather as gather_context
-from workspace import record_state
+from workspace import prepare_folder, record_state
 from core import (
     classify_task, detect_project_commands, find_named, load_csv, match_errors, save_docs, search,
     slugify, default_output_dir, task_type_names,
@@ -366,6 +366,13 @@ NEXT_STEPS = """
 """
 
 
+def next_steps_table(text: str, saved_step_docs: bool) -> str:
+    """The Next Steps table, without the "save step-by-step" row once the workspace is saved."""
+    if not saved_step_docs:
+        return text
+    return "".join(line for line in text.splitlines(True) if "save step-by-step" not in line)
+
+
 # ============ PERSISTENCE ============
 def _plan_dir(plan: dict, output_dir: str = None) -> Path:
     base = Path(output_dir) if output_dir else default_output_dir()
@@ -380,6 +387,7 @@ def persist_plan(plan: dict, output_dir: str = None, force: bool = False) -> tup
     An existing PLAN.md is kept unless force is set.
     """
     plan_dir = _plan_dir(plan, output_dir)
+    prepare_folder(plan_dir, plan["query"], plan["task"]["type"], ["PLAN.md"], force)
     stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
     written, _ = save_docs(plan_dir, {"PLAN.md": format_markdown(plan) + f"\n---\n*Generated: {stamp}*\n"}, force)
     return str(plan_dir / "PLAN.md"), bool(written)
@@ -499,6 +507,7 @@ def persist_step_by_step(plan: dict, output_dir: str = None, force: bool = False
 
 {body}
 """
+    prepare_folder(plan_dir, plan["query"], task["type"], files, force)
     written, kept = save_docs(plan_dir, files, force)
     record_state(plan_dir, plan, {name: files[name] for name in written})
     return str(plan_dir), written, kept
@@ -526,4 +535,4 @@ def generate_code_plan(query: str, project_name: str = None, output_format: str 
             path, written = persist_plan(plan, output_dir, force)
             result += (f"\nPlan saved to: {path}\n" if written
                        else f"\nKept the existing plan at {path} (add --force to replace it).\n")
-    return result + NEXT_STEPS
+    return result + next_steps_table(NEXT_STEPS, persist and step_docs)

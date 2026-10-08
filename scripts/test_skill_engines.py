@@ -1418,7 +1418,7 @@ class MakeDecisionUpgradeTests(unittest.TestCase):
             self.assertEqual(code, 0, err)
             self.assertIn("**Winner:** Vue", out)
             code, out, err = self.cli(["--matrix", "A vs B", "-c", "X:1,Y:1", "--scores", "A:1"], tmp)
-            self.assertEqual(code, 1)
+            self.assertEqual(code, 2)
             self.assertIn("1 scores but there are 2 criteria", err)
             self.assertEqual(out, "")
 
@@ -1459,11 +1459,11 @@ class MakeDecisionUpgradeTests(unittest.TestCase):
 
             self.cli(["--journal", "React again"], tmp)
             code, out, err = self.cli(["--journal", "--update", "react", "--outcome", "x"], tmp)
-            self.assertEqual(code, 1)
+            self.assertEqual(code, 2)
             self.assertIn("2 journal entries match", err)
             self.assertEqual(out, "")
             code, out, err = self.cli(["--journal", "--update", "zzz", "--outcome", "x"], tmp)
-            self.assertEqual(code, 1)
+            self.assertEqual(code, 2)
             self.assertIn("no journal entry matches", err)
 
             other = Path(tmp) / "elsewhere"
@@ -1513,7 +1513,7 @@ class MakeDecisionUpgradeTests(unittest.TestCase):
             code, out, err = self.cli(["--undone", "1", "-p", "cloud"], tmp)
             self.assertIn("### Next: 1. Classify the decision", out)
             code, out, err = self.cli(["--done", "9", "-p", "cloud"], tmp)
-            self.assertEqual(code, 1)
+            self.assertEqual(code, 2)
             self.assertIn("unknown step", err)
             code, out, err = self.cli(["--status", "-p", "nope"], tmp)
             self.assertEqual(code, 1)
@@ -1536,7 +1536,7 @@ class MakeDecisionUpgradeTests(unittest.TestCase):
             code, out, err = self.cli(["--stdin", "--plan", "--json", "--persist", "-p", "j"], tmp, "React or Vue")
             self.assertTrue(json.loads(out)["saved"]["written"])
             code, out, err = self.cli(["   ", "--plan"], tmp)
-            self.assertEqual(code, 1)
+            self.assertEqual(code, 2)
             self.assertIn("describe the decision", err)
             for depth in self.advisor.VALID_DEPTHS:
                 code, out, err = self.cli(["--stdin", "--plan", "-f", "markdown", "--depth", depth], tmp, "A or B")
@@ -1669,6 +1669,157 @@ class ClassificationRegressionTests(unittest.TestCase):
         self.assertEqual(self.ps.detect_domain("what type of problem is this"), "problem-types")
         self.assertEqual(self.md_core.auto_detect_domains("steam bias"), ["biases"])
         self.assertIn("facilitation", self.md_core.auto_detect_domains("our team workshop"))
+
+
+class WorkspaceReuseTests(unittest.TestCase):
+    """A saved workspace holds one plan: saving another request or type into it is refused
+    unless --force, and names typed with or without accents (NFC or NFD) find the same folder."""
+
+    SKILLS_AND_DIRS = (("problem-solving-pro", "solving-plans"), ("make-decision", "decision-plans"),
+                       ("code-solving", "coding-plans"))
+
+    def run_cli(self, skill, cwd, args, stdin):
+        env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", PYTHONIOENCODING="utf-8")
+        extra = ["--no-context"] if skill == "code-solving" else []
+        r = subprocess.run([sys.executable, str(SKILLS / skill / "scripts/search.py"), "--stdin"] + args + extra,
+                           input=stdin.encode("utf-8"), cwd=cwd, env=env, capture_output=True)
+        return r.returncode, r.stdout.decode("utf-8"), r.stderr.decode("utf-8")
+
+    def test_saving_another_plan_into_a_workspace_is_refused(self):
+        save = ["--plan", "--persist", "--step-docs", "-p", "X", "-f", "markdown"]
+        for skill, folder in self.SKILLS_AND_DIRS:
+            with self.subTest(skill=skill), tempfile.TemporaryDirectory() as tmp:
+                code, _, err = self.run_cli(skill, tmp, save, "Doanh thu quý 3 giảm 18%")
+                self.assertEqual(code, 0, err)
+                plan_dir = Path(tmp) / folder / "x"
+                overview = (plan_dir / "00-OVERVIEW.md").read_text(encoding="utf-8")
+                state = (plan_dir / ".workspace.json").read_text(encoding="utf-8")
+                victim = sorted(plan_dir.glob("0[2-5]-*.md"))[0]
+                victim.unlink()
+                code, out, err = self.run_cli(skill, tmp, save, "Design a new onboarding flow")
+                self.assertEqual(code, 2)
+                self.assertIn("already holds another plan", err)
+                self.assertIn("--force", err)
+                self.assertEqual(out, "")
+                self.assertFalse(victim.exists())
+                self.assertEqual((plan_dir / "00-OVERVIEW.md").read_text(encoding="utf-8"), overview)
+                self.assertEqual((plan_dir / ".workspace.json").read_text(encoding="utf-8"), state)
+                # The same request again is fine and keeps the notes
+                code, _, err = self.run_cli(skill, tmp, save, "Doanh thu quý 3 giảm 18%")
+                self.assertEqual(code, 0, err)
+                # --force replaces the plan; overview, state and status agree
+                code, _, err = self.run_cli(skill, tmp, save + ["--force"], "Design a new onboarding flow")
+                self.assertEqual(code, 0, err)
+                self.assertIn("Design a new onboarding flow", (plan_dir / "00-OVERVIEW.md").read_text(encoding="utf-8"))
+                code, out, err = self.run_cli(skill, tmp, ["--status", "--json", "-p", "x"], "")
+                self.assertEqual(code, 0, err)
+                self.assertEqual(json.loads(out)["request"], "Design a new onboarding flow")
+
+    def test_changing_the_code_task_type_leaves_no_stray_hand_off(self):
+        save = ["--plan", "--persist", "--step-docs", "-p", "w"]
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(self.run_cli("code-solving", tmp, save, "fix typo in footer")[0], 0)
+            plan_dir = Path(tmp) / "coding-plans" / "w"
+            self.assertTrue((plan_dir / "06-COMMIT.md").exists())
+            code, _, err = self.run_cli("code-solving", tmp, save + ["--type", "debug"], "fix typo in footer")
+            self.assertEqual(code, 2)
+            self.assertIn("quick-fix", err)
+            code, _, err = self.run_cli("code-solving", tmp, save + ["--type", "debug", "--force"], "fix typo in footer")
+            self.assertEqual(code, 0, err)
+            self.assertEqual(sorted(p.name for p in plan_dir.glob("06-*")), ["06-PR.md"])
+            state = json.loads((plan_dir / ".workspace.json").read_text(encoding="utf-8"))
+            self.assertEqual(state["type"], "debug")
+            self.assertNotIn("06-COMMIT.md", state["files"])
+
+    def test_workspace_names_fold_accents(self):
+        import unicodedata
+        nfd = unicodedata.normalize("NFD", "Giảm doanh thu")
+        for skill, folder in self.SKILLS_AND_DIRS:
+            core = load_skill(skill)[0]
+            with self.subTest(skill=skill):
+                self.assertEqual(core.slugify(nfd), "giam-doanh-thu")
+                self.assertEqual(core.slugify("Giảm doanh thu"), "giam-doanh-thu")
+                self.assertEqual(core.slugify("Đổi mới"), "doi-moi")
+            with self.subTest(skill=skill), tempfile.TemporaryDirectory() as tmp:
+                code, _, err = self.run_cli(skill, tmp, ["--plan", "--persist", "--step-docs", "-p", nfd], nfd)
+                self.assertEqual(code, 0, err)
+                self.assertEqual([p.name for p in (Path(tmp) / folder).iterdir()], ["giam-doanh-thu"])
+                for name in ("giam doanh thu", "Giảm doanh thu", nfd):
+                    code, out, err = self.run_cli(skill, tmp, ["--status", "-p", name], "")
+                    self.assertEqual(code, 0, err)
+                    self.assertIn("giam-doanh-thu", out)
+                # A folder saved before folding (accents in its name) is still found
+                old = Path(tmp) / folder / "giảm-chi-phí"
+                shutil.copytree(Path(tmp) / folder / "giam-doanh-thu", old)
+                code, out, err = self.run_cli(skill, tmp, ["--status", "-p", "giam chi phi"], "")
+                self.assertEqual(code, 0, err)
+                self.assertIn("giảm-chi-phí", out)
+
+    def test_next_steps_stop_offering_to_save_once_saved(self):
+        for skill, _ in self.SKILLS_AND_DIRS:
+            with self.subTest(skill=skill), tempfile.TemporaryDirectory() as tmp:
+                code, out, err = self.run_cli(skill, tmp, ["--plan", "-f", "markdown"], "login is broken")
+                self.assertIn("save step-by-step", out)
+                code, out, err = self.run_cli(skill, tmp, ["--plan", "--persist", "--step-docs", "-p", "a",
+                                                           "-f", "markdown"], "login is broken")
+                self.assertEqual(code, 0, err)
+                self.assertNotIn("save step-by-step", out)
+
+
+class ConsistentCliTests(unittest.TestCase):
+    """The three search.py scripts take the same flag spellings and use the same exit codes."""
+
+    SKILLS_AND_DIRS = WorkspaceReuseTests.SKILLS_AND_DIRS
+
+    def test_flag_spellings_are_shared(self):
+        for skill, folder in self.SKILLS_AND_DIRS:
+            script = SKILLS / skill / "scripts/search.py"
+            with tempfile.TemporaryDirectory() as tmp:
+                for flag in ("-p", "--project", "--project-name"):
+                    with self.subTest(skill=skill, flag=flag):
+                        name = "n" + flag.strip("-").replace("-", "")
+                        r = run_script(script, ["login is broken", "--plan", "--persist", flag, name], tmp)
+                        self.assertEqual(r.returncode, 0, r.stderr)
+                        self.assertTrue((Path(tmp) / folder / name / "PLAN.md").exists())
+                for flag in ("-n", "--results", "--max-results"):
+                    with self.subTest(skill=skill, flag=flag):
+                        r = run_script(script, ["bias", flag, "1", "--json"], tmp)
+                        self.assertEqual(r.returncode, 0, r.stderr)
+                        self.assertLessEqual(json.loads(r.stdout)["count"], 1)
+
+    def test_empty_input_is_a_one_line_error(self):
+        for skill, _ in self.SKILLS_AND_DIRS:
+            script = SKILLS / skill / "scripts/search.py"
+            for args in ([], ["--plan"], ["   ", "--plan", "--json"]):
+                with self.subTest(skill=skill, args=args), tempfile.TemporaryDirectory() as tmp:
+                    r = run_script(script, args, tmp)
+                    self.assertEqual(r.returncode, 2)
+                    self.assertEqual(r.stdout, "")
+                    self.assertEqual(len(r.stderr.strip().splitlines()), 1, r.stderr)
+                    self.assertTrue(r.stderr.startswith("Error: "))
+                    self.assertEqual(os.listdir(tmp), [])
+
+    def test_bad_values_exit_2_and_missing_workspace_exits_1(self):
+        for skill, _ in self.SKILLS_AND_DIRS:
+            script = SKILLS / skill / "scripts/search.py"
+            with self.subTest(skill=skill), tempfile.TemporaryDirectory() as tmp:
+                self.assertEqual(run_script(script, ["x", "--plan", "--type", "Nope"], tmp).returncode, 2)
+                self.assertEqual(run_script(script, ["--status"], tmp).returncode, 1)
+                run_script(script, ["login is broken", "--plan", "--persist", "--step-docs", "-p", "a"], tmp)
+                self.assertEqual(run_script(script, ["--done", "9", "-p", "a"], tmp).returncode, 2)
+
+    def test_empty_code_review_reviews_the_current_changes(self):
+        script = SKILLS / "code-solving/scripts/search.py"
+        with tempfile.TemporaryDirectory() as tmp:
+            env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", PYTHONIOENCODING="utf-8")
+            r = subprocess.run([sys.executable, str(script), "--stdin", "--plan", "--type", "review", "--json"],
+                               input=b"\n", cwd=tmp, env=env, capture_output=True)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            plan = json.loads(r.stdout)
+            self.assertEqual(plan["query"], "Review the current changes")
+            self.assertEqual(plan["task"]["type"], "review")
+            r = run_script(script, ["--plan", "--type", "debug"], tmp)
+            self.assertEqual(r.returncode, 2)
 
 
 if __name__ == "__main__":

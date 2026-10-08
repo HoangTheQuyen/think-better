@@ -22,7 +22,7 @@ from core import (
     resolve_choice, slugify, default_output_dir, save_docs, find_record, split_names, _load_csv,
     DATA_DIR, CSV_CONFIG,
 )
-from workspace import progress_table, record_state
+from workspace import prepare_folder, progress_table, record_state
 
 
 # ============ CONFIGURATION ============
@@ -605,6 +605,7 @@ def _plan_dir(plan: dict, output_dir: str = None) -> Path:
 def persist_plan(plan: dict, output_dir: str = None, force: bool = False):
     """Save the plan as PLAN.md; returns (path, written). An existing PLAN.md is kept unless force."""
     plan_dir = _plan_dir(plan, output_dir)
+    prepare_folder(plan_dir, plan["query"], plan["problem_type"]["name"], ["PLAN.md"], force)
     content = format_markdown(plan)
     if len(" ".join(plan["query"].split())) > REQUEST_PREVIEW:
         content += "\n### Full Request\n\n" + _quote(plan["query"]) + "\n"
@@ -868,6 +869,7 @@ Root Problem
 | 1 | {ts[:10]} | | | | Open |
 """
 
+    prepare_folder(plan_dir, plan["query"], problem["name"], docs, force)
     written, kept = save_docs(plan_dir, docs, force)
     record_state(plan_dir, plan, {name: docs[name] for name in written})
     return str(plan_dir), written, kept
@@ -916,6 +918,13 @@ NEXT_STEPS = {
 RESUME_STEP = "| `/solve.resume` | Continue this workspace later at the first open step |\n"
 
 
+def next_steps_table(text: str, saved_step_docs: bool) -> str:
+    """The Next Steps table, without the "save step-by-step" row once the workspace is saved."""
+    if not saved_step_docs:
+        return text
+    return "".join(line for line in text.splitlines(True) if "save step-by-step" not in line)
+
+
 # ============ PUBLIC API ============
 def generate_solving_plan(query: str, project_name: str = None, output_format: str = "ascii",
                           persist: bool = False, output_dir: str = None,
@@ -947,7 +956,7 @@ def generate_solving_plan(query: str, project_name: str = None, output_format: s
     if persist:
         result += "\n" + save_report(plan, output_dir, step_docs, force)
         if step_docs:
-            next_steps += RESUME_STEP
+            next_steps = next_steps_table(next_steps, True) + RESUME_STEP
     return result + next_steps
 
 

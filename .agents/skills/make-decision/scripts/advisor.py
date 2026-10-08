@@ -731,6 +731,8 @@ class DecisionAdvisor:
     def persist_plan(self, plan: dict, output_dir: str = None, force: bool = False) -> tuple:
         """Save the plan as PLAN.md; returns (path, written). An existing PLAN.md is kept unless force."""
         plan_dir = self._plan_dir(plan, output_dir)
+        workspace.prepare_folder(plan_dir, plan.get("request", ""), plan["decision_type"]["name"], ["PLAN.md"],
+                                 force)
         content = self.format_markdown(plan)
         content += f"\n---\n*Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}*\n"
         written, _ = save_docs(plan_dir, {"PLAN.md": content}, force)
@@ -925,6 +927,7 @@ It is 12 months from now and this decision failed. What went wrong?
         """
         plan_dir = self._plan_dir(plan, output_dir)
         docs = self.step_docs(plan)
+        workspace.prepare_folder(plan_dir, plan.get("request", ""), plan["decision_type"]["name"], docs, force)
         written, kept = save_docs(plan_dir, docs, force)
         workspace.record_state(plan_dir, plan, {name: docs[name] for name in written})
         return str(plan_dir), written, kept
@@ -1293,4 +1296,11 @@ def generate_decision_plan(query: str, project_name: str = None, output_format: 
             result += f"\n\nPlan saved to: {saved['path']}"
         else:
             result += f"\n\nKept the existing plan at {saved['path']} (add --force to replace it)."
-    return result + NEXT_STEPS.get(depth, NEXT_STEPS["standard"])
+    return result + next_steps_table(NEXT_STEPS.get(depth, NEXT_STEPS["standard"]), bool(saved.get("dir")))
+
+
+def next_steps_table(text: str, saved_step_docs: bool) -> str:
+    """The Next Steps table, without the "save step-by-step" row once the workspace is saved."""
+    if not saved_step_docs:
+        return text
+    return "".join(line for line in text.splitlines(True) if "save step-by-step" not in line)
