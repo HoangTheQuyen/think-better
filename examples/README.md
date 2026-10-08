@@ -33,7 +33,7 @@ Worked examples of the bundled skills: decisions (`/decide`), problems (`/solve`
 - Key: Define criteria *before* evaluating options to avoid anchoring
 
 ### Resource Allocation (limited budget/time)
-- Use: **Iterative Allocation**
+- Use: **Expected Value Calculation**, applied in rounds
 - Examples: [04 - Budget Allocation](04-budget-allocation.md)
 - Key: Allocate in rounds, reassess after each round
 

@@ -20,8 +20,8 @@
 #   - casks of an unsigned, un-notarized binary get the macOS quarantine flag
 #     (Gatekeeper blocks the first run unless we strip it in a hook);
 #   - casks on Linux need a recent Homebrew, while the formula works today.
-# So we keep the formula (Formula/think-better.rb, installed with
-# `brew install HoangTheQuyen/think-better/think-better`), pin GoReleaser to an
+# So we keep the formula (Formula/think-better.rb, installed after adding the
+# tap by URL, see the Homebrew note below), pin GoReleaser to an
 # exact version that still supports `brews`, and CI accepts exit code 2 from
 # `goreleaser check` only when `brews` is the sole deprecation
 # (scripts in .github/workflows/ci.yml). Revisit before GoReleaser v3.
@@ -99,27 +99,11 @@ signs:
       - --yes
     output: true
 
+# No generated commit list in the release body: commit subjects are not
+# written for readers. The release notes are the CHANGELOG.md section for the
+# version, linked from the release header below.
 changelog:
-  use: github
-  sort: asc
-  filters:
-    exclude:
-      - "^Merge pull request"
-      - "^Merge branch"
-      - "^chore\\(brew\\)"
-      - "^chore\\(scoop\\)"
-  groups:
-    - title: Features
-      regexp: '^.*?feat(\([[:word:]./-]+\))??!?:.+$'
-      order: 0
-    - title: Bug fixes
-      regexp: '^.*?fix(\([[:word:]./-]+\))??!?:.+$'
-      order: 1
-    - title: Documentation
-      regexp: '^.*?docs(\([[:word:]./-]+\))??!?:.+$'
-      order: 2
-    - title: Others
-      order: 999
+  disable: true
 
 release:
   github:
@@ -138,7 +122,7 @@ release:
     **macOS / Linux**
     ```sh
     curl -fsSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.sh | THINK_BETTER_VERSION={{ .Tag }} sh
-    # Homebrew: brew install HoangTheQuyen/think-better/think-better   (upgrade: brew upgrade think-better)
+    # Homebrew: brew tap HoangTheQuyen/think-better https://github.com/HoangTheQuyen/think-better && brew install think-better   (upgrade: brew upgrade think-better)
     ```
 
     **Windows (PowerShell)**
@@ -153,9 +137,13 @@ release:
 
     **Verify a download**: `gh attestation verify <file> --repo HoangTheQuyen/think-better` (details in [SECURITY.md](https://github.com/HoangTheQuyen/think-better/blob/main/SECURITY.md#verifying-releases)).
 
-# Homebrew:
-#   brew install HoangTheQuyen/think-better/think-better
-#   (or: brew tap HoangTheQuyen/think-better https://github.com/HoangTheQuyen/think-better && brew install think-better)
+    **Release notes**: the **{{ .Version }}** section of [CHANGELOG.md](https://github.com/HoangTheQuyen/think-better/blob/{{ .Tag }}/CHANGELOG.md).
+
+# Homebrew: the tap is this repository, which is not named homebrew-think-better,
+# so the install needs the tap's URL (`brew install HoangTheQuyen/think-better/think-better`
+# alone would look for a homebrew-think-better repository and fail):
+#   brew tap HoangTheQuyen/think-better https://github.com/HoangTheQuyen/think-better
+#   brew install think-better
 brews:
   - name: think-better
     ids: [packaged]
