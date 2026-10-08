@@ -77,6 +77,25 @@ func WorkflowFiles() ([]string, error) {
 	return files, nil
 }
 
+// WorkflowSkill returns the skill a workflow runs, taken from the first
+// ".agents/skills/<name>/" path it references ("" if none).
+func WorkflowSkill(file string) string {
+	sub, err := WorkflowFS()
+	if err != nil {
+		return ""
+	}
+	data, err := fs.ReadFile(sub, file)
+	if err != nil {
+		return ""
+	}
+	_, rest, ok := strings.Cut(string(data), ".agents/skills/")
+	if !ok {
+		return ""
+	}
+	name, _, _ := strings.Cut(rest, "/")
+	return name
+}
+
 // ValidateEmbedded checks that all registry skills have at least one file
 // in the embedded filesystem. Call during init to fail fast if build missed files.
 func ValidateEmbedded() error {
