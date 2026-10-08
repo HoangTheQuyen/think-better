@@ -4,8 +4,11 @@
 Code Solving - structured plans for coding tasks.
 
 Usage:
+    python3 search.py --stdin --plan [--type debug] <<'TASK'   # task text on stdin, never parsed by the shell
+    <task>
+    TASK
     python3 search.py "<task>" --plan [--type debug] [--depth quick|standard|deep|executive] [-f markdown|ascii]
-    python3 search.py "<task>" --plan --persist [--step-docs] [-p "name"] [-o dir]
+    python3 search.py "<task>" --plan --persist [--step-docs] [-p "name"] [-o dir] [--force]
     python3 search.py --detect                      # the project's own test/lint/build commands
     python3 search.py "<keywords>" [--domain <domain>] [-n 3] [--json]
 
@@ -18,7 +21,7 @@ import io
 import json
 import sys
 
-from core import CSV_CONFIG, MAX_RESULTS, detect_project_commands, search, task_type_names
+from core import CSV_CONFIG, MAX_RESULTS, detect_project_commands, read_stdin_query, search, task_type_names
 from advisor import CodeSolvingAdvisor, VALID_DEPTHS, generate_code_plan
 
 # Force UTF-8 output (Windows consoles default to a legacy code page)
@@ -26,6 +29,14 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 if sys.stderr.encoding and sys.stderr.encoding.lower() != "utf-8":
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8")
+
+
+def positive_int(value: str) -> int:
+    """argparse type: an integer >= 1."""
+    number = int(value)
+    if number < 1:
+        raise argparse.ArgumentTypeError(f"must be 1 or more, got {value}")
+    return number
 
 
 def format_results(result: dict) -> str:
@@ -44,6 +55,8 @@ def format_results(result: dict) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Code Solving: 7-step plans with evidence gates for coding tasks")
     parser.add_argument("query", nargs="?", default="", help="Task description or search keywords")
+    parser.add_argument("--stdin", action="store_true",
+                        help="Read the task from stdin (safe for text with quotes, backticks or $)")
     parser.add_argument("--plan", action="store_true", help="Generate a step-by-step plan")
     parser.add_argument("--type", "-t", dest="task_type", default=None,
                         help="Task type, skips auto-detection: " + ", ".join(task_type_names()))
@@ -52,14 +65,17 @@ def main() -> int:
                         help="Output format (default: markdown)")
     parser.add_argument("--persist", action="store_true", help="Save the plan under coding-plans/")
     parser.add_argument("--step-docs", action="store_true", help="With --persist, write one file per step")
+    parser.add_argument("--force", action="store_true", help="With --persist, replace files that already exist")
     parser.add_argument("--project-name", "-p", default=None, help="Name for the saved plan")
     parser.add_argument("--output-dir", "-o", default=None, help="Where to save (default: project root)")
     parser.add_argument("--project-dir", default=None, help="Project to inspect for commands (default: project root)")
     parser.add_argument("--detect", action="store_true", help="List the project's test/lint/build commands")
     parser.add_argument("--domain", "-d", choices=list(CSV_CONFIG), help="Search one knowledge domain")
-    parser.add_argument("--max-results", "-n", type=int, default=MAX_RESULTS, help="Max search results")
+    parser.add_argument("--max-results", "-n", type=positive_int, default=MAX_RESULTS, help="Max search results")
     parser.add_argument("--json", action="store_true", help="JSON output")
     args = parser.parse_args()
+    if args.stdin:
+        args.query = read_stdin_query()
 
     try:
         if args.detect:
@@ -85,7 +101,7 @@ def main() -> int:
             else:
                 print(generate_code_plan(args.query, args.project_name, args.format, args.persist,
                                          args.output_dir, args.depth, args.step_docs,
-                                         args.task_type, args.project_dir))
+                                         args.task_type, args.project_dir, args.force))
             return 0
 
         result = search(args.query, args.domain, args.max_results)

@@ -4,7 +4,10 @@
 Make-Decision Search - CLI for decision-making knowledge base.
 
 Usage:
-    python search.py "<query>" --plan [-p "Project"] [-f ascii|markdown] [--persist]
+    python search.py "<query>" --plan [-p "Project"] [-f ascii|markdown] [--persist] [--force]
+    python search.py --stdin --plan <<'TASK'   # decision text on stdin, never parsed by the shell
+    <decision>
+    TASK
     python search.py "<query>" --domain <domain> [-n 3]
     python search.py "<query>" [-n 3]
     python search.py --journal "<decision_statement>" [-p "Project"]
@@ -18,7 +21,7 @@ Domains: frameworks, types, biases, analysis, criteria, facilitation
 import argparse
 import sys
 import io
-from core import CSV_CONFIG, MAX_RESULTS, search, search_domain, DOMAIN_KEYWORDS
+from core import CSV_CONFIG, MAX_RESULTS, search, search_domain, read_stdin_query, DOMAIN_KEYWORDS
 from advisor import DecisionAdvisor, generate_decision_plan, VALID_DEPTHS
 
 # Force UTF-8 for stdout/stderr on Windows
@@ -26,6 +29,14 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 if sys.stderr.encoding and sys.stderr.encoding.lower() != 'utf-8':
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
+
+def positive_int(value):
+    """argparse type: an integer >= 1."""
+    number = int(value)
+    if number < 1:
+        raise argparse.ArgumentTypeError(f"must be 1 or more, got {value}")
+    return number
 
 
 def format_domain_output(result):
@@ -100,6 +111,8 @@ if __name__ == "__main__":
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("query", nargs="?", default="", help="Decision description or search query")
+    parser.add_argument("--stdin", action="store_true",
+                        help="Read the decision from stdin (safe for text with quotes, backticks or $)")
 
     # Plan generation
     parser.add_argument("--plan", action="store_true", help="Generate comprehensive decision-making plan")
@@ -110,7 +123,7 @@ if __name__ == "__main__":
 
     # Domain search
     parser.add_argument("--domain", "-d", choices=list(CSV_CONFIG.keys()), help="Search specific domain")
-    parser.add_argument("--results", "-n", type=int, default=MAX_RESULTS, help="Max results (default: 3)")
+    parser.add_argument("--results", "-n", type=positive_int, default=MAX_RESULTS, help="Max results (default: 3)")
 
     # Decision journal
     parser.add_argument("--journal", nargs="?", const=True, default=None, help="Decision journal: create entry or use with --review/--update")
@@ -129,11 +142,14 @@ if __name__ == "__main__":
     parser.add_argument("--depth", choices=VALID_DEPTHS, default="standard", help="Analysis depth: quick, standard, deep, or executive (default: standard)")
     # Step-by-step docs
     parser.add_argument("--step-docs", action="store_true", help="With --persist, create separate markdown files per step")
+    parser.add_argument("--force", action="store_true", help="With --persist, replace files that already exist")
     # Classification override (the AI usually knows better than keyword matching)
     parser.add_argument("--type", "-t", dest="decision_type", default=None,
                         help="Decision type, skips auto-detection: " + ", ".join(DecisionAdvisor.decision_type_names()))
 
     args = parser.parse_args()
+    if args.stdin:
+        args.query = read_stdin_query()
 
     advisor = DecisionAdvisor(args.query or "")
 
@@ -152,6 +168,7 @@ if __name__ == "__main__":
                 depth=args.depth,
                 step_docs=args.step_docs,
                 decision_type=args.decision_type,
+                force=args.force,
             )
             print(result)
 

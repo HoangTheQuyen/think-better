@@ -18,7 +18,7 @@ from datetime import datetime
 from pathlib import Path
 from core import (
     search, load_reasoning, classify_category, problem_type_names, category_names,
-    resolve_choice, slugify, default_output_dir, _load_csv, DATA_DIR, CSV_CONFIG,
+    resolve_choice, slugify, default_output_dir, save_docs, _load_csv, DATA_DIR, CSV_CONFIG,
 )
 
 
@@ -637,8 +637,8 @@ def format_markdown(plan: dict) -> str:
     return "\n".join(lines)
 
 
-def persist_plan(plan: dict, output_dir: str = None):
-    """Save problem-solving plan to a single file."""
+def persist_plan(plan: dict, output_dir: str = None, force: bool = False):
+    """Save the plan as PLAN.md; returns (path, written). An existing PLAN.md is kept unless force."""
     project_slug = slugify(plan.get("project_name", "default"))
     base_dir = Path(output_dir) if output_dir else default_output_dir()
     plan_dir = base_dir / "solving-plans" / project_slug
@@ -646,16 +646,16 @@ def persist_plan(plan: dict, output_dir: str = None):
     plan_dir.mkdir(parents=True, exist_ok=True)
 
     # Write plan
-    plan_path = plan_dir / "PLAN.md"
-    with open(plan_path, 'w', encoding='utf-8') as f:
-        f.write(format_markdown(plan))
-        f.write(f"\n---\n*Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}*\n")
-
-    return str(plan_path)
+    content = format_markdown(plan) + f"\n---\n*Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}*\n"
+    written, _ = save_docs(plan_dir, {"PLAN.md": content}, force)
+    return str(plan_dir / "PLAN.md"), bool(written)
 
 
-def persist_step_by_step(plan: dict, output_dir: str = None):
-    """Save problem-solving plan as separate markdown files per step."""
+def persist_step_by_step(plan: dict, output_dir: str = None, force: bool = False):
+    """Save the plan as one markdown file per step; returns (dir, written, kept).
+
+    Files that already exist hold the user's notes and are kept unless force is set.
+    """
     project_slug = slugify(plan.get("project_name", "default"))
     base_dir = Path(output_dir) if output_dir else default_output_dir()
     plan_dir = base_dir / "solving-plans" / project_slug
@@ -675,7 +675,7 @@ def persist_step_by_step(plan: dict, output_dir: str = None):
     anti_patterns = plan.get("anti_patterns", "")
     ts = datetime.now().strftime('%Y-%m-%d %H:%M')
 
-    files_written = []
+    docs = {}
 
     # 00-OVERVIEW.md
     overview = f"""# Problem-Solving Plan: {project}
@@ -701,8 +701,7 @@ def persist_step_by_step(plan: dict, output_dir: str = None):
 - [BIAS-WARNINGS.md](./BIAS-WARNINGS.md) — Cognitive bias alerts
 - [DECISION-LOG.md](./DECISION-LOG.md) — Track decisions made
 """
-    _write_file(plan_dir / "00-OVERVIEW.md", overview)
-    files_written.append("00-OVERVIEW.md")
+    docs["00-OVERVIEW.md"] = overview
 
     # 01-PROBLEM-DEFINITION.md
     step1 = f"""# Step 1: Define the Problem
@@ -731,8 +730,7 @@ def persist_step_by_step(plan: dict, output_dir: str = None):
 |-------------|------|---------------|
 | | | |
 """
-    _write_file(plan_dir / "01-PROBLEM-DEFINITION.md", step1)
-    files_written.append("01-PROBLEM-DEFINITION.md")
+    docs["01-PROBLEM-DEFINITION.md"] = step1
 
     # 02-DECOMPOSITION.md
     alts = [a for a in decomp.get('alternatives', []) if a]
@@ -771,8 +769,7 @@ Root Problem
 - [ ] Branches are collectively exhaustive (nothing missing)
 - [ ] Each leaf is specific enough to analyze
 """
-    _write_file(plan_dir / "02-DECOMPOSITION.md", step2)
-    files_written.append("02-DECOMPOSITION.md")
+    docs["02-DECOMPOSITION.md"] = step2
 
     # 03-PRIORITIZATION.md
     step3 = f"""# Step 3: Prioritize Issues
@@ -803,8 +800,7 @@ Root Problem
    - Why it matters:
    - Hypothesis:
 """
-    _write_file(plan_dir / "03-PRIORITIZATION.md", step3)
-    files_written.append("03-PRIORITIZATION.md")
+    docs["03-PRIORITIZATION.md"] = step3
 
     # 04-ANALYSIS-PLAN.md
     analysis_alts = [a for a in analysis.get('alternatives', []) if a]
@@ -829,8 +825,7 @@ Root Problem
 | | | | | |
 | | | | | |
 """
-    _write_file(plan_dir / "04-ANALYSIS-PLAN.md", step4)
-    files_written.append("04-ANALYSIS-PLAN.md")
+    docs["04-ANALYSIS-PLAN.md"] = step4
 
     # 05-FINDINGS.md
     step5 = """# Step 5: Findings
@@ -862,8 +857,7 @@ Root Problem
 <!-- Document anything that challenged your hypothesis -->
 
 """
-    _write_file(plan_dir / "05-FINDINGS.md", step5)
-    files_written.append("05-FINDINGS.md")
+    docs["05-FINDINGS.md"] = step5
 
     # 06-SYNTHESIS.md
     step6 = f"""# Step 6: Synthesis
@@ -894,8 +888,7 @@ Root Problem
 |------|-----------|--------|------------|
 | | | | |
 """
-    _write_file(plan_dir / "06-SYNTHESIS.md", step6)
-    files_written.append("06-SYNTHESIS.md")
+    docs["06-SYNTHESIS.md"] = step6
 
     # 07-RECOMMENDATION.md
     step7 = """# Step 7: Recommendation
@@ -926,8 +919,7 @@ Root Problem
 | | | | |
 | | | | |
 """
-    _write_file(plan_dir / "07-RECOMMENDATION.md", step7)
-    files_written.append("07-RECOMMENDATION.md")
+    docs["07-RECOMMENDATION.md"] = step7
 
     # BIAS-WARNINGS.md
     bias_content = "# Bias Warnings\n\n"
@@ -942,8 +934,7 @@ Root Problem
         for m in models:
             if m.get("name"):
                 bias_content += f"- **{m['name']}**: {m.get('application', '')}\n"
-    _write_file(plan_dir / "BIAS-WARNINGS.md", bias_content)
-    files_written.append("BIAS-WARNINGS.md")
+    docs["BIAS-WARNINGS.md"] = bias_content
 
     # DECISION-LOG.md
     decision_log = f"""# Decision Log: {project}
@@ -952,16 +943,10 @@ Root Problem
 |---|------|----------|-----------|------------|--------|
 | 1 | {ts[:10]} | | | | Open |
 """
-    _write_file(plan_dir / "DECISION-LOG.md", decision_log)
-    files_written.append("DECISION-LOG.md")
+    docs["DECISION-LOG.md"] = decision_log
 
-    return str(plan_dir), files_written
-
-
-def _write_file(path: Path, content: str):
-    """Write content to a file."""
-    with open(path, 'w', encoding='utf-8') as f:
-        f.write(content)
+    written, kept = save_docs(plan_dir, docs, force)
+    return str(plan_dir), written, kept
 
 
 # ============ NEXT-STEP SUGGESTIONS ============
@@ -1009,7 +994,8 @@ NEXT_STEPS = {
 def generate_solving_plan(query: str, project_name: str = None, output_format: str = "ascii",
                           persist: bool = False, output_dir: str = None,
                           depth: str = "standard", step_docs: bool = False,
-                          problem_type: str = None, category: str = None) -> str:
+                          problem_type: str = None, category: str = None,
+                          force: bool = False) -> str:
     """Generate a comprehensive problem-solving plan.
 
     Args:
@@ -1020,6 +1006,7 @@ def generate_solving_plan(query: str, project_name: str = None, output_format: s
         output_dir: Output directory for persistence
         depth: Analysis depth - quick, standard, deep, or executive
         step_docs: If True with persist, create separate markdown files per step
+        force: Replace files that already exist (default: keep them)
         problem_type: Problem type override (see --type)
         category: Reasoning category override (see --category)
 
@@ -1037,14 +1024,21 @@ def generate_solving_plan(query: str, project_name: str = None, output_format: s
 
     if persist:
         if step_docs:
-            plan_dir, files = persist_step_by_step(plan, output_dir)
+            plan_dir, files, kept = persist_step_by_step(plan, output_dir, force)
             result += f"\n\nStep-by-step plan saved to: {plan_dir}/"
             result += f"\n  Files created: {len(files)}"
             for f in files:
                 result += f"\n    {f}"
+            if kept:
+                result += f"\n  Kept {len(kept)} existing files with your notes (add --force to replace them):"
+                for f in kept:
+                    result += f"\n    {f}"
         else:
-            path = persist_plan(plan, output_dir)
-            result += f"\n\nPlan saved to: {path}"
+            path, written = persist_plan(plan, output_dir, force)
+            if written:
+                result += f"\n\nPlan saved to: {path}"
+            else:
+                result += f"\n\nKept the existing plan at {path} (add --force to replace it)."
 
     # Append next-step suggestions
     result += NEXT_STEPS.get(depth, NEXT_STEPS["standard"])

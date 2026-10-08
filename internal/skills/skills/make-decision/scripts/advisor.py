@@ -15,7 +15,7 @@ import json
 import re
 from datetime import datetime
 from pathlib import Path
-from core import search, search_domain, load_csv, slugify, default_output_dir, DATA_DIR
+from core import search, search_domain, load_csv, slugify, default_output_dir, save_docs, DATA_DIR
 
 # ============ DEPTH CONFIGURATION ============
 DEPTH_CONFIG = {
@@ -517,8 +517,8 @@ class DecisionAdvisor:
         return "\n".join(out)
 
     # ---- Persist Plan (T019) ----
-    def persist_plan(self, plan: dict, output_dir: str = None) -> str:
-        """Save the decision plan as a markdown file."""
+    def persist_plan(self, plan: dict, output_dir: str = None, force: bool = False) -> tuple:
+        """Save the plan as PLAN.md; returns (path, written). An existing PLAN.md is kept unless force."""
         project = plan.get("project_name", "default")
         slug = slugify(project)
 
@@ -530,10 +530,8 @@ class DecisionAdvisor:
         content = self.format_markdown(plan)
         content += f"\n---\n*Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}*\n"
 
-        with open(plan_path, "w", encoding="utf-8") as f:
-            f.write(content)
-
-        return str(plan_path)
+        written, _ = save_docs(plan_dir, {"PLAN.md": content}, force)
+        return str(plan_path), bool(written)
 
     # ---- Decision Journal (T023, T025, T027) ----
     def create_journal(self, decision_statement: str, project_name: str = None) -> str:
@@ -833,8 +831,11 @@ Medium
         return []
 
 
-    def persist_step_by_step(self, plan: dict, output_dir: str = None) -> tuple:
-        """Save decision plan as separate markdown files per step."""
+    def persist_step_by_step(self, plan: dict, output_dir: str = None, force: bool = False) -> tuple:
+        """Save the plan as one markdown file per step; returns (dir, written, kept).
+
+        Files that already exist hold the user's notes and are kept unless force is set.
+        """
         project = plan.get("project_name", "default")
         slug = slugify(project)
 
@@ -852,11 +853,7 @@ Medium
         anti = plan.get("anti_patterns", "")
         ts = datetime.now().strftime('%Y-%m-%d %H:%M')
 
-        files_written = []
-
-        def _write(path, content):
-            with open(path, 'w', encoding='utf-8') as f:
-                f.write(content)
+        docs = {}
 
         # 00-OVERVIEW.md
         overview = f"""# Decision-Making Plan: {project}
@@ -877,8 +874,7 @@ Medium
 - [BIAS-WARNINGS.md](./BIAS-WARNINGS.md) — Bias alerts
 - [DECISION-LOG.md](./DECISION-LOG.md) — Decision journal
 """
-        _write(plan_dir / "00-OVERVIEW.md", overview)
-        files_written.append("00-OVERVIEW.md")
+        docs["00-OVERVIEW.md"] = overview
 
         # 01-DECISION-TYPE.md
         type_doc = f"""# Step 1: Classify the Decision
@@ -898,8 +894,7 @@ Medium
 <!-- Write a clear, specific decision statement -->
 
 """
-        _write(plan_dir / "01-DECISION-TYPE.md", type_doc)
-        files_written.append("01-DECISION-TYPE.md")
+        docs["01-DECISION-TYPE.md"] = type_doc
 
         # 02-FRAMEWORK.md
         alts = [a for a in fw.get('alternatives', []) if a]
@@ -922,8 +917,7 @@ Medium
 ### Alternative Frameworks
 {alts_str}
 """
-        _write(plan_dir / "02-FRAMEWORK.md", framework_doc)
-        files_written.append("02-FRAMEWORK.md")
+        docs["02-FRAMEWORK.md"] = framework_doc
 
         # 03-CRITERIA.md
         criteria_doc = f"""# Step 3: Define Evaluation Criteria
@@ -939,8 +933,7 @@ Medium
             if crit.get("measurement"):
                 criteria_doc += f"\n## Scoring Guide\n{crit['measurement']}\n"
         criteria_doc += """\n## Your Criteria\n| Criterion | Weight (%) | Description | Score Guide |\n|-----------|-----------|-------------|-------------|\n| | | | |\n"""
-        _write(plan_dir / "03-CRITERIA.md", criteria_doc)
-        files_written.append("03-CRITERIA.md")
+        docs["03-CRITERIA.md"] = criteria_doc
 
         # 04-ANALYSIS.md
         analysis_doc = "# Step 4: Analysis Techniques\n\n"
@@ -948,8 +941,7 @@ Medium
             analysis_doc += f"## {i}. {t.get('technique', '')}\n"
             analysis_doc += f"**When to use:** {t.get('when', '')}\n"
             analysis_doc += f"**Output:** {t.get('output', '')}\n\n"
-        _write(plan_dir / "04-ANALYSIS.md", analysis_doc)
-        files_written.append("04-ANALYSIS.md")
+        docs["04-ANALYSIS.md"] = analysis_doc
 
         # 05-OPTIONS.md
         options_doc = """# Step 5: Evaluate Options
@@ -968,8 +960,7 @@ Medium
 | | | | | |
 | **TOTAL** | 100% | | | |
 """
-        _write(plan_dir / "05-OPTIONS.md", options_doc)
-        files_written.append("05-OPTIONS.md")
+        docs["05-OPTIONS.md"] = options_doc
 
         # 06-DECISION.md
         decision_doc = """# Step 6: Final Decision
@@ -1002,8 +993,7 @@ Medium
 <!-- High / Medium / Low — and why -->
 
 """
-        _write(plan_dir / "06-DECISION.md", decision_doc)
-        files_written.append("06-DECISION.md")
+        docs["06-DECISION.md"] = decision_doc
 
         # BIAS-WARNINGS.md
         bias_doc = "# Bias Warnings\n\nThese biases may affect your decision.\n\n"
@@ -1013,8 +1003,7 @@ Medium
             bias_doc += f"**Remedy:** {b.get('debiasing', '')}\n\n"
         if anti:
             bias_doc += f"## Anti-Patterns\n{anti}\n"
-        _write(plan_dir / "BIAS-WARNINGS.md", bias_doc)
-        files_written.append("BIAS-WARNINGS.md")
+        docs["BIAS-WARNINGS.md"] = bias_doc
 
         # DECISION-LOG.md
         log = f"""# Decision Log: {project}
@@ -1023,10 +1012,10 @@ Medium
 |---|------|----------|-----------|------------|--------|
 | 1 | {ts[:10]} | | | | Open |
 """
-        _write(plan_dir / "DECISION-LOG.md", log)
-        files_written.append("DECISION-LOG.md")
+        docs["DECISION-LOG.md"] = log
 
-        return str(plan_dir), files_written
+        written, kept = save_docs(plan_dir, docs, force)
+        return str(plan_dir), written, kept
 
 
 # ============ NEXT-STEP SUGGESTIONS ============
@@ -1074,7 +1063,7 @@ NEXT_STEPS = {
 def generate_decision_plan(query: str, project_name: str = None, output_format: str = "ascii",
                            persist: bool = False, output_dir: str = None,
                            depth: str = "standard", step_docs: bool = False,
-                           decision_type: str = None) -> str:
+                           decision_type: str = None, force: bool = False) -> str:
     """Generate a comprehensive decision-making plan.
 
     Args:
@@ -1086,6 +1075,7 @@ def generate_decision_plan(query: str, project_name: str = None, output_format: 
         depth: Analysis depth - quick, standard, deep, or executive
         step_docs: If True with persist, create separate markdown files per step
         decision_type: Decision type override (see --type)
+        force: Replace files that already exist (default: keep them)
 
     Returns:
         Formatted decision plan
@@ -1100,14 +1090,21 @@ def generate_decision_plan(query: str, project_name: str = None, output_format: 
 
     if persist:
         if step_docs:
-            plan_dir, files = advisor.persist_step_by_step(plan, output_dir)
+            plan_dir, files, kept = advisor.persist_step_by_step(plan, output_dir, force)
             result += f"\n\nStep-by-step plan saved to: {plan_dir}/"
             result += f"\n  Files created: {len(files)}"
             for f_name in files:
                 result += f"\n    {f_name}"
+            if kept:
+                result += f"\n  Kept {len(kept)} existing files with your notes (add --force to replace them):"
+                for f_name in kept:
+                    result += f"\n    {f_name}"
         else:
-            path = advisor.persist_plan(plan, output_dir)
-            result += f"\n\nPlan saved to: {path}"
+            path, written = advisor.persist_plan(plan, output_dir, force)
+            if written:
+                result += f"\n\nPlan saved to: {path}"
+            else:
+                result += f"\n\nKept the existing plan at {path} (add --force to replace it)."
 
     # Append next-step suggestions
     result += NEXT_STEPS.get(depth, NEXT_STEPS["standard"])

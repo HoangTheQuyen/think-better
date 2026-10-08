@@ -212,7 +212,7 @@ YOU ─── "Revenue dropped 20%" ──────────────�
 
 ## Step-by-Step Workspace
 
-Add *"save step-by-step"* to any prompt to generate a full markdown workspace:
+Add *"save step-by-step"* to any prompt to generate a full markdown workspace (`coding-plans/` for `/code`). Saving again keeps the files you already filled in; the scripts replace them only with `--force`:
 
 ```
 solving-plans/project/               decision-plans/project/

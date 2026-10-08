@@ -8,6 +8,7 @@ cognitive biases, communication patterns, mental models, and team dynamics.
 
 import csv
 import re
+import sys
 from pathlib import Path
 from math import log
 from collections import defaultdict
@@ -309,3 +310,33 @@ def default_output_dir() -> Path:
     # Skills are installed at <project>/<.target>/<skills|prompts>/<name>/
     parents = SKILL_DIR.parents
     return parents[2] if len(parents) > 2 else SKILL_DIR.parent
+
+
+def save_docs(directory: Path, docs: dict, force: bool = False) -> tuple:
+    """Write {file name: content} into directory; returns (written, kept).
+
+    Existing files are kept unless force is set: they hold the user's notes,
+    and re-running a plan must never wipe them.
+    """
+    written, kept = [], []
+    for name, content in docs.items():
+        path = Path(directory) / name
+        if path.exists() and not force:
+            kept.append(name)
+            continue
+        path.write_text(content, encoding="utf-8")
+        written.append(name)
+    return written, kept
+
+
+def read_stdin_query(stream=None) -> str:
+    """The task text piped on stdin (--stdin), decoded as UTF-8.
+
+    Slash commands pass the user's text this way (a quoted heredoc) so that
+    quotes, backticks and $ in pasted error messages never reach a shell.
+    """
+    stream = stream or sys.stdin
+    data = stream.buffer.read() if hasattr(stream, "buffer") else stream.read()
+    if isinstance(data, bytes):
+        data = data.decode("utf-8", errors="replace")
+    return data.lstrip("\ufeff").strip()

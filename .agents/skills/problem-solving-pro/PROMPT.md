@@ -42,6 +42,28 @@ winget install Python.Python.3.12
 Run every command from the **project root** with the path shown, e.g.
 `python3 .agents/skills/problem-solving-pro/scripts/search.py ...` (the installer adjusts this path for
 your AI tool). Saved plans and journals are written to the project, never inside the skill folder.
+Saving again never overwrites files that already exist (they hold your notes); add `--force`
+to replace them.
+
+### Passing the user's text
+
+When the query is the user's own words (a request, an error message, a pasted log), pass it on
+stdin with `--stdin` instead of quoting it, so quotes, backticks and `$` never reach the shell:
+
+```bash
+python3 .agents/skills/problem-solving-pro/scripts/search.py --stdin --plan <<'TASK'
+<the user's text, unchanged>
+TASK
+```
+
+In PowerShell (keep `'@` at the start of its line):
+
+```powershell
+$OutputEncoding = [Text.UTF8Encoding]::new()
+@'
+<the user's text, unchanged>
+'@ | python .agents/skills/problem-solving-pro/scripts/search.py --stdin --plan
+```
 
 ---
 
