@@ -39,6 +39,14 @@ curl -fsSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/ins
 
 # Windows (PowerShell)
 irm https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.ps1 | iex
+
+# Homebrew (macOS / Linux)
+brew tap HoangTheQuyen/think-better https://github.com/HoangTheQuyen/think-better
+brew install think-better
+
+# Scoop (Windows)
+scoop bucket add think-better https://github.com/HoangTheQuyen/think-better
+scoop install think-better
 ```
 
 The installers download the right binary for your OS/CPU and verify its SHA-256 checksum.
@@ -234,7 +242,7 @@ New skills are picked up automatically from `.agents/skills/<name>/SKILL.md` —
 
 | Method | Requirements |
 |--------|-------------|
-| Binary download | None — just run |
+| Binary download / Homebrew / Scoop | None — just run |
 | `go install` | Go 1.25+ |
 | Nix | Nix with flakes |
 | Build from source | Go 1.25+ |
@@ -273,9 +281,11 @@ Think Better tiêm framework tư duy vào prompt — biến AI thành Staff Engi
 ```bash
 # macOS / Linux
 curl -fsSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.sh | sh
+brew tap HoangTheQuyen/think-better https://github.com/HoangTheQuyen/think-better && brew install think-better   # hoặc Homebrew
 
 # Windows
 irm https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.ps1 | iex
+scoop bucket add think-better https://github.com/HoangTheQuyen/think-better; scoop install think-better   # hoặc Scoop
 
 # Cài skill
 think-better init --ai claude
