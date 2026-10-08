@@ -116,6 +116,9 @@ func TestUninstallYesKeepsAndForceDeletesModified(t *testing.T) {
 	if !strings.Contains(e.out.String(), "Deleted .claude/commands/code.md (modified by you; --force)") {
 		t.Errorf("output:\n%s", e.out.String())
 	}
+	if !strings.Contains(e.err.String(), "Warning: --force also deleted 2 files you modified") {
+		t.Errorf("stderr:\n%s", e.err.String())
+	}
 }
 
 func TestUninstallConfirmationMentionsKeptFiles(t *testing.T) {

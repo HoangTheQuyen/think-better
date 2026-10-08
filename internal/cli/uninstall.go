@@ -211,6 +211,10 @@ func RunUninstall(args []string) int {
 		_, _ = fmt.Fprintf(stdout, "\nDry run: would remove %s.\n", plural(removed+deleted, "file", "files"))
 	} else {
 		_, _ = fmt.Fprintf(stdout, "\n✓ Removed %s\n", plural(removed+deleted, "file", "files"))
+		if deleted > 0 {
+			_, _ = fmt.Fprintf(stderr, "Warning: --force also deleted %s you modified (use --yes instead to keep them).\n",
+				plural(deleted, "file", "files"))
+		}
 	}
 	if kept > 0 {
 		_, _ = fmt.Fprintf(stdout, "Kept %s you modified; delete %s yourself if you no longer need %s (or rerun with --force).\n",
