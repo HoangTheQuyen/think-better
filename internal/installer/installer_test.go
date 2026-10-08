@@ -3,6 +3,7 @@ package installer
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"testing"
 
 	"github.com/HoangTheQuyen/think-better/internal/skills"
@@ -82,5 +83,38 @@ func TestFileMode(t *testing.T) {
 	}
 	if got := fileMode("data/biases.csv"); got != 0o644 {
 		t.Errorf("fileMode(.csv) = %o, want 644", got)
+	}
+}
+
+// Every script path a skill doc tells the AI to run must exist after install,
+// for every target (docs are written against .agents/skills/ and rewritten).
+func TestInstallRewritesSkillDocPaths(t *testing.T) {
+	pathRe := regexp.MustCompile(`[\w./-]+/scripts/search\.py`)
+	for _, target := range targets.Targets {
+		t.Run(target.Name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			inst := NewInstaller(tmpDir)
+			for i := range skills.Registry {
+				skill := &skills.Registry[i]
+				if _, err := inst.Install(skill, &target, true, false); err != nil {
+					t.Fatalf("Install(%s): %v", skill.Name, err)
+				}
+				for _, doc := range []string{"SKILL.md", "PROMPT.md"} {
+					data, err := os.ReadFile(filepath.Join(tmpDir, filepath.FromSlash(target.InstallDir(skill.Name)), doc))
+					if err != nil {
+						t.Fatal(err)
+					}
+					refs := pathRe.FindAllString(string(data), -1)
+					if len(refs) == 0 {
+						t.Errorf("%s/%s: no script paths found", skill.Name, doc)
+					}
+					for _, ref := range refs {
+						if _, err := os.Stat(filepath.Join(tmpDir, filepath.FromSlash(ref))); err != nil {
+							t.Errorf("%s/%s references %s, which was not installed", skill.Name, doc, ref)
+						}
+					}
+				}
+			}
+		})
 	}
 }

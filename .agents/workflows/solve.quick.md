@@ -12,9 +12,12 @@ cat .agents/skills/problem-solving-pro/SKILL.md
 ```
 
 2. Run quick analysis:
+   Run from the project root (use `python` if `python3` is missing). If you can tell the
+   problem type and context, add `--type <type> --category "<context>"` (values are listed
+   in SKILL.md); otherwise omit them and the script auto-detects.
 // turbo
 ```
-cd .agents/skills/problem-solving-pro/scripts && python search.py "$ARGUMENTS" --plan --depth quick -f markdown
+python3 .agents/skills/problem-solving-pro/scripts/search.py "$ARGUMENTS" --plan --depth quick -f markdown
 ```
 
 3. Present the output, then append:

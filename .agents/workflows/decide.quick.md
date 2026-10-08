@@ -12,9 +12,12 @@ cat .agents/skills/make-decision/SKILL.md
 ```
 
 2. Run quick analysis:
+   Run from the project root (use `python` if `python3` is missing). If you can tell the
+   decision type, add `--type "<decision type>"` (values are listed in SKILL.md);
+   otherwise omit it and the script auto-detects.
 // turbo
 ```
-cd .agents/skills/make-decision/scripts && python search.py "$ARGUMENTS" --plan --depth quick -f markdown
+python3 .agents/skills/make-decision/scripts/search.py "$ARGUMENTS" --plan --depth quick -f markdown
 ```
 
 3. Present the output, then append:

@@ -11,13 +11,11 @@ Usage:
     print(advisor.format_ascii_box(plan))
 """
 
-import csv
 import json
-import os
 import re
 from datetime import datetime
 from pathlib import Path
-from core import search, search_domain, load_csv, DATA_DIR
+from core import search, search_domain, load_csv, slugify, default_output_dir, DATA_DIR
 
 # ============ DEPTH CONFIGURATION ============
 DEPTH_CONFIG = {
@@ -50,13 +48,56 @@ VALID_DEPTHS = list(DEPTH_CONFIG.keys())
 class DecisionAdvisor:
     """Generates decision plans, journals, and comparison matrices."""
 
-    def __init__(self, query: str = "", search_fn=None):
+    def __init__(self, query: str = "", search_fn=None, decision_type: str = None):
         self.query = query
         self.search_fn = search_fn or search
+        self.decision_type = decision_type
+
+    @staticmethod
+    def decision_type_names() -> list:
+        """All decision types, for --type choices."""
+        return [row["Decision Type"] for row in load_csv("types")]
+
+    @staticmethod
+    def _count_options(query: str) -> int:
+        """Count explicit alternatives: 'A vs B vs C' -> 3, 'should we use A or B' -> 2.
+
+        Returns 0 when the query does not spell out its options.
+        """
+        q = query.strip().lower()
+        parts = re.split(r"\s+(?:vs\.?|versus)\s+", q)
+        if len(parts) >= 2:
+            return len(parts)
+        # "or" is ambiguous in prose; only trust it in a question about choosing.
+        if re.match(r"^(should|which|choose|pick|whether|do we|do i|is it better)\b", q):
+            head, *tail = re.split(r"\s+or\s+", q)
+            if tail:
+                items = [x for x in head.split(",") if x.strip()]
+                return len(tail) + max(1, len(items))
+        return 0
 
     # ---- Classification (T013) ----
     def classify_decision_type(self) -> dict:
-        """Classify the decision type from natural language description."""
+        """Classify the decision type: explicit type, then spelled-out options, then search.
+
+        Raises:
+            ValueError: if an explicit decision type is not a known value.
+        """
+        rows = load_csv("types")
+        if self.decision_type:
+            for row in rows:
+                if row["Decision Type"].lower() == self.decision_type.strip().lower():
+                    return row
+            raise ValueError(f"unknown decision type {self.decision_type!r}; choose one of: "
+                             + ", ".join(r["Decision Type"] for r in rows))
+
+        options = self._count_options(self.query)
+        if options:
+            wanted = "Binary Choice" if options == 2 else "Multi-Option Selection"
+            for row in rows:
+                if row["Decision Type"] == wanted:
+                    return row
+
         result = search_domain(self.query, "types", 1)
         results = result.get("results", [])
         if results:
@@ -112,9 +153,9 @@ class DecisionAdvisor:
         facil_result = search_domain(self.query, "facilitation", max_facil)
         facilitation = facil_result.get("results", [])
 
-        # Select best framework based on recommended frameworks for this type
+        # The decision type's recommended framework wins; search ranking is the fallback
         rec_frameworks = dtype.get("Recommended Frameworks", "")
-        best_framework = self._select_best_match(frameworks, rec_frameworks)
+        best_framework = self._pick_named("frameworks", "Framework", rec_frameworks, frameworks)
 
         # Select best analysis based on recommended methods for this type
         rec_analysis = dtype.get("Analysis Methods", "")
@@ -141,7 +182,8 @@ class DecisionAdvisor:
                 "strengths": best_framework.get("Strengths", ""),
                 "limitations": best_framework.get("Limitations", ""),
                 "complexity": best_framework.get("Complexity", "Medium"),
-                "alternatives": [f.get("Framework", "") for f in frameworks[1:alt_count+1]],
+                "alternatives": self._framework_alternatives(rec_frameworks, frameworks,
+                                                             best_framework, alt_count),
             },
             "criteria": {
                 "domain": criteria[0].get("Domain", "") if criteria else "",
@@ -178,6 +220,43 @@ class DecisionAdvisor:
             ],
             "anti_patterns": dtype.get("Common Pitfalls", ""),
         }
+
+    def _pick_named(self, domain: str, name_col: str, names: str, results: list) -> dict:
+        """Return the first row of `domain` named in the comma-separated `names`.
+
+        Matches ignore case and parentheticals, and accept a prefix
+        ("Pros-Cons-Fixes" matches "Pros-Cons-Fixes Analysis"). Falls back to
+        the best keyword match among `results`.
+        """
+        def norm(text):
+            return re.sub(r"\(.*?\)", "", str(text)).strip().lower()
+
+        rows = load_csv(domain)
+        for name in str(names).split(","):
+            wanted = norm(name)
+            if len(wanted) < 4:
+                continue
+            for row in rows:
+                have = norm(row.get(name_col, ""))
+                if not have:
+                    continue
+                if have == wanted or have.startswith(wanted) or wanted.startswith(have):
+                    return row
+        return self._select_best_match(results, names)
+
+    def _framework_alternatives(self, recommended: str, results: list, best: dict, limit: int) -> list:
+        """Other frameworks the type recommends first, then other search hits."""
+        names = []
+        for name in str(recommended).split(","):
+            row = self._pick_named("frameworks", "Framework", name, [])
+            if row:
+                names.append(row.get("Framework", ""))
+        names += [f.get("Framework", "") for f in results]
+        alts = []
+        for name in names:
+            if name and name != best.get("Framework") and name not in alts:
+                alts.append(name)
+        return alts[:limit]
 
     def _select_best_match(self, results: list, priority_str: str) -> dict:
         """Select the best match from results based on priority keywords."""
@@ -441,10 +520,9 @@ class DecisionAdvisor:
     def persist_plan(self, plan: dict, output_dir: str = None) -> str:
         """Save the decision plan as a markdown file."""
         project = plan.get("project_name", "default")
-        slug = re.sub(r'[^\w\s-]', '', project.lower()).strip()
-        slug = re.sub(r'[\s]+', '-', slug)[:50]
+        slug = slugify(project)
 
-        base = Path(output_dir) if output_dir else Path.cwd()
+        base = Path(output_dir) if output_dir else default_output_dir()
         plan_dir = base / "decision-plans" / slug
         plan_dir.mkdir(parents=True, exist_ok=True)
 
@@ -460,12 +538,11 @@ class DecisionAdvisor:
     # ---- Decision Journal (T023, T025, T027) ----
     def create_journal(self, decision_statement: str, project_name: str = None) -> str:
         """Create a decision journal entry as a markdown file in .decisions/."""
-        decisions_dir = Path.cwd() / ".decisions"
+        decisions_dir = default_output_dir() / ".decisions"
         decisions_dir.mkdir(parents=True, exist_ok=True)
 
         date_str = datetime.now().strftime("%Y-%m-%d")
-        slug = re.sub(r'[^\w\s-]', '', decision_statement.lower()).strip()
-        slug = re.sub(r'[\s]+', '-', slug)[:50]
+        slug = slugify(decision_statement)
         filename = f"{date_str}-{slug}.md"
 
         filepath = decisions_dir / filename
@@ -538,7 +615,7 @@ Medium
 
     def review_journals(self) -> str:
         """Review all decision journal entries in .decisions/."""
-        decisions_dir = Path.cwd() / ".decisions"
+        decisions_dir = default_output_dir() / ".decisions"
         if not decisions_dir.exists():
             return "No decision journal entries found. Create one with --journal."
 
@@ -597,7 +674,7 @@ Medium
 
     def update_journal(self, journal_id: str, outcome: str) -> str:
         """Update a journal entry with actual outcome and generate reflection prompt."""
-        decisions_dir = Path.cwd() / ".decisions"
+        decisions_dir = default_output_dir() / ".decisions"
         if not decisions_dir.exists():
             return "Error: No .decisions/ directory found."
 
@@ -759,10 +836,9 @@ Medium
     def persist_step_by_step(self, plan: dict, output_dir: str = None) -> tuple:
         """Save decision plan as separate markdown files per step."""
         project = plan.get("project_name", "default")
-        slug = re.sub(r'[^\w\s-]', '', project.lower()).strip()
-        slug = re.sub(r'[\s]+', '-', slug)[:50]
+        slug = slugify(project)
 
-        base = Path(output_dir) if output_dir else Path.cwd()
+        base = Path(output_dir) if output_dir else default_output_dir()
         plan_dir = base / "decision-plans" / slug
         plan_dir.mkdir(parents=True, exist_ok=True)
 
@@ -997,7 +1073,8 @@ NEXT_STEPS = {
 # ============ PUBLIC API ============
 def generate_decision_plan(query: str, project_name: str = None, output_format: str = "ascii",
                            persist: bool = False, output_dir: str = None,
-                           depth: str = "standard", step_docs: bool = False) -> str:
+                           depth: str = "standard", step_docs: bool = False,
+                           decision_type: str = None) -> str:
     """Generate a comprehensive decision-making plan.
 
     Args:
@@ -1008,11 +1085,12 @@ def generate_decision_plan(query: str, project_name: str = None, output_format: 
         output_dir: Output directory for persistence
         depth: Analysis depth - quick, standard, deep, or executive
         step_docs: If True with persist, create separate markdown files per step
+        decision_type: Decision type override (see --type)
 
     Returns:
         Formatted decision plan
     """
-    advisor = DecisionAdvisor(query)
+    advisor = DecisionAdvisor(query, decision_type=decision_type)
     plan = advisor.generate(project_name, depth=depth)
 
     if output_format == "markdown":

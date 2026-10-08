@@ -90,6 +90,11 @@ func (inst *Installer) Install(skill *skills.SkillPackage, target *targets.AITar
 			return fmt.Errorf("creating directory for %s: %w", path, err)
 		}
 
+		// Skill docs reference scripts by their .agents/ path; point them at this target
+		if strings.HasSuffix(path, ".md") {
+			data = []byte(target.RewriteSkillPaths(string(data)))
+		}
+
 		// Write file with appropriate permissions
 		mode := fileMode(path)
 		if err := os.WriteFile(targetPath, data, mode); err != nil {

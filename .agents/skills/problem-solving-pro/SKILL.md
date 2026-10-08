@@ -48,6 +48,14 @@ winget install Python.Python.3.12
 
 ---
 
+## Running the Scripts
+
+Run every command from the **project root** with the path shown, e.g.
+`python3 .agents/skills/problem-solving-pro/scripts/search.py ...` (the installer adjusts this path for
+your AI tool). Saved plans and journals are written to the project, never inside the skill folder.
+
+---
+
 ## How to Use This Workflow
 
 When user requests problem-solving help (analyze, solve, diagnose, decide, structure, decompose, plan, strategy, recommendation), follow this workflow:
@@ -55,8 +63,8 @@ When user requests problem-solving help (analyze, solve, diagnose, decide, struc
 ### Step 1: Understand the Problem
 
 Extract key information from user's problem description:
-- **Problem type**: Business performance, market entry, organizational change, product, cost reduction, innovation, crisis, data/analytics, partnership/M&A, policy
-- **Complexity**: Well-structured, ill-structured, wicked
+- **Context** (→ `--category`): Business performance, market entry, organizational change, product, cost reduction, innovation, crisis, data/analytics, partnership/M&A, policy
+- **Type** (→ `--type`): Diagnostic, opportunity, design, prediction, negotiation — or by complexity: well-structured, ill-structured, wicked
 - **Keywords**: revenue, growth, decline, entry, change, innovation, cost, crisis, etc.
 - **Context**: Industry, scale, time pressure, stakeholder dynamics
 
@@ -65,7 +73,18 @@ Extract key information from user's problem description:
 **Always start with `--plan`** to get comprehensive recommendations with reasoning:
 
 ```bash
-python3 scripts/search.py "<problem_description>" --plan [-p "Project Name"]
+python3 .agents/skills/problem-solving-pro/scripts/search.py "<problem_description>" --plan [-p "Project Name"]
+```
+
+**Classify it yourself when you can** — you understand the problem better than keyword matching:
+
+- `--type <type>` — how the problem is shaped: Well-Structured, Ill-Structured, Wicked, Diagnostic, Opportunity, Design, Prediction, Negotiation
+- `--category "<context>"` — selects the reasoning rule (decomposition, analyses, communication style): Business Performance, Market Entry Strategy, Organizational Change, Product Development, Cost Reduction, Innovation / Disruption, Crisis / Turnaround, Data / Analytics Problem, Partnership / M&A, Policy / Public Sector
+
+Omit either flag to auto-detect. The plan reports what it used as **Type** and **Context**.
+
+```bash
+python3 .agents/skills/problem-solving-pro/scripts/search.py "revenue down 20% despite market growth" --plan --type Diagnostic --category "Business Performance"
 ```
 
 This command:
@@ -77,7 +96,7 @@ This command:
 
 **Example:**
 ```bash
-python3 scripts/search.py "revenue declining 20% despite market growth" --plan -p "Revenue Recovery"
+python3 .agents/skills/problem-solving-pro/scripts/search.py "revenue declining 20% despite market growth" --plan -p "Revenue Recovery"
 ```
 
 ### Step 2b: Persist Problem-Solving Plan
@@ -85,7 +104,7 @@ python3 scripts/search.py "revenue declining 20% despite market growth" --plan -
 To save the plan for reference:
 
 ```bash
-python3 scripts/search.py "<problem>" --plan --persist -p "Project Name"
+python3 .agents/skills/problem-solving-pro/scripts/search.py "<problem>" --plan --persist -p "Project Name"
 ```
 
 This creates:
@@ -96,7 +115,7 @@ This creates:
 Use when the plan's recommendation needs more detail, OR when user asks about a specific topic (e.g., "how do I do a root cause analysis?"):
 
 ```bash
-python3 scripts/search.py "<keyword>" --domain <domain> [-n <max_results>]
+python3 .agents/skills/problem-solving-pro/scripts/search.py "<keyword>" --domain <domain> [-n <max_results>]
 ```
 
 **When to use domain searches:**
@@ -135,7 +154,7 @@ Guide the user through the recommended process:
 |--------|---------|---------|------------------|
 | `steps` | 7 | Understanding each step of the methodology | define, disaggregate, prioritize, analyze, synthesize, communicate |
 | `problem-types` | 8 | Classifying the type of problem | diagnostic, opportunity, wicked, prediction, negotiation, design |
-| `decomposition` | 10 | Choosing how to break down the problem | issue tree, hypothesis tree, MECE, profitability, process, scenario |
+| `decomposition` | 15 | Choosing how to break down the problem | issue tree, hypothesis tree, MECE, profitability, process, scenario |
 | `prioritization` | 8 | Deciding where to focus effort | pareto, impact-feasibility, sensitivity, dot-voting, MoSCoW, weighted |
 | `analysis` | 12 | Selecting analytical methods | benchmark, root cause, regression, scenario, fermi, A/B test, pre-mortem |
 | `biases` | 12 | Identifying thinking errors to avoid | confirmation, anchoring, sunk cost, groupthink, overconfidence, framing |
@@ -158,7 +177,7 @@ Guide the user through the recommended process:
 ### Step 2: Generate Problem-Solving Plan (REQUIRED)
 
 ```bash
-python3 scripts/search.py "revenue declining 20% despite market growth" --plan -p "Revenue Diagnosis"
+python3 .agents/skills/problem-solving-pro/scripts/search.py "revenue declining 20% despite market growth" --plan -p "Revenue Diagnosis"
 ```
 
 **Output:** Complete plan with profitability tree decomposition, Pareto prioritization, benchmarking + root cause analysis toolkit, pyramid principle communication, and bias warnings (confirmation bias, anchoring).
@@ -167,13 +186,13 @@ python3 scripts/search.py "revenue declining 20% despite market growth" --plan -
 
 ```bash
 # Get decomposition framework details
-python3 scripts/search.py "profitability revenue cost" --domain decomposition
+python3 .agents/skills/problem-solving-pro/scripts/search.py "profitability revenue cost" --domain decomposition
 
 # Get root cause analysis methodology
-python3 scripts/search.py "root cause 5 whys diagnostic" --domain analysis
+python3 .agents/skills/problem-solving-pro/scripts/search.py "root cause 5 whys diagnostic" --domain analysis
 
 # Check for relevant biases
-python3 scripts/search.py "confirmation bias anchoring" --domain biases
+python3 .agents/skills/problem-solving-pro/scripts/search.py "confirmation bias anchoring" --domain biases
 ```
 
 ### Step 4: Apply the Framework
@@ -196,10 +215,10 @@ The `--plan` flag supports two output formats:
 
 ```bash
 # ASCII box (default) - best for terminal display
-python3 scripts/search.py "market entry strategy" --plan
+python3 .agents/skills/problem-solving-pro/scripts/search.py "market entry strategy" --plan
 
 # Markdown - best for documentation
-python3 scripts/search.py "market entry strategy" --plan -f markdown
+python3 .agents/skills/problem-solving-pro/scripts/search.py "market entry strategy" --plan -f markdown
 ```
 
 ---

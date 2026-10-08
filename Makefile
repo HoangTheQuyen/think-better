@@ -50,9 +50,10 @@ build-all: embed-prep
 test:
 	go test ./...
 
-## test-py: Smoke-test the Python skill scripts
+## test-py: Smoke-test the Python skill scripts and run their regression tests
 test-py:
 	python3 scripts/smoke_test_skills.py
+	python3 scripts/test_skill_engines.py
 
 ## check: Everything CI runs — use before opening a PR
 check:

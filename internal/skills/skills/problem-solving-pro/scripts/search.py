@@ -16,7 +16,7 @@ across all domains and applying reasoning rules to recommend the best approach.
 import argparse
 import sys
 import io
-from core import CSV_CONFIG, MAX_RESULTS, search
+from core import CSV_CONFIG, MAX_RESULTS, search, problem_type_names, category_names
 from advisor import generate_solving_plan, VALID_DEPTHS
 
 # Force UTF-8 for stdout/stderr to handle Unicode on Windows
@@ -65,6 +65,11 @@ if __name__ == "__main__":
     parser.add_argument("--depth", choices=VALID_DEPTHS, default="standard", help="Analysis depth: quick, standard, deep, or executive (default: standard)")
     # Step-by-step docs
     parser.add_argument("--step-docs", action="store_true", help="With --persist, create separate markdown files per step")
+    # Classification overrides (the AI usually knows better than keyword matching)
+    parser.add_argument("--type", "-t", dest="problem_type", default=None,
+                        help="Problem type, skips auto-detection: " + ", ".join(problem_type_names()))
+    parser.add_argument("--category", "-c", default=None,
+                        help="Problem context, selects the reasoning rule: " + ", ".join(category_names()))
 
     args = parser.parse_args()
 
@@ -75,23 +80,22 @@ if __name__ == "__main__":
 
     # Plan generation takes priority
     if args.plan:
-        result = generate_solving_plan(
-            args.query,
-            args.project_name,
-            args.format,
-            persist=args.persist,
-            output_dir=args.output_dir,
-            depth=args.depth,
-            step_docs=args.step_docs
-        )
+        try:
+            result = generate_solving_plan(
+                args.query,
+                args.project_name,
+                args.format,
+                persist=args.persist,
+                output_dir=args.output_dir,
+                depth=args.depth,
+                step_docs=args.step_docs,
+                problem_type=args.problem_type,
+                category=args.category,
+            )
+        except ValueError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(2)
         print(result)
-
-        if args.persist:
-            project_slug = args.project_name.lower().replace(' ', '-') if args.project_name else "default"
-            print("\n" + "=" * 60)
-            print(f"  Plan persisted to solving-plans/{project_slug}/")
-            print(f"    PLAN.md (Problem-Solving Plan)")
-            print("=" * 60)
     # Domain search
     elif args.domain:
         result = search(args.query, args.domain, args.max_results)
