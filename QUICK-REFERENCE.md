@@ -42,7 +42,9 @@ work from any folder inside the project.
 | code-solving | `/code` · `/code.deep` · `/code.debug` · `/code.feature` · `/code.refactor` · `/code.perf` · `/code.review` · `/code.test` · `/code.explain` · `/code.resume` |
 
 Add "save step-by-step" (or "lưu", "lưu lại", "lưu từng bước") to save a workspace; continue it with the
-`.resume` command (no text: the latest workspace). `/code.review` with no text reviews your current changes.
+`.resume` command (no text: the latest workspace). `/code.review` reviews the local git diff: your
+uncommitted changes, or else this branch against the default branch. Name a branch, tag or commit to
+compare against (`/code.review main`); it does not fetch pull request links, so check the PR out first.
 You can also just describe the problem: every supported tool loads the skills by their
 description (GitHub Copilot in agent mode).
 
@@ -128,7 +130,7 @@ python3 $DECIDE "opportunity cost" --domain analysis
 /code.feature [what users can do when it is done]
 /code.refactor [module and the change it should make easier]
 /code.perf [metric, current value, target]
-/code.review [PR or files]
+/code.review [base branch, tag or commit to compare against; nothing = your changes]
 /code.test [module or behavior to protect]
 /code.explain [what you want to understand]
 /code.deep [high-stakes change: more techniques, full review checklist]
@@ -275,7 +277,7 @@ python3 $CODE "keywords" --domain errors
 ## For coding
 /code.debug [Error and stack trace]. Repro: [steps]. Started after [change].
 /code.feature [Feature] so that [user outcome]. Out of scope: [x].
-/code.review [PR link or files]
+/code.review [base branch, e.g. main; nothing = your changes]
 /code.test [Module]: protect [behaviors]. Known bugs: [x].
 /code.explain How does [feature] work, from [entry point] to [result]?
 

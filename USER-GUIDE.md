@@ -20,8 +20,8 @@ irm https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.ps
 
 # Or build from source:
 git clone https://github.com/HoangTheQuyen/think-better.git && cd think-better
-make build          # Linux/macOS
-.\build.ps1         # Windows
+make build          # Linux/macOS: writes bin/think-better
+.\build.ps1         # Windows: writes bin\think-better.exe
 ```
 
 ### 2. Install the Skills in Your Project
@@ -726,9 +726,9 @@ Your plans and journals (`decision-plans/`, `solving-plans/`, `coding-plans/`,
 
 **Does it cost tokens?**
 The scripts run locally and cost nothing. Your AI tool reads the instructions and the plan the
-script prints, which uses some of its context: a slash command file is about 2 KB, the skill's
-`SKILL.md` (read at the start) 12-18 KB, and a standard plan 4-9 KB (roughly 1,000-2,500 tokens).
-`.quick` plans are shorter, `.deep` and `.exec` longer.
+script prints, which uses some of its context: a slash command file is 2.5-3.8 KB, the skill's
+`SKILL.md` (read at the start) 15-20 KB, and a standard plan from the script about 9-12 KB (roughly
+2,000-3,000 tokens; `.deep` plans are about twice as long). `.quick` plans are shorter, `.exec` longer.
 
 **Does anything leave my machine?**
 No. The CLI copies Markdown, CSV and Python files into your project or home folder, and the
