@@ -4,7 +4,7 @@ Help users make better decisions in minutes instead of hours by applying proven 
 
 # make-decision
 
-Comprehensive decision-making framework for structured evaluation of options. Contains 10 decision frameworks, 8 decision type classifications, 12 cognitive biases with debiasing strategies, 10 analysis techniques, 8 domain-specific criteria templates, and 8 group facilitation techniques. Searchable knowledge base with BM25 ranking that auto-recommends frameworks, criteria, and bias warnings tailored to your specific decision type.
+Comprehensive decision-making framework for structured evaluation of options. Contains 10 decision frameworks, 8 decision type classifications, 12 cognitive biases with debiasing strategies, 10 analysis techniques, 15 criteria templates (technology, tech stack, hiring, vendors, investment, market entry, product features, pricing, organizational change, location, job offers, relocation, education, housing, and a general fallback) and 8 group facilitation techniques. The plan names the options it found in the request, picks the framework, analysis methods and biases for the decision type, and suggests five weighted criteria. A scoring calculator totals the matrix, names the winner and finds the smallest weight change that would flip it. Vietnamese requests work natively, with or without diacritics.
 
 ## Prerequisites
 
@@ -14,7 +14,7 @@ Comprehensive decision-making framework for structured evaluation of options. Co
 python3 --version 2>/dev/null || python --version
 ```
 
-Use whichever command succeeds (`python3` or `python`) for ALL script calls below. If the system only has `python` (common on Windows), substitute `python` everywhere you see `python3` in this document.
+Use whichever command succeeds (`python3` or `python`) for ALL script calls below. If the system only has `python` (common on Windows), substitute `python` everywhere you see `python3` in this document. The scripts need Python 3.9+ and only the standard library.
 
 If Python is not installed at all, install it based on user's OS:
 
@@ -41,14 +41,17 @@ winget install Python.Python.3.12
 
 Run every command from the **project root** with the path shown, e.g.
 `python3 .agents/skills/make-decision/scripts/search.py ...` (the installer adjusts this path for
-your AI tool). Saved plans and journals are written to the project, never inside the skill folder.
-Saving again never overwrites files that already exist (they hold your notes); add `--force`
-to replace them.
+your AI tool). Saved plans, workspaces and journals are written to the project (or to `-o <dir>`),
+never inside the skill folder. Saving again never overwrites files that already exist (they hold
+your notes); add `--force` to replace them.
 
 ### Passing the user's text
 
-When the query is the user's own words (a request, an error message, a pasted log), pass it on
-stdin with `--stdin` instead of quoting it, so quotes, backticks and `$` never reach the shell:
+**Anything taken from the user's message goes on stdin** with `--stdin`, never on the command
+line: the decision for `--plan`, the options for `--matrix`, the statement for `--journal` and the
+outcome for `--journal --update`. Quotes, backticks and `$` then never reach the shell. Only short
+values you compose yourself (keywords for `--domain`, `-c` criteria, `--scores`, `-p` names) go
+on the command line.
 
 ```bash
 python3 .agents/skills/make-decision/scripts/search.py --stdin --plan <<'TASK'
@@ -69,13 +72,13 @@ $OutputEncoding = [Text.UTF8Encoding]::new()
 
 ## How to Use This Workflow
 
-When user requests decision-making help (decide, choose, compare, evaluate, select, prioritize, trade-off, weigh options), follow this workflow:
+When user requests decision-making help (decide, choose, compare, evaluate, select, prioritize, trade-off, weigh options), follow this workflow. Answer in the user's language: the plan is in English, but keep option names exactly as the user wrote them.
 
 ### Step 1: Understand the Decision
 
 Extract key information from user's decision description:
 - **Decision type**: Binary choice, multi-option, resource allocation, strategic, operational, under uncertainty, group/stakeholder, time-pressured
-- **Options**: What alternatives are being considered?
+- **Options**: What alternatives are being considered? (Add "do nothing" / "wait" if it is a real option.)
 - **Context**: Industry, stakes, timeline, stakeholders, reversibility
 - **Constraints**: Budget, time, resources, dependencies
 
@@ -84,51 +87,70 @@ Extract key information from user's decision description:
 **Always start with `--plan`** to get comprehensive recommendations:
 
 ```bash
-python3 .agents/skills/make-decision/scripts/search.py "<decision_description>" --plan [-p "Project Name"]
+python3 .agents/skills/make-decision/scripts/search.py --stdin --plan -f markdown [-p "Project Name"] <<'TASK'
+<the user's decision, unchanged>
+TASK
 ```
 
 **Classify it yourself when you can** — you understand the decision better than keyword matching.
 Add `--type "<decision type>"`, one of: Binary Choice, Multi-Option Selection, Resource Allocation, Strategic Direction, Operational / Tactical, Decision Under Uncertainty, Group / Stakeholder Decision, Time-Pressured Decision.
-Omit it to auto-detect ("A vs B" is treated as a Binary Choice, "A vs B vs C" as Multi-Option Selection).
+Without it the script scores each type's signal phrases (English and Vietnamese, e.g. "deadline",
+"hạn chót", "board", "hội đồng", "uncertain", "chưa rõ") and adds the options it found ("A vs B" or
+"A hay B" leans Binary Choice, three or more lean Multi-Option Selection). The plan says what
+matched; when nothing did, it says so and lists the `--type` values: then re-run with `--type`.
+
+The plan contains:
+1. The request, the decision type (and why), and the **options** found in the request
+2. The framework the decision type recommends, with its steps
+3. **Five weighted criteria** from the best matching template (General Decision when none fits)
+4. Analysis techniques and **bias warnings** chosen for the decision type and the domain
+5. Facilitation for group decisions, anti-patterns, and a checklist
+6. A **Next Steps** table at the end: show it once, do not add your own
+
+**Depth** changes what the plan contains (`--depth`, default `standard`):
+
+| Depth | Contains |
+|-------|----------|
+| `quick` | Options, the framework's steps, the top 3 criteria, 2 biases, and whether it is a one-way door |
+| `standard` | Full plan: framework with alternatives, 5 criteria with "what a 5 looks like", 2 analysis techniques, 3 biases, scoring command, checklist |
+| `deep` | Standard plus framework alternatives explained, how to apply each technique, how to detect each bias, reversibility, a pre-mortem, sensitivity questions and the information to gather |
+| `executive` | A recommendation-first brief: recommendation, decision needed (owner, deadline, type, reversibility), key risks, criteria and weights, what would change the call; framework, biases and analysis as an appendix |
+
+`--json` prints the plan as JSON (with `options`, `criteria.items`, `bias_warnings`, `reversibility`, ...).
+
+### Step 2b: Save the Plan, Resume Later
 
 ```bash
-python3 .agents/skills/make-decision/scripts/search.py "Postgres vs MongoDB for the orders service" --plan --type "Binary Choice"
+python3 .agents/skills/make-decision/scripts/search.py --stdin --plan --persist --step-docs -p "Project Name" -f markdown <<'TASK'
+<the user's decision, unchanged>
+TASK
 ```
 
-This command:
-1. Classifies the decision type automatically
-2. Searches across all 6 knowledge domains
-3. Recommends the best framework for this type of decision
-4. Identifies relevant evaluation criteria with weights
-5. Warns about cognitive biases likely to affect this decision
-6. Suggests analysis techniques and facilitation methods
-7. Includes anti-patterns to avoid and a decision checklist
+`--persist` alone writes `decision-plans/<project-name>/PLAN.md`. With `--step-docs` it creates a
+workspace: `00-OVERVIEW.md` (the request, options, and a step table with a **Done?** column),
+`01-DECISION-TYPE.md` (the request quoted, decision statement, owner, deadline), `02-FRAMEWORK.md`,
+`03-CRITERIA.md` (the five criteria and weights pre-filled), `04-ANALYSIS.md`, `05-OPTIONS.md` (the
+options and a criteria × options matrix pre-filled), `06-DECISION.md` (decision, **pre-mortem**,
+**kill criteria**, review date), `BIAS-WARNINGS.md` and `DECISION-LOG.md`.
 
-**Example:**
-```bash
-python3 .agents/skills/make-decision/scripts/search.py "choosing between AWS and Azure for cloud migration" --plan -p "Cloud Migration"
-```
-
-### Step 2b: Persist Decision Plan
-
-To save the plan for reference:
+In a later session (`/decide.resume`):
 
 ```bash
-python3 .agents/skills/make-decision/scripts/search.py "<decision>" --plan --persist -p "Project Name"
+# Which steps are done and what to do next (-p name, or the workspace the text matches, or the latest)
+python3 .agents/skills/make-decision/scripts/search.py --status [-p project-name]
+# Mark a step done (1-6 or classify, framework, criteria, analysis, options, decide); --undone reopens it
+python3 .agents/skills/make-decision/scripts/search.py --done criteria -p project-name
 ```
 
-This creates:
-- `decision-plans/project-name/PLAN.md` — Complete decision-making plan
+Only mark a step done when the user has actually settled it.
 
 ### Step 3: Deep-Dive Domain Searches
 
-Use when the plan's recommendation needs more detail, OR when user asks about a specific topic (e.g., "what biases should I watch for?"):
+Use when the plan's recommendation needs more detail, OR when user asks about a specific topic (e.g., "what biases should I watch for?"). These are keywords you choose, so they may go on the command line:
 
 ```bash
 python3 .agents/skills/make-decision/scripts/search.py "<keyword>" --domain <domain> [-n <max_results>]
 ```
-
-**When to use domain searches:**
 
 | Need | Domain | Example |
 |------|--------|---------|
@@ -136,33 +158,56 @@ python3 .agents/skills/make-decision/scripts/search.py "<keyword>" --domain <dom
 | Classify the decision type | `types` | `--domain types "binary strategic"` |
 | Identify cognitive biases | `biases` | `--domain biases "confirmation sunk cost"` |
 | Select analysis techniques | `analysis` | `--domain analysis "sensitivity break-even"` |
-| Get evaluation criteria | `criteria` | `--domain criteria "technology vendor"` |
+| Get evaluation criteria | `criteria` | `--domain criteria "pricing housing"` |
 | Plan group facilitation | `facilitation` | `--domain facilitation "pre-mortem red team"` |
 
-### Step 4: Compare Options
+### Step 4: Compare and Score Options
 
-Use when user has 2+ named options to compare (e.g., "A vs B vs C"). Generate a comparison matrix:
+With the options from the user's message on stdin:
 
 ```bash
-python3 .agents/skills/make-decision/scripts/search.py --matrix "AWS vs Azure vs GCP" [-c "cost,scalability,security"]
+# Empty matrix with the template's criteria and weights
+python3 .agents/skills/make-decision/scripts/search.py --stdin --matrix -f markdown <<'TASK'
+Which CRM: Salesforce, HubSpot or Pipedrive
+TASK
+
+# Your own criteria and weights, and the scores (1-5, one per criterion, in -c order)
+python3 .agents/skills/make-decision/scripts/search.py --stdin --matrix -f markdown \
+  -c "Cost:3,Speed:2,Risk:1" --scores "React:4,3,5;Vue:5,4,3" <<'TASK'
+React vs Vue
+TASK
 ```
 
-This generates a weighted comparison matrix with criteria auto-suggested from templates (or custom criteria via `-c`), scoring guide, and calculation instructions.
+Options are read from "A vs B vs C", "A, B or C", "Which X: A, B or C", "between A and B",
+"A hay B", "A hoặc B", "giữa A, B và C", "so sánh A với B". With `--scores` the matrix shows the
+weighted totals, the **winner**, and the **sensitivity**: for each criterion, the weight at which
+another option would tie the winner, with the smallest such change called out. A winner that flips
+under a small change is fragile: firm up that criterion before deciding. Weights may be any
+positive numbers (shown with their share of the total); `-c "Cost,Speed"` weighs them equally.
 
 ### Step 5: Document the Decision
 
-Use after reaching a conclusion. Creates a journal entry for future reflection and calibration:
+After reaching a conclusion, create a journal entry. It records the options, the framework, the
+criteria, your **confidence** and a **review date** (default 30 days):
 
 ```bash
-# Create journal entry
-python3 .agents/skills/make-decision/scripts/search.py --journal "Choosing cloud provider for Q3 migration"
+# Create (statement on stdin; --options and --framework override what the script finds)
+python3 .agents/skills/make-decision/scripts/search.py --stdin --journal --confidence 70 --review-in 6w \
+  [--options "AWS, Azure"] [--framework "Weighted Criteria Matrix"] [-p "Project"] <<'TASK'
+Chose AWS for the Q3 migration
+TASK
 
-# Review past decisions
-python3 .agents/skills/make-decision/scripts/search.py --journal --review
+# Review: all entries, newest first; --due lists only those past their review date
+python3 .agents/skills/make-decision/scripts/search.py --journal --review [--due]
 
-# Update with actual outcome (weeks/months later)
-python3 .agents/skills/make-decision/scripts/search.py --journal --update "choosing-cloud" --outcome "Chose AWS, migration completed on time, 15% under budget"
+# Record what actually happened (outcome on stdin); it is appended, nothing is overwritten
+python3 .agents/skills/make-decision/scripts/search.py --stdin --journal --update "q3-migration" <<'TASK'
+Migration finished on time, 15% under budget
+TASK
 ```
+
+Journal files live in `.decisions/` with ASCII file names (Vietnamese is transliterated). An
+`--update` id that matches no entry, or several, is an error (exit code 1) listing the matches.
 
 ---
 
@@ -176,7 +221,7 @@ python3 .agents/skills/make-decision/scripts/search.py --journal --update "choos
 | `types` | 8 | Classifying the type of decision | binary, multi-option, resource allocation, strategic, operational, uncertainty, group, time-pressured |
 | `biases` | 12 | Identifying thinking errors to avoid | confirmation, anchoring, sunk cost, status quo, overconfidence, framing, availability, groupthink, planning fallacy, loss aversion |
 | `analysis` | 10 | Selecting analytical methods | sensitivity, break-even, decision tree, scenario, scoring, opportunity cost, risk-reward, bayesian, pre-mortem, reference class |
-| `criteria` | 8 | Getting evaluation criteria templates | technology, hiring, vendor, investment, market entry, product feature, organizational change, location |
+| `criteria` | 15 | Getting evaluation criteria templates (5 criteria each) | technology, tech stack, hiring, vendor, investment, market entry, product feature, pricing, organizational change, location, job offer, relocation, education, housing, general |
 | `facilitation` | 8 | Planning group decision sessions | pre-mortem, red team, nominal group, debate, dot voting, anonymous input, devil's advocate, workplan |
 
 ---
@@ -186,7 +231,7 @@ python3 .agents/skills/make-decision/scripts/search.py --journal --update "choos
 **User request:** "We need to choose between building in-house, buying a SaaS solution, or hiring a development agency for our new CRM system."
 
 ### Step 1: Understand the Decision
-- Decision type: Multi-Option Selection / Technology Selection
+- Decision type: Multi-Option Selection
 - Options: Build in-house, Buy SaaS, Hire agency
 - Context: Technology decision with long-term impact
 - Constraints: Budget, timeline, team capacity
@@ -194,51 +239,49 @@ python3 .agents/skills/make-decision/scripts/search.py --journal --update "choos
 ### Step 2: Generate Decision Plan
 
 ```bash
-python3 .agents/skills/make-decision/scripts/search.py "build vs buy vs outsource CRM system" --plan -p "CRM Decision"
+python3 .agents/skills/make-decision/scripts/search.py --stdin --plan -f markdown -p "CRM Decision" <<'TASK'
+We need to choose between building in-house, buying a SaaS solution, or hiring a development agency for our new CRM system.
+TASK
 ```
 
-**Output:** Complete plan with decision type classification (Multi-Option Selection), recommended framework (Weighted Criteria Matrix), Technology Selection criteria with weights, analysis techniques (Sensitivity Analysis, Opportunity Cost), bias warnings (Status Quo Bias, Sunk Cost Fallacy), and decision checklist.
+**Output:** Multi-Option Selection (3 options found), Weighted Criteria Matrix with its steps,
+Technology Selection criteria (functionality fit 25, total cost of ownership 20, integration 20,
+scalability and security 20, vendor stability 15), Relative Value Scoring and Sensitivity Analysis,
+bias warnings (Anchoring Effect, Sunk Cost Fallacy, ...), and a checklist.
 
 ### Step 3: Deep-Dive Searches
 
 ```bash
-# Get detailed framework guidance
-python3 .agents/skills/make-decision/scripts/search.py "weighted criteria evaluation" --domain frameworks
-
-# Check for relevant biases
 python3 .agents/skills/make-decision/scripts/search.py "status quo sunk cost technology" --domain biases
-
-# Get facilitation guidance for team decision
 python3 .agents/skills/make-decision/scripts/search.py "structured debate team" --domain facilitation
 ```
 
-### Step 4: Compare Options
+### Step 4: Score the Options
 
 ```bash
-python3 .agents/skills/make-decision/scripts/search.py --matrix "Build in-house vs Buy SaaS vs Hire agency"
+python3 .agents/skills/make-decision/scripts/search.py --stdin --matrix -f markdown \
+  -c "Functionality fit:25,Total cost of ownership:20,Integration ease:20,Scalability and security:20,Vendor stability:15" \
+  --scores "Build in-house:5,2,4,3,3;Buy SaaS:4,4,4,4,5;Hire agency:4,3,3,3,2" <<'TASK'
+Build in-house vs Buy SaaS vs Hire agency
+TASK
 ```
 
 ### Step 5: Document the Decision
 
 ```bash
-python3 .agents/skills/make-decision/scripts/search.py --journal "CRM platform: build vs buy vs outsource" -p "CRM Decision"
+python3 .agents/skills/make-decision/scripts/search.py --stdin --journal --confidence 75 -p "CRM Decision" <<'TASK'
+CRM platform: buy SaaS rather than build or outsource
+TASK
 ```
 
-**Then:** Synthesize the plan, searches, and matrix into a structured decision recommendation for the user, walking them through each step of the recommended framework.
+**Then:** Synthesize the plan, searches, and matrix into a structured recommendation for the user, walking them through each step of the recommended framework.
 
 ---
 
 ## Output Formats
 
-The `--plan` flag supports two output formats:
-
-```bash
-# ASCII box (default) - best for terminal display
-python3 .agents/skills/make-decision/scripts/search.py "market entry strategy" --plan
-
-# Markdown - best for documentation
-python3 .agents/skills/make-decision/scripts/search.py "market entry strategy" --plan -f markdown
-```
+`--plan` and `--matrix` print an ASCII box/table by default (best for a terminal); `-f markdown`
+gives Markdown (best for chat and documents); `--plan --json` and `--matrix --json` give JSON.
 
 ---
 
@@ -253,7 +296,7 @@ python3 .agents/skills/make-decision/scripts/search.py "market entry strategy" -
 7. **Watch for biases** — Confirmation bias, anchoring, and sunk cost fallacy are the most dangerous
 8. **Stress-test with pre-mortem** — Assume the decision failed and work backward to find blind spots
 9. **Classify reversibility** — Two-way door decisions deserve quick action; one-way doors deserve deep analysis
-10. **Document and reflect** — Keep a decision journal to improve calibration over time
+10. **Document and reflect** — Keep a decision journal with a review date to improve calibration over time
 
 ---
 
@@ -262,7 +305,7 @@ python3 .agents/skills/make-decision/scripts/search.py "market entry strategy" -
 - **Always start with Step 2** (`--plan`) before doing domain searches — the plan provides context for everything else
 - **Do NOT skip bias detection** — every decision has biases; explicitly address them
 - **Keep recommendations under 500 words** — decision-makers skim, not read
-- **Never present more than 5 criteria** — choice overload defeats the purpose
+- **Never present more than 5 criteria** — every template has exactly 5 (quick depth shows the top 3); if the user adds one, drop or merge the lightest so there are still at most 5
 - **When in doubt, ask** — if the user's decision type is unclear, ask one clarifying question before running the plan
 
 ---
@@ -277,6 +320,6 @@ If the Python scripts fail or are unavailable:
    - Suggest a framework based on the type (e.g., Weighted Matrix for multi-option, Pros-Cons-Fixes for binary)
    - Warn about the 3 most common biases for that decision type
    - Walk through the framework step by step
-3. **Script errors**: If `search.py` returns no results, try broader keywords or search a different domain
-4. **Non-English queries**: The knowledge base is English-only. Translate the user's key terms to English before calling `search.py` — this ensures rich results for any language
-
+3. **Script errors**: Errors go to stderr with exit code 1 (e.g. a journal id with no or several matches, scores that do not match the criteria); fix the input the message names and re-run
+4. **No type matched**: the plan says so and lists the `--type` values; pick one and re-run
+5. **Languages**: English and Vietnamese (with or without diacritics) are matched directly. For other languages, translate the key terms to English before calling `search.py`, and answer in the user's language
