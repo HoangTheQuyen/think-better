@@ -1,22 +1,25 @@
 {
-    "version": "1.3.0",
+    "version": "1.4.0",
     "architecture": {
         "64bit": {
-            "url": "https://github.com/HoangTheQuyen/think-better/releases/download/v1.3.0/think-better_1.3.0_windows_amd64.zip",
+            "url": "https://github.com/HoangTheQuyen/think-better/releases/download/v1.4.0/think-better_1.4.0_windows_amd64.zip",
             "bin": [
                 "think-better.exe"
             ],
-            "hash": "518c446a57ca1f3fb21515116d3f491f5b6d77ff547793e21b8c6e76fae05b5b"
+            "hash": "513439a3356cd693738dcaf548ab34cdfb5fa83d2e085153d432b7d44d43d8ef"
         },
         "arm64": {
-            "url": "https://github.com/HoangTheQuyen/think-better/releases/download/v1.3.0/think-better_1.3.0_windows_arm64.zip",
+            "url": "https://github.com/HoangTheQuyen/think-better/releases/download/v1.4.0/think-better_1.4.0_windows_arm64.zip",
             "bin": [
                 "think-better.exe"
             ],
-            "hash": "fa6ea2b9fcef825bed633095aa2e818edd285ea3665b64fa88ec92ff02569c76"
+            "hash": "96324e80e4efc959c5e1a04bb404c6585b2e7e9b7d97fb80ea50d7c9c1c7bc62"
         }
     },
     "homepage": "https://thinkbetter.dev/",
     "license": "MIT",
-    "description": "Structured decision-making and problem-solving skills for AI coding assistants"
+    "description": "Structured decision-making and problem-solving skills for AI coding assistants",
+    "post_install": [
+        "Write-Host 'think-better skill scripts need Python 3 (e.g. scoop install python). Check with: think-better check'"
+    ]
 }
