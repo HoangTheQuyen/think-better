@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/HoangTheQuyen/think-better/internal/installer"
 	"github.com/HoangTheQuyen/think-better/internal/targets"
@@ -46,9 +45,9 @@ func RunUpdate(args []string) int {
 		Errorf("%v", err)
 		return 1
 	}
-	cwd, err := os.Getwd()
+	cwd, err := currentProject()
 	if err != nil {
-		Errorf("getting working directory: %v", err)
+		Errorf("%v", err)
 		return 1
 	}
 	home := userHome()

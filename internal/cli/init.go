@@ -51,7 +51,7 @@ func RunInit(args []string) int {
 		Errorf("%v", err)
 		return 1
 	}
-	target, baseDir, err := ResolveScope(target, sf.Global)
+	target, baseDir, err := ResolveInstallScope(target, sf.Global)
 	if err != nil {
 		Errorf("%v", err)
 		return 1
