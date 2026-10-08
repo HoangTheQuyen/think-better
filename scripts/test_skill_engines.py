@@ -715,10 +715,10 @@ class SharedHelperTests(unittest.TestCase):
     """The skills each ship their own copy of the text helpers (they are installed independently);
     the copies must be the same code, not merely agree on a few samples."""
 
-    SHARED = ("stem", "tokenize", "fold", "has_accents", "match_tokens", "query_grams", "phrase_tokens",
+    SHARED = ("stem", "term_key", "tokenize", "fold", "has_accents", "match_tokens", "query_grams", "phrase_tokens",
               "display_width", "pad_display", "wrap_display", "slugify", "default_output_dir", "save_docs",
               "read_stdin_query", "matched_phrases")
-    CONSTANTS = ("STOPWORDS", "_SUFFIXES")
+    CONSTANTS = ("STOPWORDS", "_SUFFIXES", "VN_SYLLABLES")
 
     @staticmethod
     def definitions(skill):
@@ -1745,6 +1745,28 @@ class ClassificationRegressionTests(unittest.TestCase):
         self.assertEqual(self.ps.detect_domain("what type of problem is this"), "problem-types")
         self.assertEqual(self.md_core.auto_detect_domains("steam bias"), ["biases"])
         self.assertIn("facilitation", self.md_core.auto_detect_domains("our team workshop"))
+
+    def test_english_words_never_collide_with_unaccented_vietnamese(self):
+        # Each pair: an English word whose stem equals an unaccented Vietnamese syllable
+        pairs = [("hangs", "hang"), ("cache", "cach"), ("home", "hom"), ("time", "tim"),
+                 ("theme", "them"), ("cons", "con"), ("names", "nam")]
+        for name, core in (("problem-solving-pro", self.ps), ("code-solving", self.cs),
+                           ("make-decision", self.md_core)):
+            for english, vietnamese in pairs:
+                with self.subTest(skill=name, english=english, vietnamese=vietnamese):
+                    self.assertNotEqual(core.term_key(english), core.term_key(vietnamese))
+            # inflections of English words still meet
+            self.assertEqual(core.term_key("hire"), core.term_key("hiring"))
+            self.assertEqual(core.term_key("decline"), core.term_key("declined"))
+
+    def test_unaccented_vietnamese_requests_keep_their_meaning(self):
+        # "khách hàng" (customer) must not turn "hangs" into a debugging signal
+        self.assertNotEqual(self.cs.classify_task("viet API lay danh sach khach hang")[0], "debug")
+        # "cách" (way) must not turn "cache" into a performance signal
+        self.assertNotEqual(self.cs.classify_task("lam cach nao de them nut xuat Excel")[0], "performance")
+        # "hôm nay" (today) must not pick the Housing criteria ("home")
+        criteria = self.md.DecisionAdvisor("hom nay toi phai quyet dinh som").choose_criteria()
+        self.assertNotEqual(criteria["row"]["Domain"], "Housing / Home")
 
 
 class WorkspaceReuseTests(unittest.TestCase):

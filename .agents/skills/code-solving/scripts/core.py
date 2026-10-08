@@ -82,6 +82,20 @@ STOPWORDS = {
 
 _SUFFIXES = ("ations", "ation", "ings", "ing", "ies", "ied", "ed", "es", "ly", "s")
 
+# Unaccented Vietnamese syllables and words that English stems can collide with ('hangs' -> 'hang' is
+# 'hàng'; 'cache' -> 'cach' is 'cách'). A word whose own form, or its stem, is one of these is matched
+# as written, so an English request never meets a Vietnamese keyword by accident (and the reverse).
+VN_SYLLABLES = frozenset("""
+con nam nay nua hom hang cach tim them lam cho cua khong nhung mot hai bon sau truoc trong ngoai
+ban co la va de da se bi ve lai nhu the nao gi ai sao vi neu nhieu rat moi cang hon kem tot xau dep
+nho lon cao thap gia gom nuoc tien viec nguoi cong ty thi truong dich vu san pham khach don mua tra
+giam tang chi phi thu nhap muc tieu kha nang lua chon quyet dinh can phai nen khi vay nhat dau cuoi
+cung dang hoi biet nghe xem sua loi hu chay mat ngay gio phut tuan thang quy bao kiem tra giup dung
+thong tin du lieu he thong ung dung phan mem tinh nha toi minh anh chi em ong tuc ve
+vat noi tay chu ru tai hoc tru hop dong ky ket mo thue vo te gai trai cu suc khoe benh quan ho phong
+doanh thu dau tu kinh te xa hoi trung quoc viet nam hanh chinh tong cuc phat trien hien tai
+""".split())
+
 
 @lru_cache(maxsize=65536)
 def stem(word: str) -> str:
@@ -110,13 +124,27 @@ def stem(word: str) -> str:
     return word
 
 
+@lru_cache(maxsize=65536)
+def term_key(word: str) -> str:
+    """The form a word is matched by: its stem, unless the word or its stem is a Vietnamese syllable.
+
+    'hangs' keeps its form (not 'hang' = hàng), 'cache' keeps its form (not 'cach' = cách),
+    'times' keeps its form (not 'tim' = tìm); English stems still join: 'hiring' -> 'hir'.
+    """
+    folded = fold(word)
+    stemmed = stem(word)
+    if folded in VN_SYLLABLES or fold(stemmed) in VN_SYLLABLES:
+        return word
+    return stemmed
+
+
 def tokenize(text) -> list:
     """Lowercase, strip punctuation, drop stopwords, stem (for BM25 search).
 
     Two-letter tokens are kept on purpose: CI, UI, DB, QA, PR, AI, ML matter.
     """
     text = re.sub(r"[^\w\s]", " ", str(text).lower())
-    return [stem(w) for w in text.split() if len(w) > 1 and w not in STOPWORDS]
+    return [term_key(w) for w in text.split() if len(w) > 1 and w not in STOPWORDS]
 
 
 def fold(text) -> str:
@@ -145,7 +173,7 @@ def match_tokens(text, folded: bool = True) -> list:
     """
     text = fold(text) if folded else unicodedata.normalize("NFC", str(text))
     words = re.sub(r"[^\w\s]", " ", text.lower()).split()
-    return [stem(w) for w in words]
+    return [term_key(w) for w in words]
 
 
 @lru_cache(maxsize=64)
