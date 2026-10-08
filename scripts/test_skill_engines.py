@@ -841,8 +841,8 @@ class StdinInputTests(unittest.TestCase):
                 with self.subTest(workflow=path.name, line=i + 1):
                     self.assertEqual(line.strip(), "$ARGUMENTS")
                     self.assertIn(" --stdin ", lines[i - 1])
-                    self.assertTrue(lines[i - 1].endswith("<<'TASK'"))
-                    self.assertEqual(lines[i + 1], "TASK")
+                    self.assertTrue(lines[i - 1].endswith("<<'THINK_BETTER_EOF_7f3a'"))
+                    self.assertEqual(lines[i + 1], "THINK_BETTER_EOF_7f3a")
 
     def test_read_stdin_query_strips_bom_and_whitespace(self):
         import io

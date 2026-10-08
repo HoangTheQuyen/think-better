@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -165,6 +166,165 @@ func TestEveryWorkflowRunsAKnownSkill(t *testing.T) {
 		name := WorkflowSkill(f)
 		if FindSkill(name) == nil {
 			t.Errorf("%s: WorkflowSkill = %q, want a registered skill", f, name)
+		}
+	}
+}
+
+// stdinDelimiter ends every heredoc that carries the user's text. It must be a
+// word no one types on a line of its own: if the user's text contained the
+// delimiter line, the heredoc would end there and the rest would run as shell
+// commands (Antigravity's "// turbo" runs them without asking).
+const stdinDelimiter = "THINK_BETTER_EOF_7f3a"
+
+var heredocOpener = regexp.MustCompile(`<<-?\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)(['"]?)`)
+
+// skillDocs returns the agent-facing Markdown: every workflow and each skill's
+// SKILL.md and PROMPT.md, keyed by a readable name.
+func skillDocs(t *testing.T) map[string]string {
+	t.Helper()
+	docs := map[string]string{}
+	files, err := WorkflowFiles()
+	if err != nil {
+		t.Fatal(err)
+	}
+	wf, _ := WorkflowFS()
+	for _, f := range files {
+		data, err := fs.ReadFile(wf, f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		docs["workflows/"+f] = string(data)
+	}
+	for _, skill := range Registry {
+		for _, name := range []string{"SKILL.md", "PROMPT.md"} {
+			data, err := fs.ReadFile(Content, "skills/"+skill.Name+"/"+name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			docs[skill.Name+"/"+name] = string(data)
+		}
+	}
+	return docs
+}
+
+// Every heredoc uses the one quoted delimiter, so the shell expands nothing in
+// the user's text; the old, guessable TASK delimiter is gone.
+func TestHeredocsUseTheUniqueDelimiter(t *testing.T) {
+	for name, doc := range skillDocs(t) {
+		for i, line := range strings.Split(doc, "\n") {
+			if strings.TrimSpace(line) == "TASK" {
+				t.Errorf("%s:%d: heredoc ends with the old TASK delimiter; use %s", name, i+1, stdinDelimiter)
+			}
+			for _, m := range heredocOpener.FindAllStringSubmatch(line, -1) {
+				if m[1] != "'" || m[3] != "'" || m[2] != stdinDelimiter {
+					t.Errorf("%s:%d: heredoc %q, want <<'%s'", name, i+1, m[0], stdinDelimiter)
+				}
+			}
+		}
+	}
+}
+
+// $ARGUMENTS (the user's text) only ever appears alone inside a quoted
+// heredoc, and every workflow tells the assistant to check the text for the
+// delimiter line before running it.
+func TestWorkflowsPassArgumentsOnStdin(t *testing.T) {
+	for name, doc := range skillDocs(t) {
+		if !strings.HasPrefix(name, "workflows/") {
+			continue
+		}
+		lines := strings.Split(doc, "\n")
+		found := false
+		for i, line := range lines {
+			if !strings.Contains(line, "$ARGUMENTS") {
+				continue
+			}
+			found = true
+			if line != "$ARGUMENTS" || i == 0 || i+1 >= len(lines) {
+				t.Errorf("%s:%d: $ARGUMENTS must be alone on its line inside a heredoc", name, i+1)
+				continue
+			}
+			if prev := lines[i-1]; !strings.Contains(prev, " --stdin ") || !strings.HasSuffix(prev, "<<'"+stdinDelimiter+"'") {
+				t.Errorf("%s:%d: line before $ARGUMENTS must run --stdin and open <<'%s', got %q", name, i, stdinDelimiter, prev)
+			}
+			if lines[i+1] != stdinDelimiter {
+				t.Errorf("%s:%d: line after $ARGUMENTS must be %s, got %q", name, i+2, stdinDelimiter, lines[i+1])
+			}
+		}
+		if !found {
+			t.Errorf("%s: never passes $ARGUMENTS to the script", name)
+		}
+		if !strings.Contains(doc, "no line of it is exactly\n  `"+stdinDelimiter+"`") &&
+			!strings.Contains(doc, "no line of it is exactly `"+stdinDelimiter+"`") {
+			t.Errorf("%s: must tell the assistant to check the text for the %s line first", name, stdinDelimiter)
+		}
+	}
+}
+
+// SKILL.md and PROMPT.md never show a placeholder for the user's text on the
+// command line (search.py "<problem>" ...): those examples get copied.
+func TestSkillDocsKeepUserTextOffTheCommandLine(t *testing.T) {
+	placeholder := regexp.MustCompile(`search\.py\s+["']<`)
+	for name, doc := range skillDocs(t) {
+		for i, line := range strings.Split(doc, "\n") {
+			if placeholder.MatchString(line) {
+				t.Errorf("%s:%d: user text on the command line; pass it with --stdin and a heredoc: %s", name, i+1, strings.TrimSpace(line))
+			}
+		}
+	}
+}
+
+// PROMPT.md is SKILL.md without its frontmatter.
+func TestPromptMirrorsSkill(t *testing.T) {
+	for _, skill := range Registry {
+		s, _ := fs.ReadFile(Content, "skills/"+skill.Name+"/SKILL.md")
+		p, _ := fs.ReadFile(Content, "skills/"+skill.Name+"/PROMPT.md")
+		doc := string(s)
+		end := strings.Index(doc[4:], "\n---\n")
+		if end < 0 {
+			t.Fatalf("%s/SKILL.md: no frontmatter", skill.Name)
+		}
+		body := strings.TrimLeft(doc[4+end+5:], "\n")
+		if string(p) != body {
+			t.Errorf("%s/PROMPT.md differs from the body of SKILL.md", skill.Name)
+		}
+	}
+}
+
+// All workflows share the same rules: what to do without text, on errors, in
+// which language to answer and how to handle the Next steps table.
+func TestWorkflowsShareRules(t *testing.T) {
+	shared := []string{
+		"### Rules",
+		"### Steps",
+		"- **No text**:",
+		"- **Errors**:",
+		"Never present a plan the script did not produce.",
+		"- **Language**: answer in the user's language.",
+		"- **Next steps**:",
+	}
+	for name, doc := range skillDocs(t) {
+		if !strings.HasPrefix(name, "workflows/") {
+			continue
+		}
+		for _, want := range shared {
+			if !strings.Contains(doc, want) {
+				t.Errorf("%s: missing shared rule %q", name, want)
+			}
+		}
+		resume := strings.HasSuffix(name, ".resume.md")
+		if resume && strings.Contains(doc, "save step-by-step") {
+			t.Errorf("%s: offers to save a workspace that is already saved", name)
+		}
+		if !resume && strings.Contains(doc, "🎯 **Next Steps:**") {
+			t.Errorf("%s: adds its own Next Steps table; the plan already ends with one", name)
+		}
+		if strings.Contains(doc, "--persist") && !strings.Contains(doc, `"lưu từng bước"`) {
+			t.Errorf("%s: save step should accept Vietnamese save phrases", name)
+		}
+	}
+	for _, f := range []string{"workflows/code.review.md"} {
+		if !strings.Contains(skillDocs(t)[f], "`Review the current changes`") {
+			t.Errorf("%s: with no text it should review the current changes", f)
 		}
 	}
 }

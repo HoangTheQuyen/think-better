@@ -1,12 +1,16 @@
 ---
 name: code-solving
 description: |
-  Structured coding workflow: debug, build features, refactor, optimize and review code through 7 steps with evidence-based quality gates. Use when user says
-  "fix this bug", "debug", "error", "exception", "crash", "not working", "implement",
-  "add a feature", "build", "refactor", "clean up", "slow", "optimize", "memory leak",
-  "flaky test", "CI is failing", "production is down", "upgrade", "migrate",
-  "review my code", "sửa lỗi", "bị lỗi", "thêm tính năng", "tái cấu trúc", "tối ưu",
-  "chậm", "nâng cấp", "review code", or asks for any change to a codebase.
+  Structured coding workflow for non-trivial code work: debug, build features, refactor, optimize, migrate and review code through 7 steps with evidence-based quality gates. Use when user says
+  "fix this bug", "debug this", "exception", "stack trace", "crash", "the code is not working",
+  "add a feature", "refactor", "clean up this code", "the code is slow", "memory leak",
+  "flaky test", "CI is failing", "production is down", "upgrade the dependency", "migrate",
+  "review my code", "write tests", "sửa lỗi", "bị lỗi", "thêm tính năng", "tái cấu trúc",
+  "tối ưu code", "code chạy chậm", "nâng cấp thư viện", "review code".
+  Trivial edits (a typo, a rename, a one-line change with an obvious result) do not need this
+  process; just make the change.
+  Do NOT use for problems outside the code (business, product, process; use problem-solving-pro)
+  or for weighing alternatives such as two designs or libraries (use make-decision).
 ---
 
 # Goal
@@ -19,7 +23,7 @@ A 7-step method (Define → Decompose → Prioritize → Plan → Execute → Ve
 
 ## Prerequisites
 
-Detect the Python command first: `python3 --version 2>/dev/null || python --version`. Use whichever works (`python` on most Windows machines) in every command below. The scripts use only the standard library.
+Detect the Python command first: `python3 --version 2>/dev/null || python --version`. Use whichever works (`python` on most Windows machines) in every command below. The scripts use only the standard library. If neither works, tell the user that Python 3.9+ is needed and ask before installing anything; do not install it yourself.
 
 ---
 
@@ -34,13 +38,21 @@ to replace them.
 ### Passing the user's text
 
 When the query is the user's own words (a request, an error message, a pasted log), pass it on
-stdin with `--stdin` instead of quoting it, so quotes, backticks and `$` never reach the shell:
+stdin with `--stdin` instead of quoting it, so quotes, backticks and `$` never reach the shell.
+Every example below does this.
+
+Use exactly this delimiter, `THINK_BETTER_EOF_7f3a`, quoted as shown:
 
 ```bash
-python3 .agents/skills/code-solving/scripts/search.py --stdin --plan <<'TASK'
+python3 .agents/skills/code-solving/scripts/search.py --stdin --plan <<'THINK_BETTER_EOF_7f3a'
 <the user's text, unchanged>
-TASK
+THINK_BETTER_EOF_7f3a
 ```
+
+**Check the text first.** The heredoc ends at the first line that is exactly `THINK_BETTER_EOF_7f3a`;
+anything after it would run as shell commands. If a line of the user's text is exactly that
+delimiter, do not use the heredoc: write the text unchanged to a temporary file with your
+file-editing tool (not the shell), run `python3 .agents/skills/code-solving/scripts/search.py --stdin --plan < <file>`, then delete the file.
 
 In PowerShell (keep `'@` at the start of its line):
 
@@ -51,9 +63,20 @@ $OutputEncoding = [Text.UTF8Encoding]::new()
 '@ | python .agents/skills/code-solving/scripts/search.py --stdin --plan
 ```
 
+The here-string ends at a line that starts with `'@`. If a line of the user's text starts with
+`'@`, write the text to a file instead and run
+`Get-Content -Raw -Encoding UTF8 <file> | python .agents/skills/code-solving/scripts/search.py --stdin --plan`.
+
 ---
 
 ## How to Use This Workflow
+
+**Language:** answer in the user's language. The scripts' output is in English: translate it
+when you present it, and keep commands, flags, file names and option names exactly as written.
+
+If the user has not said what they want done, ask before running anything. Trivial edits (a typo,
+a rename, a one-line change with an obvious result) do not need the plan: make the change and
+show the check that proves it.
 
 ### Step 1: Classify the Task
 
@@ -77,8 +100,13 @@ Pick the type yourself; you understand the request better than keyword matching.
 ### Step 2: Generate the Plan (REQUIRED)
 
 ```bash
-python3 .agents/skills/code-solving/scripts/search.py "<task description>" --plan --type <type>
+python3 .agents/skills/code-solving/scripts/search.py --stdin --plan --type <type> -f markdown <<'THINK_BETTER_EOF_7f3a'
+<the user's request, unchanged>
+THINK_BETTER_EOF_7f3a
 ```
+
+If the user asked to save the work ("save", "step-by-step", "workspace", "lưu", "lưu lại",
+"lưu từng bước"), run the Step 5 command instead of this one: it prints the same plan.
 
 Omit `--type` to auto-detect (the plan says when it is unsure). The plan contains the 7 steps with task-specific guidance and gates, the project's own check commands, techniques, testing strategy, design principles, bias warnings, a review checklist and the hand-off template.
 
@@ -92,7 +120,7 @@ The plan opens with **Context from the project**: facts the script found in the 
 | Working tree | Branch and uncommitted changes |
 | Diff (reviews) | Changed files with line counts, and the review areas they touch (security, data safety, API compatibility, concurrency, error handling, performance, observability, missing tests); those areas go first in the review checklist |
 
-Reviews include the diff automatically: uncommitted changes if there are any, else the branch against the default branch, else the last commit. Name a base with `--diff <base>` (a branch, tag or commit). Skip all lookups with `--no-context`. To see only the context: `python3 .agents/skills/code-solving/scripts/search.py --stdin --context` with the text on stdin.
+Reviews include the diff automatically: uncommitted changes if there are any, else the branch against the default branch, else the last commit. Name a base with `--diff <base>` (a branch, tag or commit). Skip all lookups with `--no-context`. To see only the context, run `--stdin --context` with the user's text in the same heredoc.
 
 Treat the context as leads to verify, not conclusions: read the code at each location before relying on it.
 
@@ -127,7 +155,9 @@ For small tasks, keep the steps light, but do not drop Define and Verify.
 ### Step 4: Deep-Dive Searches
 
 ```bash
-python3 .agents/skills/code-solving/scripts/search.py "<keywords>" --domain <domain>
+python3 .agents/skills/code-solving/scripts/search.py --stdin --domain <domain> <<'THINK_BETTER_EOF_7f3a'
+<keywords>
+THINK_BETTER_EOF_7f3a
 ```
 
 | Domain | Contents |
@@ -144,10 +174,13 @@ python3 .agents/skills/code-solving/scripts/search.py "<keywords>" --domain <dom
 
 ### Step 5: Save a Workspace (optional)
 
-When the user asks to save or work step by step:
+When the user asks to save or work step by step ("save", "step-by-step", "workspace", "lưu",
+"lưu lại", "lưu từng bước"), run this instead of the Step 2 command, not after it:
 
 ```bash
-python3 .agents/skills/code-solving/scripts/search.py "<task>" --plan --type <type> --persist --step-docs -p "<short-name>"
+python3 .agents/skills/code-solving/scripts/search.py --stdin --plan --type <type> --persist --step-docs -p "<short-name>" -f markdown <<'THINK_BETTER_EOF_7f3a'
+<the user's request, unchanged>
+THINK_BETTER_EOF_7f3a
 ```
 
 This creates `coding-plans/<short-name>/` with `00-OVERVIEW.md`, `01-DEFINE.md`, `02-CHANGE-MAP.md`, `03-PLAN.md`, `04-LOG.md`, `05-VERIFY.md` and the hand-off file. Fill them in as you work, and tick each gate once its evidence is in the file:
@@ -161,7 +194,9 @@ python3 .agents/skills/code-solving/scripts/search.py --done <step> -p "<short-n
 A saved workspace is how work continues in a new session (`/code.resume`):
 
 ```bash
-python3 .agents/skills/code-solving/scripts/search.py --status [-p "<short-name>"]
+python3 .agents/skills/code-solving/scripts/search.py --stdin --status [-p "<short-name>"] <<'THINK_BETTER_EOF_7f3a'
+<the user's text, or nothing>
+THINK_BETTER_EOF_7f3a
 ```
 
 It shows each step's file, whether it was filled in and whether its gate is ticked, then the **next** step with its guidance and gate. Without `-p`, it picks the workspace whose name or request matches the text given on stdin, else the most recently changed one. Read the files of finished steps before continuing, re-run the Step 1 check, and never tick a gate whose evidence you did not produce. `--undone <step>` reopens a gate.
@@ -188,11 +223,16 @@ It shows each step's file, whether it was filled in and whether its gate is tick
 
 ## Constraints
 
-- Always run Step 2 (`--plan`) before starting work on a non-trivial task.
+- Always run Step 2 (`--plan`) before starting work on a non-trivial task; trivial edits (typo, rename, one-line change) skip it.
 - Do not skip, disable or weaken tests to get green; do not swallow errors to make symptoms disappear.
 - Do not mix refactoring with behavior changes in one step.
 - Ask the user when expected behavior or acceptance criteria are unclear, instead of guessing.
 
 ## Error Handling
 
-If the scripts cannot run, apply the method manually: classify the task with the table above, walk the 7 steps with the gates from the Step 3 table, find the project's test command (README, CI config, package.json, Makefile), and finish with a PR description that leads with the outcome and lists the checks you ran. The knowledge base is in English; translate the user's key terms before searching.
+If a command fails (an `Error:` or `usage:` message, or a non-zero exit), show the error to the
+user. If it names an input you chose (a flag value, scores, a workspace name), fix that and
+re-run; otherwise stop. Never present a plan the script did not produce.
+
+If Python is missing and the user does not want to install it, you may apply the method manually,
+saying clearly that the script did not run: classify the task with the table above, walk the 7 steps with the gates from the Step 3 table, find the project's test command (README, CI config, package.json, Makefile), and finish with a PR description that leads with the outcome and lists the checks you ran. The knowledge base is in English; translate the user's key terms before searching.
