@@ -1,1203 +1,871 @@
 <!DOCTYPE html>
-<html lang="en" class="scroll-smooth">
+<html lang="en">
 
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Think Better — AI Brain Upgrade</title>
+  <title>Think Better — Structured thinking for your AI coding assistant</title>
   <meta name="description"
-    content="Open-source CLI that installs three thinking skills and 20 slash commands (/decide, /solve, /code) into Claude Code, GitHub Copilot, Antigravity and OpenCode.">
+    content="Structured thinking for your AI coding assistant: decide with frameworks, solve with root causes, code with evidence. One CLI installs three skills and 20 slash commands (/decide, /solve, /code) into Claude Code, GitHub Copilot, Antigravity and OpenCode.">
+  <meta name="theme-color" content="#09090b">
 
-  <!-- Favicon -->
   <link rel="icon" type="image/png" href="/favicon.png">
   <link rel="apple-touch-icon" href="/favicon.png">
-
-  <!-- Canonical -->
   <link rel="canonical" href="https://thinkbetter.dev/">
 
   <!-- Open Graph (Facebook, Discord, Slack) -->
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://thinkbetter.dev/">
-  <meta property="og:title" content="Think Better — Stop Babysitting Your AI">
+  <meta property="og:title" content="Think Better — Structured thinking for your AI coding assistant">
   <meta property="og:description"
-    content="Open-source CLI that gives your AI assistant decision frameworks, a problem-solving method and a gated coding workflow: /decide, /solve and /code for Claude Code, GitHub Copilot, Antigravity and OpenCode.">
+    content="Decide with frameworks, solve with root causes, code with evidence: /decide, /solve and /code for Claude Code, GitHub Copilot, Antigravity and OpenCode.">
   <meta property="og:image" content="https://thinkbetter.dev/og-image.png">
   <meta property="og:site_name" content="Think Better">
 
   <!-- Twitter/X Card -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Think Better — Stop Babysitting Your AI">
+  <meta name="twitter:title" content="Think Better — Structured thinking for your AI coding assistant">
   <meta name="twitter:description"
-    content="Decision frameworks, root-cause analysis and evidence-gated coding for your AI assistant. For Claude Code, GitHub Copilot, Antigravity & OpenCode.">
+    content="Decide with frameworks, solve with root causes, code with evidence. For Claude Code, GitHub Copilot, Antigravity &amp; OpenCode.">
   <meta name="twitter:image" content="https://thinkbetter.dev/og-image.png">
 
-  <!-- Tailwind CSS (CDN for zero-build-step deployment) -->
-  <script src="https://cdn.tailwindcss.com"></script>
-
-  <!-- Fonts: Inter (UI) & JetBrains Mono (Code) -->
+  <!-- Fonts: Inter (UI) & JetBrains Mono (code) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
     rel="stylesheet">
 
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: {
-            sans: ['Inter', 'sans-serif'],
-            mono: ['JetBrains Mono', 'monospace'],
-          },
-          backgroundImage: {
-            'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-          }
-        }
-      }
-    }
-  </script>
-
+  <!-- Hand-written styles: no build step, no CSS framework. -->
   <style>
+    :root {
+      --bg: #09090b;
+      --bg-raised: #111114;
+      --bg-code: #0c0c0f;
+      --border: #27272a;
+      --border-strong: #3f3f46;
+      --text: #fafafa;
+      --muted: #a1a1aa;
+      --faint: #71717a;
+      --blue: #60a5fa;
+      --purple: #c084fc;
+      --green: #4ade80;
+      --amber: #fbbf24;
+      --radius: 14px;
+      --sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+      --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; scroll-padding-top: 72px; }
+
     body {
-      background-color: #000;
-      color: #fff;
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 16px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
     }
 
-    /* Subtle grid background for the hero */
-    .bg-grid {
-      background-size: 40px 40px;
-      background-image:
-        linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
-      mask-image: radial-gradient(ellipse at center, black 40%, transparent 80%);
-      -webkit-mask-image: radial-gradient(ellipse at center, black 40%, transparent 80%);
-    }
+    a { color: inherit; }
+    code, pre, .mono { font-family: var(--mono); }
+    h1, h2, h3, h4 { line-height: 1.2; margin: 0; letter-spacing: -0.02em; }
+    p { margin: 0; }
+    ::selection { background: rgba(96, 165, 250, 0.35); }
 
-    /* Glassmorphism utility */
-    .glass {
-      background: rgba(9, 9, 11, 0.7);
+    :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 4px; }
+
+    .skip-link {
+      position: absolute; left: 16px; top: -48px; z-index: 100;
+      background: var(--text); color: var(--bg); padding: 8px 12px; border-radius: 8px;
+    }
+    .skip-link:focus { top: 12px; }
+
+    /* Language: English is shown by default (and without JavaScript). */
+    html:not([data-ui-lang="vi"]) [data-lang="vi"] { display: none !important; }
+    html[data-ui-lang="vi"] [data-lang="en"] { display: none !important; }
+
+    .container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 0 16px; }
+    @media (min-width: 640px) { .container { padding: 0 24px; } }
+
+    section { padding: 72px 0; }
+    @media (min-width: 768px) { section { padding: 96px 0; } }
+
+    .section-head { max-width: 680px; margin-bottom: 40px; }
+    .section-head.center { margin-left: auto; margin-right: auto; text-align: center; }
+    .section-head h2 { font-size: clamp(1.6rem, 4vw, 2.4rem); font-weight: 700; margin-bottom: 12px; }
+    .section-head p { color: var(--muted); }
+    .accent { color: var(--blue); }
+    .accent-purple { color: var(--purple); }
+
+    /* ---------------------------------------------------------------- header */
+    .site-header {
+      position: sticky; top: 0; z-index: 50;
+      background: rgba(9, 9, 11, 0.85);
+      -webkit-backdrop-filter: blur(12px);
       backdrop-filter: blur(12px);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     }
+    .header-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 64px; }
+    .brand { display: flex; align-items: center; gap: 8px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+    .brand img { width: 24px; height: 24px; border-radius: 6px; }
 
-    /* Animations */
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(30px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
+    .nav-desktop { display: none; gap: 28px; font-size: 14px; font-weight: 500; }
+    .nav-desktop a, .nav-mobile a { color: var(--muted); text-decoration: none; transition: color .2s; }
+    .nav-desktop a:hover, .nav-mobile a:hover { color: var(--text); }
 
-    .animate-fade-up {
-      animation: fadeUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-    }
+    .header-actions { display: flex; align-items: center; gap: 10px; }
 
-    @keyframes pulseGlow {
-      0%, 100% { opacity: 0.5; }
-      50% { opacity: 1; }
-    }
-
-    .animate-pulse-glow {
-      animation: pulseGlow 3s ease-in-out infinite;
-    }
-
-    .delay-100 { animation-delay: 100ms; }
-    .delay-200 { animation-delay: 200ms; }
-    .delay-300 { animation-delay: 300ms; }
-
-    /* Hide scrollbar for code blocks but keep functionality */
-    .no-scrollbar::-webkit-scrollbar { display: none; }
-    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-
-    /* i18n: hide non-active lang */
-    [data-lang] { display: none; }
-    [data-lang].active { display: revert; }
-
-    /* Language toggle */
-    .lang-toggle {
-      display: inline-flex;
-      border-radius: 9999px;
-      border: 1px solid rgba(255,255,255,0.1);
-      overflow: hidden;
-    }
+    .lang-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
     .lang-btn {
-      padding: 4px 12px;
-      font-size: 12px;
-      font-weight: 500;
-      color: #a1a1aa;
-      cursor: pointer;
-      transition: all 0.2s;
-      background: transparent;
-      border: none;
+      font: 500 12px var(--sans); color: var(--muted); background: transparent; border: 0;
+      padding: 5px 11px; cursor: pointer;
     }
-    .lang-btn.active {
-      background: rgba(255,255,255,0.1);
-      color: #fff;
+    .lang-btn[aria-pressed="true"] { background: rgba(255, 255, 255, 0.1); color: var(--text); }
+
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      font: 600 14px var(--sans); text-decoration: none; border-radius: 999px;
+      padding: 9px 18px; border: 1px solid transparent; transition: background .2s, border-color .2s;
+      white-space: nowrap;
+    }
+    .btn-primary { background: var(--text); color: var(--bg); }
+    .btn-primary:hover { background: #d4d4d8; }
+    .btn-ghost { border-color: var(--border-strong); color: var(--text); }
+    .btn-ghost:hover { border-color: var(--muted); }
+    .btn-star { display: none; }
+
+    /* Mobile menu: a <details> element, so it works without JavaScript. */
+    .nav-mobile { position: relative; }
+    .nav-mobile summary {
+      list-style: none; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+      width: 40px; height: 36px; border: 1px solid var(--border); border-radius: 10px; color: var(--text);
+    }
+    .nav-mobile summary::-webkit-details-marker { display: none; }
+    .nav-mobile .menu-panel {
+      position: absolute; right: 0; top: 46px; min-width: 220px;
+      background: var(--bg-raised); border: 1px solid var(--border); border-radius: 12px;
+      padding: 8px; display: flex; flex-direction: column; box-shadow: 0 12px 40px rgba(0, 0, 0, .5);
+    }
+    .nav-mobile .menu-panel a { padding: 10px 12px; border-radius: 8px; }
+    .nav-mobile .menu-panel a:hover { background: rgba(255, 255, 255, 0.05); }
+
+    @media (min-width: 768px) {
+      .nav-desktop { display: flex; }
+      .nav-mobile { display: none; }
+      .btn-star { display: inline-flex; }
     }
 
-    /* === PREMIUM EFFECTS === */
+    /* ---------------------------------------------------------------- hero */
+    .hero { position: relative; padding: 72px 0 64px; text-align: center; overflow: hidden; }
+    @media (min-width: 768px) { .hero { padding: 112px 0 88px; } }
+    .hero::before {
+      content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+      background:
+        radial-gradient(ellipse 60% 40% at 50% 0%, rgba(59, 130, 246, 0.18), transparent 70%),
+        linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px) 0 0 / 40px 40px,
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px) 0 0 / 40px 40px;
+      -webkit-mask-image: radial-gradient(ellipse at 50% 30%, #000 30%, transparent 75%);
+      mask-image: radial-gradient(ellipse at 50% 30%, #000 30%, transparent 75%);
+    }
+    .badge {
+      display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 500; color: #d4d4d8;
+      border: 1px solid var(--border); background: rgba(24, 24, 27, 0.6); padding: 4px 12px; border-radius: 999px;
+      margin-bottom: 28px;
+    }
+    .badge .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--blue); box-shadow: 0 0 0 4px rgba(96, 165, 250, .2); }
+    .hero h1 { font-size: clamp(2.3rem, 7vw, 4.4rem); font-weight: 800; letter-spacing: -0.04em; margin: 0 auto 20px; max-width: 860px; }
+    .hero .lead { color: var(--muted); font-size: clamp(1.05rem, 2.2vw, 1.25rem); max-width: 680px; margin: 0 auto 36px; }
+    .hero .lead strong { color: var(--text); font-weight: 600; }
+    .hero-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 28px; }
 
-    /* Scroll reveal */
-    .reveal {
-      opacity: 0;
-      transform: translateY(40px);
-      transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    .install-box {
+      max-width: 620px; margin: 0 auto; text-align: left;
+      background: var(--bg-code); border: 1px solid var(--border); border-radius: 12px; padding: 12px;
+      display: grid; gap: 10px;
     }
-    .reveal.visible {
-      opacity: 1;
-      transform: translateY(0);
+    .install-label { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); margin: 0 0 4px 4px; }
+    .cmd {
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
+      background: #060608; border: 1px solid rgba(39, 39, 42, .7); border-radius: 8px; padding: 8px 10px;
     }
-    .reveal-delay-1 { transition-delay: 0.1s; }
-    .reveal-delay-2 { transition-delay: 0.2s; }
-    .reveal-delay-3 { transition-delay: 0.3s; }
-    .reveal-delay-4 { transition-delay: 0.4s; }
+    .cmd code { min-width: 0; font-size: 12px; color: #d4d4d8; white-space: pre; overflow-x: auto; line-height: 1.7; }
+    .copy-btn {
+      flex-shrink: 0; font: 500 11px var(--sans); color: #d4d4d8; background: #27272a; border: 0;
+      border-radius: 6px; padding: 4px 8px; cursor: pointer;
+    }
+    .copy-btn:hover { background: #3f3f46; }
+    .copy-btn.copied { color: var(--green); }
+    .no-js .copy-btn { display: none; }
 
-    /* Animated gradient border on hover */
-    .glow-card {
-      position: relative;
-      background: rgba(9, 9, 11, 0.6);
-      border: 1px solid rgba(39, 39, 42, 0.8);
-      border-radius: 16px;
-      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    .glow-card::before {
-      content: '';
-      position: absolute;
-      inset: -1px;
-      border-radius: 17px;
-      padding: 1px;
-      background: linear-gradient(135deg, transparent 40%, rgba(59, 130, 246, 0.3), rgba(168, 85, 247, 0.3), transparent 60%);
-      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-      mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-      -webkit-mask-composite: xor;
-      mask-composite: exclude;
-      opacity: 0;
-      transition: opacity 0.4s;
-    }
-    .glow-card:hover::before {
-      opacity: 1;
-    }
-    .glow-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 32px rgba(59, 130, 246, 0.08);
-    }
+    .stats { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 24px; margin-top: 40px; color: var(--muted); font-size: 14px; }
+    .stats strong { color: var(--text); font-weight: 600; }
 
-    /* Animated flowing dot on SVG paths */
-    @keyframes flowDot {
-      0% { offset-distance: 0%; opacity: 0; }
-      10% { opacity: 1; }
-      90% { opacity: 1; }
-      100% { offset-distance: 100%; opacity: 0; }
-    }
-    .flow-dot {
-      offset-path: var(--flow-path);
-      animation: flowDot 3s ease-in-out infinite;
-    }
+    /* ---------------------------------------------------------------- cards */
+    .grid { display: grid; gap: 16px; }
+    .grid > * { min-width: 0; }
+    @media (min-width: 640px) { .grid-2 { grid-template-columns: repeat(2, 1fr); } }
+    @media (min-width: 900px) { .grid-3 { grid-template-columns: repeat(3, 1fr); } .grid-4 { grid-template-columns: repeat(4, 1fr); } }
+    @media (min-width: 640px) and (max-width: 899px) { .grid-3, .grid-4 { grid-template-columns: repeat(2, 1fr); } }
 
-    /* Animated gradient text shimmer */
-    @keyframes shimmer {
-      0% { background-position: -200% center; }
-      100% { background-position: 200% center; }
+    .card {
+      background: rgba(24, 24, 27, 0.45); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 24px; transition: border-color .2s, transform .2s;
     }
-    .text-shimmer {
-      background: linear-gradient(90deg, #60a5fa, #a78bfa, #60a5fa, #a78bfa);
-      background-size: 200% auto;
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      animation: shimmer 4s linear infinite;
-    }
+    .card:hover { border-color: var(--border-strong); }
+    .card h3 { font-size: 1.1rem; font-weight: 600; margin-bottom: 8px; }
+    .card p, .card li { color: var(--muted); font-size: 15px; }
+    .card .icon { font-size: 22px; margin-bottom: 14px; display: block; }
+    .card code { font-size: 13px; color: #e4e4e7; }
+    a.card { text-decoration: none; display: block; }
+    a.card:hover { transform: translateY(-2px); }
+    a.card .more { color: var(--blue); font-size: 14px; font-weight: 500; margin-top: 12px; display: inline-block; }
 
-    /* Flow pipeline step card */
-    .pipeline-step {
-      background: rgba(9, 9, 11, 0.8);
-      backdrop-filter: blur(16px);
-      border: 1px solid rgba(39, 39, 42, 0.6);
-      border-radius: 16px;
-      padding: 1.5rem;
-      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-      position: relative;
-      overflow: hidden;
+    /* ---------------------------------------------------------------- commands */
+    .cmd-group h3 { font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 4px; }
+    .cmd-group .skill-name { font-size: 12px; color: var(--faint); margin-bottom: 16px; display: block; }
+    .cmd-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+    .cmd-list li { display: flex; align-items: baseline; gap: 12px; color: var(--muted); font-size: 14px; }
+    .cmd-list code {
+      flex-shrink: 0; min-width: 118px; font-size: 12px; color: #e4e4e7; background: #18181b;
+      border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px;
     }
-    .pipeline-step::after {
-      content: '';
-      position: absolute;
-      top: 0; left: 0; right: 0;
-      height: 2px;
-      background: var(--step-color, rgba(59, 130, 246, 0.5));
-      opacity: 0;
-      transition: opacity 0.3s;
-    }
-    .pipeline-step:hover {
-      border-color: var(--step-border, rgba(59, 130, 246, 0.3));
-      transform: translateY(-4px);
-      box-shadow: 0 12px 40px var(--step-shadow, rgba(59, 130, 246, 0.06));
-    }
-    .pipeline-step:hover::after {
-      opacity: 1;
-    }
+    .c-blue { color: var(--blue); } .c-purple { color: var(--purple); } .c-green { color: var(--green); }
 
-    /* Animated connector lines */
-    @keyframes dashMove {
-      to { stroke-dashoffset: -20; }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); margin-top: 24px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    tr:last-child td { border-bottom: 0; }
+    th { color: var(--text); font-weight: 600; background: rgba(24, 24, 27, 0.6); }
+    td { color: var(--muted); }
+    td code { font-size: 12px; color: #e4e4e7; }
+
+    /* ---------------------------------------------------------------- demo */
+    .terminal { background: var(--bg-code); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    .terminal-bar { display: flex; align-items: center; gap: 6px; padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--faint); }
+    .terminal-bar span.b { width: 10px; height: 10px; border-radius: 50%; background: #3f3f46; }
+    .terminal-bar .title { margin-left: 8px; }
+    .terminal pre { margin: 0; padding: 18px; font-size: 12.5px; line-height: 1.75; color: #d4d4d8; overflow-x: auto; white-space: pre; }
+    .terminal .k { color: var(--faint); }
+    .terminal .p { color: var(--purple); }
+    .terminal .w { color: var(--amber); }
+    .terminal .g { color: var(--green); }
+    .demo-note { color: var(--faint); font-size: 13px; margin-top: 12px; }
+
+    /* ---------------------------------------------------------------- flow */
+    .flow { list-style: none; padding: 0; margin: 0; display: grid; gap: 16px; counter-reset: step; }
+    @media (min-width: 900px) { .flow { grid-template-columns: repeat(4, 1fr); } }
+    .flow li { position: relative; padding-top: 44px; }
+    .flow li::before {
+      counter-increment: step; content: counter(step);
+      position: absolute; top: 20px; left: 24px; width: 28px; height: 28px; border-radius: 50%;
+      display: grid; place-items: center; font: 700 13px var(--mono);
+      background: rgba(96, 165, 250, .12); color: var(--blue); border: 1px solid rgba(96, 165, 250, .35);
     }
-    .connector-animated {
-      stroke-dasharray: 6, 4;
-      animation: dashMove 1s linear infinite;
+    .flow li.card { padding-top: 60px; }
+
+    /* ---------------------------------------------------------------- depth + workspace */
+    .depth { list-style: none; padding: 0; margin: 16px 0 0; display: grid; gap: 10px; }
+    .depth li { display: grid; grid-template-columns: 96px 1fr; gap: 12px; align-items: baseline; font-size: 14px; color: var(--muted); }
+    .depth strong { color: var(--text); font-weight: 600; }
+    .tree { margin: 16px 0 0; padding: 16px; background: var(--bg-code); border: 1px solid var(--border); border-radius: 10px; font-size: 12.5px; color: #d4d4d8; line-height: 1.7; overflow-x: auto; }
+
+    /* ---------------------------------------------------------------- install steps */
+    .step-label { font-size: 12px; font-weight: 700; letter-spacing: .1em; color: var(--blue); margin-bottom: 6px; }
+    .code-block {
+      margin: 14px 0 0; padding: 16px; background: var(--bg-code); border: 1px solid var(--border); border-radius: 10px;
+      font-size: 12.5px; line-height: 1.75; color: #d4d4d8; overflow-x: auto; white-space: pre;
+    }
+    .code-block .k { color: var(--faint); }
+
+    /* ---------------------------------------------------------------- footer */
+    .site-footer { border-top: 1px solid var(--border); padding: 40px 0; color: var(--faint); font-size: 14px; }
+    .footer-row { display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: center; justify-content: space-between; }
+    .footer-links { display: flex; flex-wrap: wrap; gap: 12px 24px; }
+    .footer-links a { color: var(--muted); text-decoration: none; }
+    .footer-links a:hover { color: var(--text); }
+
+    /* ---------------------------------------------------------------- motion */
+    @media (prefers-reduced-motion: no-preference) {
+      .fade-up { animation: fadeUp .7s cubic-bezier(.16, 1, .3, 1) both; }
+      .fade-up.d1 { animation-delay: .08s; } .fade-up.d2 { animation-delay: .16s; } .fade-up.d3 { animation-delay: .24s; }
+      @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { transition: none !important; animation: none !important; }
     }
   </style>
 </head>
 
-<body class="antialiased selection:bg-blue-500/30 selection:text-white">
+<body class="no-js">
+  <a class="skip-link" href="#main">Skip to content</a>
 
-  <!-- Navbar -->
-  <header class="fixed top-0 inset-x-0 z-50 glass border-b-0 border-white/5">
-    <div class="mx-auto max-w-7xl px-6 h-16 flex items-center justify-between">
-      <div class="flex items-center gap-2 font-semibold text-base tracking-tight">
-        <span class="text-xl">🧠</span> Think Better
-      </div>
-      <nav class="hidden md:flex gap-8 text-sm font-medium text-zinc-400">
-        <a href="#features" class="hover:text-white transition-colors" data-lang="en">Features</a>
-        <a href="#features" class="hover:text-white transition-colors" data-lang="vi">Tính Năng</a>
-        <a href="#commands" class="hover:text-white transition-colors" data-lang="en">Commands</a>
-        <a href="#commands" class="hover:text-white transition-colors" data-lang="vi">Lệnh</a>
-        <a href="#flow" class="hover:text-white transition-colors" data-lang="en">How It Works</a>
-        <a href="#flow" class="hover:text-white transition-colors" data-lang="vi">Cách Hoạt Động</a>
-        <a href="#demo" class="hover:text-white transition-colors" data-lang="en">Documentation</a>
-        <a href="#demo" class="hover:text-white transition-colors" data-lang="vi">Tài Liệu</a>
-        <a href="https://github.com/HoangTheQuyen/think-better" target="_blank"
-          class="hover:text-white transition-colors">GitHub</a>
+  <header class="site-header">
+    <div class="container header-row">
+      <a class="brand" href="#top"><img src="favicon.png" alt="" width="24" height="24"> Think Better</a>
+
+      <nav class="nav-desktop" aria-label="Main">
+        <a href="#why"><span data-lang="en">Why</span><span data-lang="vi">Vì sao</span></a>
+        <a href="#commands"><span data-lang="en">Commands</span><span data-lang="vi">Lệnh</span></a>
+        <a href="#demo"><span data-lang="en">Demo</span><span data-lang="vi">Ví dụ</span></a>
+        <a href="#install"><span data-lang="en">Install</span><span data-lang="vi">Cài đặt</span></a>
+        <a href="#docs"><span data-lang="en">Documentation</span><span data-lang="vi">Tài liệu</span></a>
       </nav>
-      <div class="flex items-center gap-3">
-        <div class="lang-toggle">
-          <button class="lang-btn active" onclick="setLang('en')">EN</button>
-          <button class="lang-btn" onclick="setLang('vi')">VN</button>
+
+      <div class="header-actions">
+        <div class="lang-toggle" role="group" aria-label="Language / Ngôn ngữ">
+          <button type="button" class="lang-btn" data-set-lang="en" aria-pressed="true">EN</button>
+          <button type="button" class="lang-btn" data-set-lang="vi" aria-pressed="false" lang="vi">VI</button>
         </div>
-        <a href="https://github.com/HoangTheQuyen/think-better" target="_blank"
-          class="text-sm font-medium bg-white text-black px-4 py-2 rounded-full hover:bg-zinc-200 transition-colors">
-          Star Repo
+        <a class="btn btn-primary btn-star" href="https://github.com/HoangTheQuyen/think-better">
+          <span data-lang="en">Star on GitHub</span><span data-lang="vi">Star trên GitHub</span>
         </a>
+        <details class="nav-mobile">
+          <summary aria-label="Menu">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+          </summary>
+          <nav class="menu-panel" aria-label="Main (mobile)">
+            <a href="#why"><span data-lang="en">Why not just prompt?</span><span data-lang="vi">Vì sao không chỉ viết prompt?</span></a>
+            <a href="#commands"><span data-lang="en">Commands</span><span data-lang="vi">Lệnh</span></a>
+            <a href="#demo"><span data-lang="en">Demo</span><span data-lang="vi">Ví dụ</span></a>
+            <a href="#flow"><span data-lang="en">How it works</span><span data-lang="vi">Cách hoạt động</span></a>
+            <a href="#install"><span data-lang="en">Install</span><span data-lang="vi">Cài đặt</span></a>
+            <a href="#docs"><span data-lang="en">Documentation</span><span data-lang="vi">Tài liệu</span></a>
+            <a href="https://github.com/HoangTheQuyen/think-better">GitHub</a>
+          </nav>
+        </details>
       </div>
     </div>
   </header>
 
-  <main class="relative pt-32 pb-16 sm:pt-40 sm:pb-24 overflow-hidden">
+  <main id="main">
+    <!-- HERO -->
+    <section class="hero" id="top">
+      <div class="container">
+        <div class="badge fade-up"><span class="dot" aria-hidden="true"></span>
+          For Claude Code, GitHub Copilot, Antigravity &amp; OpenCode</div>
 
-    <!-- Grid Background -->
-    <div class="absolute inset-x-0 top-0 h-[800px] bg-grid pointer-events-none -z-10"></div>
+        <h1 class="fade-up d1">
+          <span data-lang="en">Make your AI <span class="accent">think</span> before it answers.</span>
+          <span data-lang="vi">Để AI <span class="accent">suy nghĩ</span> trước khi trả lời.</span>
+        </h1>
 
-    <!-- Subtle Glow -->
-    <div
-      class="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-blue-500/10 blur-[120px] rounded-full pointer-events-none -z-10 animate-pulse-glow">
-    </div>
+        <p class="lead fade-up d2" data-lang="en">
+          Structured thinking for your AI coding assistant: <strong>decide</strong> with frameworks,
+          <strong>solve</strong> with root causes, <strong>code</strong> with evidence.
+          One open-source CLI installs three skills and their slash commands:
+          <strong>/decide</strong>, <strong>/solve</strong> and <strong>/code</strong>.
+        </p>
+        <p class="lead fade-up d2" data-lang="vi">
+          Tư duy có cấu trúc cho trợ lý AI lập trình: <strong>quyết định</strong> bằng framework,
+          <strong>giải quyết vấn đề</strong> tận gốc, <strong>sửa code</strong> có bằng chứng.
+          Một CLI mã nguồn mở cài ba skill cùng các lệnh slash:
+          <strong>/decide</strong>, <strong>/solve</strong> và <strong>/code</strong>.
+        </p>
 
-    <!-- 1. HERO SECTION -->
-    <div class="mx-auto max-w-7xl px-6 text-center">
-
-      <div
-        class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-zinc-800 bg-zinc-900/50 text-xs font-medium text-zinc-300 mb-8 opacity-0 animate-fade-up">
-        <span class="relative flex h-2 w-2">
-          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-          <span class="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
-        </span>
-        For Claude Code, GitHub Copilot, Antigravity &amp; OpenCode
-      </div>
-
-      <h1
-        class="mx-auto max-w-4xl font-bold tracking-tighter text-5xl sm:text-7xl mb-6 opacity-0 animate-fade-up delay-100">
-        <span data-lang="en">Stop Babysitting <br> <span class="text-blue-500">Your AI.</span></span>
-        <span data-lang="vi">Ngừng Đoán Mò. <br> <span class="text-blue-500">Ra Quyết Định Đúng.</span></span>
-      </h1>
-
-      <p data-lang="en"
-        class="mx-auto max-w-2xl text-lg sm:text-xl text-zinc-400 leading-relaxed mb-10 opacity-0 animate-fade-up delay-200">
-        Your AI writes code fast but makes <strong class="text-white font-medium">terrible architectural
-          decisions</strong>.
-        Think Better is an open-source CLI that installs three skills into your AI assistant:
-        <strong class="text-white font-medium">/decide</strong> for choices,
-        <strong class="text-white font-medium">/solve</strong> for root causes and
-        <strong class="text-white font-medium">/code</strong> for code changes with evidence at every step.
-      </p>
-      <p data-lang="vi"
-        class="mx-auto max-w-2xl text-lg sm:text-xl text-zinc-400 leading-relaxed mb-10 opacity-0 animate-fade-up delay-200">
-        AI của bạn code nhanh nhưng <strong class="text-white font-medium">ra quyết định kiến trúc tệ hại</strong>.
-        Think Better là công cụ CLI mã nguồn mở, cài ba skill vào trợ lý AI của bạn:
-        <strong class="text-white font-medium">/decide</strong> để chọn lựa,
-        <strong class="text-white font-medium">/solve</strong> để tìm nguyên nhân gốc và
-        <strong class="text-white font-medium">/code</strong> để sửa code có bằng chứng ở từng bước.
-      </p>
-
-      <!-- Install Snippet (Vercel Style) -->
-      <div class="mx-auto max-w-[550px] opacity-0 animate-fade-up delay-300 relative group">
-        <div
-          class="absolute -inset-0.5 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-lg blur opacity-50 group-hover:opacity-100 transition duration-500">
-        </div>
-        <div
-          class="relative bg-zinc-950 border border-zinc-800 rounded-lg p-3 hover:border-zinc-700 transition-colors text-left flex flex-col gap-2">
-
-          <!-- macOS / Linux -->
+        <div class="install-box fade-up d3">
           <div>
-            <div class="text-[10px] font-bold text-zinc-500 mb-1 tracking-wider uppercase pl-1">macOS / Linux</div>
-            <div class="flex items-center justify-between bg-[#0a0a0a] border border-zinc-800/50 rounded p-2">
-              <code
-                class="font-mono text-[11px] sm:text-xs text-zinc-300 overflow-x-auto no-scrollbar whitespace-nowrap pt-0.5 block leading-relaxed">curl -fsSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.sh | sh<br>think-better init --ai claude</code>
-              <button
-                class="ml-3 shrink-0 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 p-1.5 rounded transition-colors relative self-start mt-1"
-                onclick="copyText('curl -fsSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.sh | sh\nthink-better init --ai claude', this, true)">
-                <svg class="copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                </svg>
-                <svg class="check-icon hidden text-green-500 absolute top-1.5 left-1.5" width="14" height="14"
-                  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"
-                  stroke-linejoin="round">
-                  <polyline points="20 6 9 17 4 12"></polyline>
-                </svg>
-              </button>
+            <p class="install-label">macOS / Linux</p>
+            <div class="cmd">
+              <code>curl -fsSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.sh | sh
+think-better init --ai claude</code>
+              <button type="button" class="copy-btn" data-copy="curl -fsSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.sh | sh&#10;think-better init --ai claude" aria-label="Copy macOS / Linux install commands">Copy</button>
             </div>
           </div>
-
-          <!-- Windows -->
           <div>
-            <div class="text-[10px] font-bold text-zinc-500 mb-1 tracking-wider uppercase pl-1 mt-1">Windows
-              (PowerShell)</div>
-            <div class="flex items-center justify-between bg-[#0a0a0a] border border-zinc-800/50 rounded p-2">
-              <code
-                class="font-mono text-[11px] sm:text-xs text-zinc-300 overflow-x-auto no-scrollbar whitespace-nowrap pt-0.5 block leading-relaxed">irm https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.ps1 | iex<br>think-better init --ai claude</code>
-              <button
-                class="ml-3 shrink-0 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 p-1.5 rounded transition-colors relative self-start mt-1"
-                onclick="copyText('irm https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.ps1 | iex\nthink-better init --ai claude', this, true)">
-                <svg class="copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                </svg>
-                <svg class="check-icon hidden text-green-500 absolute top-1.5 left-1.5" width="14" height="14"
-                  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"
-                  stroke-linejoin="round">
-                  <polyline points="20 6 9 17 4 12"></polyline>
-                </svg>
-              </button>
+            <p class="install-label">Windows (PowerShell)</p>
+            <div class="cmd">
+              <code>irm https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.ps1 | iex
+think-better init --ai claude</code>
+              <button type="button" class="copy-btn" data-copy="irm https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.ps1 | iex&#10;think-better init --ai claude" aria-label="Copy Windows install commands">Copy</button>
             </div>
           </div>
-
-          <!-- Homebrew -->
           <div>
-            <div class="text-[10px] font-bold text-zinc-500 mb-1 tracking-wider uppercase pl-1 mt-1">Homebrew</div>
-            <div class="flex items-center justify-between bg-[#0a0a0a] border border-zinc-800/50 rounded p-2">
-              <code
-                class="font-mono text-[11px] sm:text-xs text-zinc-300 overflow-x-auto no-scrollbar whitespace-nowrap pt-0.5 block leading-relaxed">brew tap HoangTheQuyen/think-better https://github.com/HoangTheQuyen/think-better<br>brew install think-better</code>
-              <button
-                class="ml-3 shrink-0 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 p-1.5 rounded transition-colors relative self-start mt-1"
-                onclick="copyText('brew tap HoangTheQuyen/think-better https://github.com/HoangTheQuyen/think-better\nbrew install think-better', this, true)">
-                <svg class="copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                </svg>
-                <svg class="check-icon hidden text-green-500 absolute top-1.5 left-1.5" width="14" height="14"
-                  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"
-                  stroke-linejoin="round">
-                  <polyline points="20 6 9 17 4 12"></polyline>
-                </svg>
-              </button>
+            <p class="install-label">Homebrew</p>
+            <div class="cmd">
+              <code>brew tap HoangTheQuyen/think-better https://github.com/HoangTheQuyen/think-better
+brew install think-better</code>
+              <button type="button" class="copy-btn" data-copy="brew tap HoangTheQuyen/think-better https://github.com/HoangTheQuyen/think-better&#10;brew install think-better" aria-label="Copy Homebrew install commands">Copy</button>
             </div>
           </div>
-
         </div>
+
+        <div class="hero-links">
+          <a class="btn btn-primary" href="https://github.com/HoangTheQuyen/think-better/blob/main/USER-GUIDE.md">
+            <span data-lang="en">Read the User Guide</span><span data-lang="vi">Đọc hướng dẫn sử dụng</span>
+          </a>
+          <a class="btn btn-ghost" href="https://github.com/HoangTheQuyen/think-better/tree/main/examples">
+            <span data-lang="en">See examples</span><span data-lang="vi">Xem ví dụ</span>
+          </a>
+        </div>
+
+        <p class="stats">
+          <span><strong>3</strong> <span data-lang="en">skills</span><span data-lang="vi">skill</span></span>
+          <span><strong>323</strong> <span data-lang="en">knowledge records</span><span data-lang="vi">bản ghi kiến thức</span></span>
+          <span><strong>20</strong> <span data-lang="en">slash commands</span><span data-lang="vi">lệnh slash</span></span>
+          <span><strong>4</strong> <span data-lang="en">AI tools</span><span data-lang="vi">công cụ AI</span></span>
+        </p>
       </div>
+    </section>
 
-      <div
-        class="mt-12 flex items-center justify-center gap-6 text-sm font-medium text-zinc-500 opacity-0 animate-fade-up delay-300">
-        <a href="https://github.com/HoangTheQuyen/think-better" class="hover:text-white transition-colors">
-          <span data-lang="en">Read Documentation →</span>
-          <span data-lang="vi">Xem Tài Liệu →</span>
-        </a>
-      </div>
-    </div>
+    <!-- WHY NOT JUST PROMPT -->
+    <section id="why">
+      <div class="container">
+        <div class="section-head">
+          <h2>
+            <span data-lang="en">Why not just <span class="accent">prompt?</span></span>
+            <span data-lang="vi">Sao không chỉ <span class="accent">viết prompt?</span></span>
+          </h2>
+          <p data-lang="en">Ask any AI "should we use Postgres or MongoDB?" and you get a tidy pros-and-cons list.
+            The skills add what a prompt alone does not.</p>
+          <p data-lang="vi">Hỏi AI bất kỳ "nên dùng Postgres hay MongoDB?" và bạn nhận được danh sách ưu/nhược điểm gọn gàng.
+            Các skill bổ sung những gì một prompt đơn thuần không có.</p>
+        </div>
 
-
-
-    <!-- 3. BENTO BOX FEATURES (PAIN POINTS) -->
-    <div class="mx-auto max-w-7xl px-6 mt-32" id="features">
-      <div class="mb-12">
-        <h2 class="text-2xl sm:text-3xl font-bold tracking-tight mb-4">
-          <span data-lang="en">Your AI is smart. <span class="text-blue-500">Make it think.</span></span>
-          <span data-lang="vi">AI của bạn thông minh. <span class="text-blue-500">Hãy dạy nó tư duy.</span></span>
-        </h2>
-        <p class="text-zinc-400" data-lang="en">Because asking ChatGPT "what should I do?" and getting a generic pros/cons list is not
-          engineering.</p>
-        <p class="text-zinc-400" data-lang="vi">Vì hỏi ChatGPT "tôi nên làm gì?" rồi nhận được danh sách ưu/nhược điểm chung chung thì không phải là engineering.</p>
-      </div>
-
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <!-- Box 1: Frameworks (Large) -->
-        <div
-          class="md:col-span-2 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-8 flex flex-col justify-between group hover:border-zinc-700 transition-colors">
-          <div>
-            <div class="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center mb-6">
-              <span class="text-xl">🌳</span>
-            </div>
-            <h3 class="text-xl font-semibold mb-2">
-              <span data-lang="en">Force Deep Reasoning</span>
-              <span data-lang="vi">Buộc Tư Duy Sâu</span>
-            </h3>
-            <p class="text-zinc-400 max-w-md" data-lang="en">Your AI gives lazy answers because it has zero structural constraints.
-              Inject
-              McKinsey-grade methodologies (Issue Trees, Pre-Mortems, MECE) to force it to think like a principal
-              engineer, not an intern.</p>
-            <p class="text-zinc-400 max-w-md" data-lang="vi">AI của bạn trả lời lười biếng vì không có ràng buộc cấu trúc nào.
-              Tiêm phương pháp luận cấp McKinsey (Issue Trees, Pre-Mortems, MECE) để buộc nó tư duy như principal
-              engineer, không phải intern.</p>
+        <div class="grid grid-2">
+          <div class="card">
+            <span class="icon" aria-hidden="true">🧭</span>
+            <h3><span data-lang="en">Structured steps</span><span data-lang="vi">Quy trình có cấu trúc</span></h3>
+            <p data-lang="en">Every request runs through a fixed method: 7 steps for problems and code, a decision plan
+              for choices. The AI does not jump from symptom to fix.</p>
+            <p data-lang="vi">Mọi yêu cầu đi qua một phương pháp cố định: 7 bước cho vấn đề và code, kế hoạch quyết
+              định cho lựa chọn. AI không nhảy thẳng từ triệu chứng sang cách sửa.</p>
           </div>
-          <!-- Abstract visual representation -->
-          <div class="mt-8 flex gap-2">
-            <div class="h-2 w-12 bg-blue-500 rounded-full"></div>
-            <div class="h-2 w-8 bg-zinc-700 rounded-full"></div>
-            <div class="h-2 w-16 bg-zinc-700 rounded-full"></div>
+          <div class="card">
+            <span class="icon" aria-hidden="true">🚦</span>
+            <h3><span data-lang="en">Gates</span><span data-lang="vi">Cổng kiểm tra</span></h3>
+            <p data-lang="en"><code>/code</code> does not move on without evidence: a failing test before the fix,
+              your project's own test, lint and build output after it.</p>
+            <p data-lang="vi"><code>/code</code> chỉ qua bước khi có bằng chứng: test fail trước khi sửa, kết quả
+              test, lint, build của chính project sau khi sửa.</p>
+          </div>
+          <div class="card">
+            <span class="icon" aria-hidden="true">📚</span>
+            <h3><span data-lang="en">A knowledge base</span><span data-lang="vi">Knowledge base</span></h3>
+            <p data-lang="en">323 knowledge records searched locally with BM25:
+              <code>make-decision</code> · 63 records, <code>problem-solving-pro</code> · 111 records,
+              <code>code-solving</code> · 149 records. Frameworks, cognitive biases with remedies, criteria
+              templates and 44 common error messages go into the answer.</p>
+            <p data-lang="vi">323 bản ghi kiến thức được tìm ngay trên máy bằng BM25:
+              <code>make-decision</code> · 63 bản ghi, <code>problem-solving-pro</code> · 111 bản ghi,
+              <code>code-solving</code> · 149 bản ghi. Framework, thiên kiến nhận thức kèm cách khắc phục, mẫu
+              tiêu chí và 44 thông báo lỗi hay gặp được đưa vào câu trả lời.</p>
+          </div>
+          <div class="card">
+            <span class="icon" aria-hidden="true">💾</span>
+            <h3><span data-lang="en">Saved, resumable workspaces</span><span data-lang="vi">Workspace lưu lại, làm tiếp được</span></h3>
+            <p data-lang="en">Say "save step-by-step" and the work is written to Markdown files in your project.
+              <code>/solve.resume</code>, <code>/decide.resume</code> or <code>/code.resume</code> continues at the
+              first open step in a later session.</p>
+            <p data-lang="vi">Nói "lưu từng bước" và công việc được ghi thành file Markdown trong project.
+              <code>/solve.resume</code>, <code>/decide.resume</code> hoặc <code>/code.resume</code> làm tiếp từ bước
+              còn dang dở ở phiên sau.</p>
           </div>
         </div>
 
-        <!-- Box 2: Biases (Medium) -->
-        <div
-          class="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-8 group hover:border-zinc-700 transition-colors">
-          <div class="w-10 h-10 rounded-lg bg-orange-500/10 flex items-center justify-center mb-6">
-            <span class="text-xl">🛡️</span>
+        <div class="grid grid-2" style="margin-top:16px">
+          <div class="card">
+            <span class="icon" aria-hidden="true">🔒</span>
+            <h3><span data-lang="en">Runs locally</span><span data-lang="vi">Chạy trên máy bạn</span></h3>
+            <p data-lang="en">One Go binary copies Markdown, CSV and Python files into your project. The scripts need
+              only Python 3's standard library: no network calls, no accounts, no API keys.</p>
+            <p data-lang="vi">Một file Go chép các file Markdown, CSV và Python vào project. Script chỉ cần thư viện
+              chuẩn của Python 3: không gọi mạng, không tài khoản, không API key.</p>
           </div>
-          <h3 class="text-xl font-semibold mb-2">
-            <span data-lang="en">Kill "Yes-Man" Mode</span>
-            <span data-lang="vi">Triệt Tiêu Chế Độ "Gật Đầu"</span>
-          </h3>
-          <p class="text-zinc-400 text-sm" data-lang="en">Your AI agrees with every bad idea you have. We inject cognitive bias
-            detectors
-            (Sunk Cost, Confirmation, Status Quo) into the prompt <em>before</em> it answers — so it fights back when
-            you're wrong.</p>
-          <p class="text-zinc-400 text-sm" data-lang="vi">AI đồng ý mọi ý tưởng tồi của bạn. Chúng tôi tiêm bộ phát hiện thiên kiến nhận thức
-            (Sunk Cost, Confirmation, Status Quo) vào prompt <em>trước khi</em> AI trả lời — để nó phản bác khi
-            bạn sai.</p>
-        </div>
-
-        <!-- Box 3: Zero Deps (Small) -->
-        <div
-          class="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-8 group hover:border-zinc-700 transition-colors">
-          <div class="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center mb-6">
-            <span class="text-xl">⚡</span>
-          </div>
-          <h3 class="text-lg font-semibold mb-2">
-            <span data-lang="en">Runs Locally</span>
-            <span data-lang="vi">Chạy Cục Bộ</span>
-          </h3>
-          <p class="text-zinc-400 text-sm" data-lang="en">One Go binary installs everything. The skills need only Python 3's
-            standard library: no pip, no node_modules, no API keys.</p>
-          <p class="text-zinc-400 text-sm" data-lang="vi">Một file Go cài mọi thứ. Skill chỉ cần thư viện chuẩn của
-            Python 3: không pip, không node_modules, không API key.</p>
-        </div>
-
-        <!-- Box 4: Architecture (Wide) -->
-        <div
-          class="md:col-span-2 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-8 flex flex-col sm:flex-row gap-8 items-center group hover:border-zinc-700 transition-colors">
-          <div class="flex-1">
-            <h3 class="text-xl font-semibold mb-2">BM25 Search Engine</h3>
-            <p class="text-zinc-400 text-sm mb-4" data-lang="en">Fast keyword ranking over 323 knowledge records
-              (<code>problem-solving-pro</code> 111 records, <code>make-decision</code> 63 records,
-              <code>code-solving</code> 149 records) finds the framework, technique or known error for your request.</p>
-            <p class="text-zinc-400 text-sm mb-4" data-lang="vi">Xếp hạng từ khóa nhanh trên 323 bản ghi kiến thức
-              (<code>problem-solving-pro</code> 111 bản ghi, <code>make-decision</code> 63 bản ghi,
-              <code>code-solving</code> 149 bản ghi) để tìm framework, kỹ thuật hoặc lỗi đã biết phù hợp với yêu cầu.</p>
-            <div class="inline-flex gap-2">
-              <span class="px-2 py-1 rounded bg-zinc-800 text-xs font-mono text-zinc-300 border border-zinc-700">Go
-                1.25</span>
-              <span class="px-2 py-1 rounded bg-zinc-800 text-xs font-mono text-zinc-300 border border-zinc-700">Python
-                3 stdlib</span>
-            </div>
-          </div>
-          <div
-            class="w-full sm:w-48 h-32 rounded-lg border border-zinc-800 bg-zinc-950 flex font-mono text-xs p-4 flex-col justify-center gap-2 overflow-hidden">
-            <div class="text-blue-400">query="debug latency"</div>
-            <div class="text-zinc-500">score: 9.42 -> RCA Framework</div>
-            <div class="text-zinc-500">score: 7.15 -> MECE Tree</div>
+          <div class="card">
+            <span class="icon" aria-hidden="true">🇻🇳</span>
+            <h3><span data-lang="en">English and Vietnamese</span><span data-lang="vi">Tiếng Anh và tiếng Việt</span></h3>
+            <p data-lang="en">Requests work in both languages, Vietnamese with or without accents
+              ("Nên chọn React hay Vue?"). The AI answers in your language.</p>
+            <p data-lang="vi">Yêu cầu bằng cả hai ngôn ngữ, tiếng Việt có dấu hay không dấu đều được
+              ("Nen chon React hay Vue?"). AI trả lời bằng ngôn ngữ của bạn.</p>
           </div>
         </div>
       </div>
-    </div>
+    </section>
 
-    <!-- 4. SLASH COMMANDS — HYBRID ACTIVATION -->
-    <div class="mx-auto max-w-7xl px-6 mt-32" id="commands">
-      <div class="text-center mb-16">
-        <div
-          class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-purple-500/30 bg-purple-500/10 text-xs font-medium text-purple-300 mb-4">
-          ⚡ NEW
+    <!-- COMMANDS -->
+    <section id="commands">
+      <div class="container">
+        <div class="section-head center">
+          <h2>
+            <span data-lang="en">20 slash commands. <span class="accent-purple">Or just ask.</span></span>
+            <span data-lang="vi">20 lệnh slash. <span class="accent-purple">Hoặc cứ hỏi.</span></span>
+          </h2>
+          <p data-lang="en">Type a command for a fixed depth, or describe the problem in your own words where your
+            AI tool loads skills by itself.</p>
+          <p data-lang="vi">Gõ lệnh để chọn độ sâu, hoặc mô tả vấn đề bằng lời của bạn nếu công cụ AI tự nạp skill.</p>
         </div>
-        <h2 class="text-2xl sm:text-4xl font-bold tracking-tight mb-4">
-          <span data-lang="en">Two ways to think. <span class="text-purple-400">Your choice.</span></span>
-          <span data-lang="vi">Hai cách tư duy. <span class="text-purple-400">Bạn chọn.</span></span>
-        </h2>
-        <p class="text-zinc-400 max-w-2xl mx-auto" data-lang="en">Speak naturally and the AI auto-detects the right skill — or use
-          slash commands for precise, instant control.</p>
-        <p class="text-zinc-400 max-w-2xl mx-auto" data-lang="vi">Nói tự nhiên và AI tự nhận diện skill phù hợp — hoặc dùng
-          slash command để điều khiển chính xác.</p>
+
+        <div class="grid grid-3">
+          <div class="card cmd-group">
+            <h3 class="c-purple"><span data-lang="en">Decide</span><span data-lang="vi">Ra quyết định</span></h3>
+            <code class="skill-name">make-decision</code>
+            <ul class="cmd-list">
+              <li><code>/decide.quick</code><span data-lang="en">Fast scan</span><span data-lang="vi">Quét nhanh</span></li>
+              <li><code>/decide</code><span data-lang="en">The default plan</span><span data-lang="vi">Kế hoạch mặc định</span></li>
+              <li><code>/decide.deep</code><span data-lang="en">Pre-mortem, sensitivity</span><span data-lang="vi">Pre-mortem, độ nhạy</span></li>
+              <li><code>/decide.exec</code><span data-lang="en">Brief for leadership</span><span data-lang="vi">Tóm tắt cho lãnh đạo</span></li>
+              <li><code>/decide.resume</code><span data-lang="en">Continue a saved decision</span><span data-lang="vi">Làm tiếp quyết định đã lưu</span></li>
+            </ul>
+          </div>
+          <div class="card cmd-group">
+            <h3 class="c-blue"><span data-lang="en">Solve</span><span data-lang="vi">Giải quyết vấn đề</span></h3>
+            <code class="skill-name">problem-solving-pro</code>
+            <ul class="cmd-list">
+              <li><code>/solve.quick</code><span data-lang="en">Short scan</span><span data-lang="vi">Quét nhanh</span></li>
+              <li><code>/solve</code><span data-lang="en">The 7-step plan</span><span data-lang="vi">Kế hoạch 7 bước</span></li>
+              <li><code>/solve.deep</code><span data-lang="en">Alternatives, more models</span><span data-lang="vi">Phương án thay thế, thêm mô hình</span></li>
+              <li><code>/solve.exec</code><span data-lang="en">Executive summary, risks</span><span data-lang="vi">Tóm tắt điều hành, rủi ro</span></li>
+              <li><code>/solve.resume</code><span data-lang="en">Continue a saved problem</span><span data-lang="vi">Làm tiếp vấn đề đã lưu</span></li>
+            </ul>
+          </div>
+          <div class="card cmd-group">
+            <h3 class="c-green"><span data-lang="en">Code</span><span data-lang="vi">Lập trình</span></h3>
+            <code class="skill-name">code-solving</code>
+            <ul class="cmd-list">
+              <li><code>/code</code><span data-lang="en">Any change, type detected</span><span data-lang="vi">Mọi thay đổi, tự nhận loại việc</span></li>
+              <li><code>/code.deep</code><span data-lang="en">Full review checklist</span><span data-lang="vi">Checklist review đầy đủ</span></li>
+              <li><code>/code.debug</code><span data-lang="en">Failing test first</span><span data-lang="vi">Test fail trước, rồi sửa</span></li>
+              <li><code>/code.feature</code><span data-lang="en">Small tested slices</span><span data-lang="vi">Từng lát nhỏ có test</span></li>
+              <li><code>/code.refactor</code><span data-lang="en">Same behavior</span><span data-lang="vi">Giữ nguyên hành vi</span></li>
+              <li><code>/code.perf</code><span data-lang="en">Measure, optimize, measure</span><span data-lang="vi">Đo, tối ưu, đo lại</span></li>
+              <li><code>/code.review</code><span data-lang="en">Diff and risk areas</span><span data-lang="vi">Diff và vùng rủi ro</span></li>
+              <li><code>/code.test</code><span data-lang="en">Tests that can fail</span><span data-lang="vi">Test có thể fail thật</span></li>
+              <li><code>/code.explain</code><span data-lang="en">With file:line evidence</span><span data-lang="vi">Kèm bằng chứng file:dòng</span></li>
+              <li><code>/code.resume</code><span data-lang="en">Continue a saved change</span><span data-lang="vi">Làm tiếp workspace đã lưu</span></li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th><span data-lang="en">AI tool</span><span data-lang="vi">Công cụ AI</span></th>
+                <th><span data-lang="en">Just describe the problem</span><span data-lang="vi">Mô tả vấn đề bằng lời</span></th>
+                <th><span data-lang="en">Slash commands</span><span data-lang="vi">Lệnh slash</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>Claude Code</td><td><span data-lang="en">Yes, picked by trigger phrases</span><span data-lang="vi">Có, chọn theo cụm từ kích hoạt</span></td><td><code>.claude/commands/</code></td></tr>
+              <tr><td>OpenCode</td><td><span data-lang="en">Yes, via OpenCode's skill tool</span><span data-lang="vi">Có, qua skill tool của OpenCode</span></td><td><code>.opencode/commands/</code></td></tr>
+              <tr><td>Antigravity</td><td><span data-lang="en">Yes</span><span data-lang="vi">Có</span></td><td><code>.agents/workflows/</code></td></tr>
+              <tr><td>GitHub Copilot</td><td><span data-lang="en">No, use the slash commands</span><span data-lang="vi">Không, hãy dùng lệnh slash</span></td><td><span data-lang="en">Prompt files in</span><span data-lang="vi">Prompt file trong</span> <code>.github/prompts/</code> <span data-lang="en">(agent mode)</span><span data-lang="vi">(chế độ agent)</span></td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
+    </section>
 
-      <!-- Two-column: Natural vs Slash -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
-        <!-- Natural Language -->
-        <div class="glow-card p-8 reveal">
-          <div class="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center mb-6">
-            <span class="text-xl">🗣️</span>
+    <!-- DEMO (real script output) -->
+    <section id="demo">
+      <div class="container">
+        <div class="section-head">
+          <h2><span data-lang="en">What you actually get</span><span data-lang="vi">Kết quả thực tế</span></h2>
+          <p data-lang="en">Real output of the skill scripts for these requests, shortened. Your AI reads the plan and
+            works through it with you.</p>
+          <p data-lang="vi">Output thật của script cho các yêu cầu này, đã rút gọn. AI đọc kế hoạch và cùng bạn làm
+            theo từng bước.</p>
+        </div>
+
+        <div class="grid grid-2">
+          <div class="terminal">
+            <div class="terminal-bar"><span class="b"></span><span class="b"></span><span class="b"></span><span class="title">/decide</span></div>
+<pre><span class="p">/decide</span> Postgres vs MongoDB vs DynamoDB for our order service
+
+<span class="k">Decision type:</span> Multi-Option Selection
+<span class="k">Options:</span>       Postgres | MongoDB | DynamoDB
+<span class="k">Framework:</span>     Weighted Criteria Matrix
+<span class="k">Criteria:</span>      Tech Stack / Framework Choice
+  Team expertise 25 · Ecosystem 20 · Performance 20
+  Maintainability 20 · Cost and licensing 15
+<span class="w">Bias warnings:</span>
+  Anchoring Effect [High]
+  Availability Heuristic [Medium]
+  Confirmation Bias [High]
+<span class="g">Next:</span> score the options, /decide.deep, /decide.exec</pre>
           </div>
-          <h3 class="text-lg font-semibold mb-3">
-            <span data-lang="en">Natural Language</span>
-            <span data-lang="vi">Ngôn Ngữ Tự Nhiên</span>
-          </h3>
-          <p class="text-zinc-400 text-sm mb-4" data-lang="en">Just describe your problem. The AI reads the skill triggers and
-            auto-selects the right analysis depth.</p>
-          <p class="text-zinc-400 text-sm mb-4" data-lang="vi">Chỉ cần mô tả vấn đề. AI đọc các trigger của skill và
-            tự chọn độ sâu phân tích phù hợp.</p>
-          <div class="rounded-lg bg-zinc-950 border border-zinc-800 p-4 font-mono text-xs" data-lang="en">
-            <span class="text-blue-400">You:</span> <span class="text-zinc-300">"Our revenue dropped 20%, analyze deeply"</span><br>
-            <span class="text-zinc-500">→ AI auto-detects:</span> <span class="text-green-400">problem-solving-pro (deep)</span>
-          </div>
-          <div class="rounded-lg bg-zinc-950 border border-zinc-800 p-4 font-mono text-xs" data-lang="vi">
-            <span class="text-blue-400">Bạn:</span> <span class="text-zinc-300">"Doanh thu giảm 20%, phân tích sâu giúp tôi"</span><br>
-            <span class="text-zinc-500">→ AI tự nhận diện:</span> <span class="text-green-400">problem-solving-pro (deep)</span>
+
+          <div class="terminal">
+            <div class="terminal-bar"><span class="b"></span><span class="b"></span><span class="b"></span><span class="title">/solve.deep</span></div>
+<pre><span class="p">/solve.deep</span> Revenue dropped 20% despite market growth
+
+<span class="k">Type:</span>          Diagnostic
+<span class="k">Context:</span>       Business Performance
+<span class="k">Process:</span>       Define precisely &gt; Profitability tree
+               &gt; Pareto prioritize &gt; Hypothesis-driven analysis
+<span class="k">Decompose:</span>     Profitability Tree
+<span class="k">Prioritize:</span>    Sensitivity Analysis
+<span class="w">Bias warnings:</span>
+  Confirmation Bias · Narrative Fallacy
+  Availability Heuristic · Anchoring
+<span class="g">Next:</span> /solve.exec, /decide, save step-by-step</pre>
           </div>
         </div>
 
-        <!-- Slash Commands -->
-        <div class="glow-card p-8 reveal reveal-delay-1">
-          <div class="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center mb-6">
-            <span class="text-xl">⌨️</span>
-          </div>
-          <h3 class="text-lg font-semibold mb-3">
-            <span data-lang="en">Slash Commands</span>
-            <span data-lang="vi">Lệnh Slash</span>
-          </h3>
-          <p class="text-zinc-400 text-sm mb-4" data-lang="en">Type a command for instant, precise control. No guessing, no ambiguity.</p>
-          <p class="text-zinc-400 text-sm mb-4" data-lang="vi">Gõ lệnh để điều khiển ngay lập tức, chính xác. Không đoán mò, không mơ hồ.</p>
-          <div class="rounded-lg bg-zinc-950 border border-zinc-800 p-4 font-mono text-xs">
-            <span class="text-purple-400">/solve.deep</span> <span class="text-zinc-300">Revenue declined 20% QoQ</span><br>
-            <span class="text-zinc-500">→ Runs:</span> <span class="text-green-400">problem-solving-pro, depth=deep, 1.7× results</span>
-          </div>
+        <div class="terminal" style="margin-top:16px">
+          <div class="terminal-bar"><span class="b"></span><span class="b"></span><span class="b"></span><span class="title">/code.debug</span></div>
+<pre><span class="p">/code.debug</span> Checkout throws after yesterday's deploy when paying with a gift card:
+TypeError: Cannot read properties of undefined (reading 'id')
+    at orderTotal (src/checkout/total.js:10:33)
+
+<span class="k">Context from the project:</span>
+  src/checkout/total.js:10   const discount = cart.coupon.id ? cart.coupon.amount : 0;
+<span class="w">Known error:</span> TypeError: Cannot read properties of undefined/null (JavaScript)
+  Likely causes, what to check first, the root-cause fix
+<span class="k">Steps:</span> Define (failing test) → Decompose → Prioritize → Plan → Execute → Verify → Communicate
+<span class="g">Project checks:</span> npm run test · npm run lint · npm run build</pre>
         </div>
+        <p class="demo-note" data-lang="en">The <code>/code</code> context comes from your own files and git history; the plan
+          above is for a small Node project.</p>
+        <p class="demo-note" data-lang="vi">Phần context của <code>/code</code> lấy từ chính file và lịch sử git của bạn;
+          kế hoạch trên là cho một project Node nhỏ.</p>
       </div>
+    </section>
 
-      <!-- Command Grid -->
-      <div class="rounded-2xl border border-zinc-800 bg-zinc-900/30 overflow-hidden">
-        <div class="grid grid-cols-1 lg:grid-cols-3">
-          <!-- Problem Solving Commands -->
-          <div class="p-6 sm:p-8 border-b lg:border-b-0 lg:border-r border-zinc-800">
-            <div class="flex items-center gap-3 mb-4">
-              <h4 class="text-sm font-bold text-blue-400 tracking-wider uppercase">
-                <span data-lang="en">Problem Solving</span>
-                <span data-lang="vi">Giải Quyết Vấn Đề</span>
-              </h4>
-              <code class="text-[10px] font-mono text-zinc-500 bg-zinc-800/50 px-1.5 py-0.5 rounded">problem-solving-pro</code>
-            </div>
-            <div class="space-y-3">
-              <div class="flex items-center gap-3">
-                <code
-                  class="font-mono text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-200 w-32 text-center shrink-0">/solve</code>
-                <span class="text-zinc-400 text-sm" data-lang="en">Standard analysis</span>
-                <span class="text-zinc-400 text-sm" data-lang="vi">Phân tích chuẩn</span>
-              </div>
-              <div class="flex items-center gap-3">
-                <code
-                  class="font-mono text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-200 w-32 text-center shrink-0">/solve.quick</code>
-                <span class="text-zinc-400 text-sm" data-lang="en">15-second scan</span>
-                <span class="text-zinc-400 text-sm" data-lang="vi">Scan nhanh 15 giây</span>
-              </div>
-              <div class="flex items-center gap-3">
-                <code
-                  class="font-mono text-xs bg-zinc-800 border border-blue-500/30 rounded px-2 py-1 text-blue-300 w-32 text-center shrink-0">/solve.deep</code>
-                <span class="text-zinc-400 text-sm" data-lang="en">All frameworks + alternatives</span>
-                <span class="text-zinc-400 text-sm" data-lang="vi">Mọi framework + giải pháp thay thế</span>
-              </div>
-              <div class="flex items-center gap-3">
-                <code
-                  class="font-mono text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-200 w-32 text-center shrink-0">/solve.exec</code>
-                <span class="text-zinc-400 text-sm" data-lang="en">Board-level briefing</span>
-                <span class="text-zinc-400 text-sm" data-lang="vi">Báo cáo cấp board</span>
-              </div>
-            </div>
+    <!-- HOW IT WORKS -->
+    <section id="flow">
+      <div class="container">
+        <div class="section-head center">
+          <h2><span data-lang="en">How it works</span><span data-lang="vi">Cách hoạt động</span></h2>
+          <p data-lang="en">From your request to a structured plan, on your machine.</p>
+          <p data-lang="vi">Từ yêu cầu của bạn đến một kế hoạch có cấu trúc, ngay trên máy bạn.</p>
+        </div>
+        <ol class="flow">
+          <li class="card">
+            <h3><span data-lang="en">You ask</span><span data-lang="vi">Bạn hỏi</span></h3>
+            <p data-lang="en">A slash command like <code>/solve.deep</code>, or plain words where your AI tool loads skills.</p>
+            <p data-lang="vi">Một lệnh slash như <code>/solve.deep</code>, hoặc lời bình thường nếu công cụ AI tự nạp skill.</p>
+          </li>
+          <li class="card">
+            <h3><span data-lang="en">The skill runs</span><span data-lang="vi">Skill chạy</span></h3>
+            <p data-lang="en">The AI runs the skill's Python script with your request on stdin. No network, no API keys.</p>
+            <p data-lang="vi">AI chạy script Python của skill, yêu cầu được truyền qua stdin. Không mạng, không API key.</p>
+          </li>
+          <li class="card">
+            <h3><span data-lang="en">Search and classify</span><span data-lang="vi">Tìm và phân loại</span></h3>
+            <p data-lang="en">BM25 search over the knowledge base; the request is classified (decision type, problem
+              type, coding task); <code>/code</code> also reads your project.</p>
+            <p data-lang="vi">Tìm BM25 trong knowledge base; phân loại yêu cầu (loại quyết định, loại vấn đề, loại
+              việc code); <code>/code</code> còn đọc project của bạn.</p>
+          </li>
+          <li class="card">
+            <h3><span data-lang="en">A plan with next steps</span><span data-lang="vi">Kế hoạch và bước tiếp theo</span></h3>
+            <p data-lang="en">Framework, steps and gates, bias warnings, a checklist and the next commands; saved as a
+              workspace if you ask.</p>
+            <p data-lang="vi">Framework, các bước và cổng kiểm tra, cảnh báo thiên kiến, checklist và lệnh tiếp theo;
+              lưu thành workspace nếu bạn muốn.</p>
+          </li>
+        </ol>
+
+        <div class="grid grid-2" style="margin-top:16px">
+          <div class="card">
+            <h3><span data-lang="en">Four depth levels</span><span data-lang="vi">Bốn mức độ sâu</span></h3>
+            <ul class="depth">
+              <li><strong>Quick</strong><span data-lang="en">The essentials on one screen</span><span data-lang="vi">Những điểm chính trong một màn hình</span></li>
+              <li><strong>Standard</strong><span data-lang="en">The full plan (default)</span><span data-lang="vi">Kế hoạch đầy đủ (mặc định)</span></li>
+              <li><strong>Deep</strong><span data-lang="en">Alternatives, pre-mortem, pitfalls</span><span data-lang="vi">Phương án thay thế, pre-mortem, lỗi hay gặp</span></li>
+              <li><strong>Executive</strong><span data-lang="en">Recommendation first, risks, decision needed</span><span data-lang="vi">Khuyến nghị trước, rủi ro, quyết định cần đưa ra</span></li>
+            </ul>
           </div>
-
-          <!-- Decision Making Commands -->
-          <div class="p-6 sm:p-8 border-b lg:border-b-0 lg:border-r border-zinc-800">
-            <div class="flex items-center gap-3 mb-4">
-              <h4 class="text-sm font-bold text-purple-400 tracking-wider uppercase">
-                <span data-lang="en">Decision Making</span>
-                <span data-lang="vi">Ra Quyết Định</span>
-              </h4>
-              <code class="text-[10px] font-mono text-zinc-500 bg-zinc-800/50 px-1.5 py-0.5 rounded">make-decision</code>
-            </div>
-            <div class="space-y-3">
-              <div class="flex items-center gap-3">
-                <code
-                  class="font-mono text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-200 w-32 text-center shrink-0">/decide</code>
-                <span class="text-zinc-400 text-sm" data-lang="en">Standard comparison</span>
-                <span class="text-zinc-400 text-sm" data-lang="vi">So sánh chuẩn</span>
-              </div>
-            <div class="flex items-center gap-3">
-                <code
-                  class="font-mono text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-200 w-32 text-center shrink-0">/decide.quick</code>
-                <span class="text-zinc-400 text-sm" data-lang="en">Rapid binary choice</span>
-                <span class="text-zinc-400 text-sm" data-lang="vi">Chọn nhanh giữa 2 options</span>
-              </div>
-              <div class="flex items-center gap-3">
-                <code
-                  class="font-mono text-xs bg-zinc-800 border border-purple-500/30 rounded px-2 py-1 text-purple-300 w-32 text-center shrink-0">/decide.deep</code>
-                <span class="text-zinc-400 text-sm" data-lang="en">Detailed criteria analysis</span>
-                <span class="text-zinc-400 text-sm" data-lang="vi">Phân tích tiêu chí chi tiết</span>
-              </div>
-              <div class="flex items-center gap-3">
-                <code
-                  class="font-mono text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-200 w-32 text-center shrink-0">/decide.exec</code>
-                <span class="text-zinc-400 text-sm" data-lang="en">Leadership-level briefing</span>
-                <span class="text-zinc-400 text-sm" data-lang="vi">Báo cáo cấp lãnh đạo</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Coding Commands -->
-          <div class="p-6 sm:p-8">
-            <div class="flex items-center gap-3 mb-4">
-              <h4 class="text-sm font-bold text-emerald-400 tracking-wider uppercase">
-                <span data-lang="en">Coding</span>
-                <span data-lang="vi">Lập Trình</span>
-              </h4>
-              <code class="text-[10px] font-mono text-zinc-500 bg-zinc-800/50 px-1.5 py-0.5 rounded">code-solving</code>
-            </div>
-            <div class="space-y-3">
-              <div class="flex items-center gap-3">
-                <code
-                  class="font-mono text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-200 w-32 text-center shrink-0">/code</code>
-                <span class="text-zinc-400 text-sm" data-lang="en">Any code change, type auto-detected</span>
-                <span class="text-zinc-400 text-sm" data-lang="vi">Mọi thay đổi code, tự nhận loại việc</span>
-              </div>
-              <div class="flex items-center gap-3">
-                <code
-                  class="font-mono text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-200 w-32 text-center shrink-0">/code.deep</code>
-                <span class="text-zinc-400 text-sm" data-lang="en">Pitfalls per step, full review checklist</span>
-                <span class="text-zinc-400 text-sm" data-lang="vi">Lỗi hay gặp từng bước, checklist review đầy đủ</span>
-              </div>
-              <div class="flex items-center gap-3">
-                <code
-                  class="font-mono text-xs bg-zinc-800 border border-emerald-500/30 rounded px-2 py-1 text-emerald-300 w-32 text-center shrink-0">/code.debug</code>
-                <span class="text-zinc-400 text-sm" data-lang="en">Bug: failing test first, then the fix</span>
-                <span class="text-zinc-400 text-sm" data-lang="vi">Bug: test fail trước, rồi mới sửa</span>
-              </div>
-              <div class="flex items-center gap-3">
-                <code
-                  class="font-mono text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-200 w-32 text-center shrink-0">/code.feature</code>
-                <span class="text-zinc-400 text-sm" data-lang="en">Feature in small tested slices</span>
-                <span class="text-zinc-400 text-sm" data-lang="vi">Tính năng theo từng lát nhỏ có test</span>
-              </div>
-              <div class="flex items-center gap-3">
-                <code
-                  class="font-mono text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-200 w-32 text-center shrink-0">/code.refactor</code>
-                <span class="text-zinc-400 text-sm" data-lang="en">Same behavior, better structure</span>
-                <span class="text-zinc-400 text-sm" data-lang="vi">Giữ hành vi, cải thiện cấu trúc</span>
-              </div>
-              <div class="flex items-center gap-3">
-                <code
-                  class="font-mono text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-200 w-32 text-center shrink-0">/code.perf</code>
-                <span class="text-zinc-400 text-sm" data-lang="en">Measure, optimize, measure again</span>
-                <span class="text-zinc-400 text-sm" data-lang="vi">Đo, tối ưu, đo lại</span>
-              </div>
-              <div class="flex items-center gap-3">
-                <code
-                  class="font-mono text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-200 w-32 text-center shrink-0">/code.review</code>
-                <span class="text-zinc-400 text-sm" data-lang="en">Review the diff and its risk areas</span>
-                <span class="text-zinc-400 text-sm" data-lang="vi">Review diff và vùng rủi ro</span>
-              </div>
-              <div class="flex items-center gap-3">
-                <code
-                  class="font-mono text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-200 w-32 text-center shrink-0">/code.test</code>
-                <span class="text-zinc-400 text-sm" data-lang="en">Tests that can actually fail</span>
-                <span class="text-zinc-400 text-sm" data-lang="vi">Test có thể fail thật</span>
-              </div>
-              <div class="flex items-center gap-3">
-                <code
-                  class="font-mono text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-200 w-32 text-center shrink-0">/code.explain</code>
-                <span class="text-zinc-400 text-sm" data-lang="en">How code works, with file:line evidence</span>
-                <span class="text-zinc-400 text-sm" data-lang="vi">Giải thích code kèm file:dòng</span>
-              </div>
-              <div class="flex items-center gap-3">
-                <code
-                  class="font-mono text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-200 w-32 text-center shrink-0">/code.resume</code>
-                <span class="text-zinc-400 text-sm" data-lang="en">Continue a saved workspace</span>
-                <span class="text-zinc-400 text-sm" data-lang="vi">Làm tiếp workspace đã lưu</span>
-              </div>
-            </div>
+          <div class="card">
+            <h3><span data-lang="en">Step-by-step workspace</span><span data-lang="vi">Workspace từng bước</span></h3>
+            <pre class="tree mono">solving-plans/revenue-drop/
+├── 00-OVERVIEW.md
+├── 01-PROBLEM-DEFINITION.md
+├── 02-DECOMPOSITION.md
+├── 03-PRIORITIZATION.md
+├── 04-ANALYSIS-PLAN.md
+├── 05-FINDINGS.md
+├── 06-SYNTHESIS.md
+├── 07-RECOMMENDATION.md
+├── BIAS-WARNINGS.md
+└── DECISION-LOG.md</pre>
+            <p data-lang="en" style="margin-top:12px"><code>/decide</code> saves to <code>decision-plans/</code>,
+              <code>/code</code> to <code>coding-plans/</code>.</p>
+            <p data-lang="vi" style="margin-top:12px"><code>/decide</code> lưu vào <code>decision-plans/</code>,
+              <code>/code</code> lưu vào <code>coding-plans/</code>.</p>
           </div>
         </div>
       </div>
-    </div>
+    </section>
 
-    <!-- 5. HOW IT WORKS — VERTICAL PIPELINE -->
-    <div class="mx-auto max-w-4xl px-6 mt-32 relative" id="flow">
-      <div class="text-center mb-16 reveal">
-        <h2 class="text-2xl sm:text-4xl font-bold tracking-tight mb-4">
-          <span data-lang="en">How it <span class="text-shimmer">works.</span></span>
-          <span data-lang="vi">Cách <span class="text-shimmer">hoạt động.</span></span>
-        </h2>
-        <p class="text-zinc-400 max-w-2xl mx-auto" data-lang="en">From prompt to structured action plan in 5 intelligent steps</p>
-        <p class="text-zinc-400 max-w-2xl mx-auto" data-lang="vi">Từ câu lệnh đến kế hoạch hành động qua 5 bước thông minh</p>
-      </div>
-
-      <!-- Vertical Flow Container -->
-      <div class="flex flex-col items-center gap-6 relative">
-      
-        <!-- Step 1: Input -->
-        <div class="w-full bg-[#0c0c0c] border border-zinc-800/80 rounded-2xl p-6 sm:p-8 shadow-2xl relative reveal hover:border-blue-500/30 transition-colors duration-500">
-          <div class="flex items-start gap-4 sm:gap-6">
-            <div class="w-10 h-10 shrink-0 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center font-bold font-mono shadow-[0_0_15px_rgba(59,130,246,0.2)]">1</div>
-            <div class="flex-1">
-              <h4 class="text-lg font-semibold text-white mb-4" data-lang="en">Your Prompt</h4>
-              <h4 class="text-lg font-semibold text-white mb-4" data-lang="vi">Đầu Vào Của Bạn</h4>
-              
-              <div class="bg-[#161618] border border-zinc-800 rounded-lg p-4 font-mono text-sm text-zinc-300">
-                <span class="text-blue-400">$</span> <span data-lang="en">"Revenue dropped 20% despite market growth"</span><span data-lang="vi" style="display: none;">"Doanh thu giảm 20% mặc dù thị trường đang tăng trưởng"</span>
-                <br>
-                <div class="mt-3 flex gap-2 items-center text-xs text-zinc-500">
-                  <span data-lang="en">↳ Trigger via:</span><span data-lang="vi" style="display: none;">↳ Gọi qua:</span>
-                  <code class="text-purple-300 bg-purple-900/20 border border-purple-500/20 px-1.5 py-0.5 rounded">/solve.deep</code>
-                </div>
-              </div>
-            </div>
-          </div>
+    <!-- INSTALL -->
+    <section id="install">
+      <div class="container">
+        <div class="section-head">
+          <h2><span data-lang="en">Install in a minute</span><span data-lang="vi">Cài đặt trong một phút</span></h2>
         </div>
-
-        <!-- Connection Arrow -->
-        <div class="text-zinc-600 text-xl animate-bounce reveal reveal-delay-1">↓</div>
-
-        <!-- Step 2: Skill Selection -->
-        <div class="w-full bg-[#0c0c0c] border border-zinc-800/80 rounded-2xl p-6 sm:p-8 shadow-2xl relative reveal reveal-delay-1 hover:border-purple-500/30 transition-colors duration-500">
-          <div class="flex items-start gap-4 sm:gap-6">
-            <div class="w-10 h-10 shrink-0 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center font-bold font-mono shadow-[0_0_15px_rgba(168,85,247,0.2)]">2</div>
-            <div class="flex-1">
-              <h4 class="text-lg font-semibold text-white mb-4" data-lang="en">Skill Routing</h4>
-              <h4 class="text-lg font-semibold text-white mb-4" data-lang="vi">Định Tuyến Kỹ Năng</h4>
-              
-              <div class="flex gap-4">
-                <div class="flex-1 bg-purple-500/5 border border-purple-500/20 rounded-lg p-3 relative overflow-hidden">
-                  <div class="absolute inset-0 bg-gradient-to-r from-purple-500/10 to-transparent pointer-events-none w-1/2"></div>
-                  <code class="text-purple-300 text-xs font-bold block mb-1">problem-solving-pro</code>
-                  <span class="text-[10px] text-zinc-500 uppercase tracking-widest"><span data-lang="en">Selected</span><span data-lang="vi" style="display: none;">Đã chọn</span></span>
-                </div>
-                <div class="flex-1 bg-[#161618] border border-zinc-800 rounded-lg p-3 opacity-50 grayscale">
-                  <code class="text-blue-300 text-xs font-bold block mb-1">make-decision</code>
-                  <span class="text-[10px] text-zinc-500 uppercase tracking-widest"><span data-lang="en">Ignored</span><span data-lang="vi" style="display: none;">Bỏ qua</span></span>
-                </div>
-                <div class="flex-1 bg-[#161618] border border-zinc-800 rounded-lg p-3 opacity-50 grayscale">
-                  <code class="text-emerald-300 text-xs font-bold block mb-1">code-solving</code>
-                  <span class="text-[10px] text-zinc-500 uppercase tracking-widest"><span data-lang="en">Ignored</span><span data-lang="vi" style="display: none;">Bỏ qua</span></span>
-                </div>
-              </div>
-            </div>
+        <div class="grid grid-3">
+          <div class="card">
+            <p class="step-label"><span data-lang="en">STEP 1</span><span data-lang="vi">BƯỚC 1</span></p>
+            <h3><span data-lang="en">Install the CLI</span><span data-lang="vi">Cài CLI</span></h3>
+<pre class="code-block"><span class="k"># macOS / Linux</span>
+curl -fsSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.sh | sh
+<span class="k"># Windows (PowerShell)</span>
+irm https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.ps1 | iex
+<span class="k"># Homebrew</span>
+brew tap HoangTheQuyen/think-better https://github.com/HoangTheQuyen/think-better
+brew install think-better
+<span class="k"># Scoop</span>
+scoop bucket add think-better https://github.com/HoangTheQuyen/think-better
+scoop install think-better
+<span class="k"># Go 1.25+</span>
+go install github.com/HoangTheQuyen/think-better/cmd/think-better@latest</pre>
           </div>
-        </div>
-
-        <!-- Connection Arrow -->
-        <div class="text-zinc-600 text-xl animate-bounce reveal reveal-delay-2">↓</div>
-
-        <!-- Step 3: Search Engine -->
-        <div class="w-full bg-[#0c0c0c] border border-zinc-800/80 rounded-2xl p-6 sm:p-8 shadow-2xl relative reveal reveal-delay-2 hover:border-amber-500/30 transition-colors duration-500">
-          <div class="flex items-start gap-4 sm:gap-6">
-            <div class="w-10 h-10 shrink-0 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center font-bold font-mono shadow-[0_0_15px_rgba(245,158,11,0.2)]">3</div>
-            <div class="flex-1">
-              <h4 class="text-lg font-semibold text-white mb-2" data-lang="en">Parallel Search Database</h4>
-              <h4 class="text-lg font-semibold text-white mb-2" data-lang="vi">Tìm Kiếm Cơ Sở Dữ Liệu</h4>
-              <div class="text-zinc-500 text-xs mb-4" data-lang="en">Searching problem-solving-pro's 111 records across 10 knowledge tables...</div>
-              <div class="text-zinc-500 text-xs mb-4" data-lang="vi">Tìm trong 111 bản ghi của problem-solving-pro qua 10 bảng kiến thức...</div>
-              
-              <div class="grid grid-cols-2 md:grid-cols-3 gap-3 font-mono text-xs">
-                <div class="bg-amber-500/5 border border-amber-500/20 rounded p-2 text-amber-200/80 flex items-center gap-2">
-                  <span class="text-lg">🌳</span> <span>Decomposition <span class="text-amber-500/40 block text-[9px] mt-0.5">Trees &amp; Issue maps</span></span>
-                </div>
-                <div class="bg-amber-500/5 border border-amber-500/20 rounded p-2 text-amber-200/80 flex items-center gap-2">
-                  <span class="text-lg">📈</span> <span>Analysis <span class="text-amber-500/40 block text-[9px] mt-0.5">Toolkits &amp; Tactics</span></span>
-                </div>
-                <div class="bg-amber-500/5 border border-amber-500/20 rounded p-2 text-amber-200/80 flex items-center gap-2">
-                  <span class="text-lg">🛡️</span> <span>Biases <span class="text-amber-500/40 block text-[9px] mt-0.5">Cognitive limits</span></span>
-                </div>
-                <div class="bg-amber-500/5 border border-amber-500/20 rounded p-2 text-amber-200/80 flex items-center gap-2">
-                  <span class="text-lg">🎯</span> <span>Prioritize <span class="text-amber-500/40 block text-[9px] mt-0.5">Impact vs Effort</span></span>
-                </div>
-                <div class="bg-amber-500/5 border border-amber-500/20 rounded p-2 text-amber-200/80 flex items-center gap-2 md:col-span-2">
-                  <span class="text-lg">🧠</span> <span>Mental Models <span class="text-amber-500/40 block text-[9px] mt-0.5">+ Synthesis, Communication, Rules...</span></span>
-                </div>
-              </div>
-            </div>
+          <div class="card">
+            <p class="step-label"><span data-lang="en">STEP 2</span><span data-lang="vi">BƯỚC 2</span></p>
+            <h3><span data-lang="en">Add the skills to your project</span><span data-lang="vi">Thêm skill vào project</span></h3>
+<pre class="code-block"><span class="k"># in your project root</span>
+think-better init --ai claude
+think-better init --ai copilot
+think-better init --ai antigravity
+think-better init --ai opencode
+<span class="k"># once for every project</span>
+think-better init --ai claude --global
+<span class="k"># later, after upgrading</span>
+think-better update</pre>
           </div>
-        </div>
-
-        <!-- Connection Arrow -->
-        <div class="text-zinc-600 text-xl animate-bounce reveal reveal-delay-3">↓</div>
-
-        <!-- Step 4: Advisor -->
-        <div class="w-full bg-[#0c0c0c] border border-zinc-800/80 rounded-2xl p-6 sm:p-8 shadow-2xl relative reveal reveal-delay-3 hover:border-cyan-500/30 transition-colors duration-500">
-          <div class="flex items-start gap-4 sm:gap-6">
-            <div class="w-10 h-10 shrink-0 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center font-bold font-mono shadow-[0_0_15px_rgba(6,182,212,0.2)]">4</div>
-            <div class="flex-1">
-              <h4 class="text-lg font-semibold text-white mb-2" data-lang="en">Intelligence Engine</h4>
-              <h4 class="text-lg font-semibold text-white mb-2" data-lang="vi">Engine Thông Minh</h4>
-              <div class="text-zinc-500 text-xs mb-4" data-lang="en">Synthesizing matched rules into a coherent consulting plan.</div>
-              <div class="text-zinc-500 text-xs mb-4" data-lang="vi">Tổng hợp các quy tắc phù hợp thành một kế hoạch tư vấn.</div>
-
-              <div class="bg-[#161618] border border-zinc-800 rounded-lg p-4 font-mono text-xs">
-                <div class="flex justify-between items-center mb-2 pb-2 border-b border-zinc-700/50">
-                  <span class="text-zinc-400">Classifying problem type...</span>
-                  <span class="text-cyan-400">Opportunity (Medium)</span>
-                </div>
-                <div class="flex justify-between items-center mb-2 pb-2 border-b border-zinc-700/50">
-                  <span class="text-zinc-400">Selecting tree logic...</span>
-                  <span class="text-green-400">Profitability Tree</span>
-                </div>
-                <div class="flex justify-between items-center">
-                  <span class="text-zinc-400">Evaluating cognitive risks...</span>
-                  <span class="text-red-400">Anchoring Bias Flagged</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Connection Arrow -->
-        <div class="text-zinc-600 text-xl animate-bounce reveal reveal-delay-4">↓</div>
-
-        <!-- Step 5: Output -->
-        <div class="w-full bg-[#0c0c0c] border border-zinc-800/80 rounded-2xl p-6 sm:p-8 shadow-2xl relative reveal reveal-delay-4 hover:border-green-500/30 transition-colors duration-500">
-          <div class="flex items-start gap-4 sm:gap-6">
-            <div class="w-10 h-10 shrink-0 rounded-full bg-green-500/10 border border-green-500/20 text-green-400 flex items-center justify-center font-bold font-mono shadow-[0_0_15px_rgba(34,197,94,0.2)]">5</div>
-            <div class="flex-1">
-              <h4 class="text-lg font-semibold text-white mb-2" data-lang="en">Actionable Plan</h4>
-              <h4 class="text-lg font-semibold text-white mb-2" data-lang="vi">Kế Hoạch Khả Thi</h4>
-              
-              <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 relative overflow-hidden">
-                <div class="absolute left-0 top-0 bottom-0 w-1 bg-green-500"></div>
-                <h5 class="text-white text-sm font-bold mb-2 pl-2">## 🎯 Problem-Solving Plan</h5>
-                <div class="pl-2 space-y-2 font-mono text-[10px] text-zinc-400">
-                  <p><span class="text-zinc-300">Decomposition:</span> Map out Price x Volume against Fixed/Variable costs.</p>
-                  <p><span class="text-zinc-300">Analysis:</span> Run Fermi Estimation for actual market size.</p>
-                  <div class="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400/80 p-2 rounded mt-2">
-                    ⚠ Warning: Mitigate Anchoring bias during estimations.
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-      </div>
-    </div>
-
-    <!-- 6. DEPTH LEVELS + STEP-BY-STEP WORKSPACE -->
-    <div class="mx-auto max-w-7xl px-6 mt-32">
-
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <!-- Depth Levels -->
-        <div class="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-8 hover:border-zinc-700 transition-colors">
-          <div class="w-10 h-10 rounded-lg bg-pink-500/10 flex items-center justify-center mb-6">
-            <span class="text-xl">📊</span>
-          </div>
-          <h3 class="text-xl font-semibold mb-2">
-            <span data-lang="en">4 Analysis Depth Levels</span>
-            <span data-lang="vi">4 Mức Độ Sâu Phân Tích</span>
-          </h3>
-          <p class="text-zinc-400 text-sm mb-6" data-lang="en">Match the analysis complexity to your problem complexity.</p>
-          <p class="text-zinc-400 text-sm mb-6" data-lang="vi">Độ phức tạp phân tích tương xứng với độ phức tạp vấn đề.</p>
-
-          <div class="space-y-3">
-            <div class="flex items-center gap-3">
-              <div class="w-16 h-2 rounded-full bg-zinc-700 overflow-hidden">
-                <div class="w-1/4 h-full bg-zinc-400 rounded-full"></div>
-              </div>
-              <span class="text-sm font-mono text-zinc-300 w-20">Quick</span>
-              <span class="text-xs text-zinc-500">0.5× · Core only · 15 sec</span>
-            </div>
-            <div class="flex items-center gap-3">
-              <div class="w-16 h-2 rounded-full bg-zinc-700 overflow-hidden">
-                <div class="w-1/2 h-full bg-blue-500 rounded-full"></div>
-              </div>
-              <span class="text-sm font-mono text-blue-300 w-20">Standard</span>
-              <span class="text-xs text-zinc-500">1.0× · All sections · Default</span>
-            </div>
-            <div class="flex items-center gap-3">
-              <div class="w-16 h-2 rounded-full bg-zinc-700 overflow-hidden">
-                <div class="w-3/4 h-full bg-purple-500 rounded-full"></div>
-              </div>
-              <span class="text-sm font-mono text-purple-300 w-20">Deep</span>
-              <span class="text-xs text-zinc-500">1.7× · + Alternatives · High-stakes</span>
-            </div>
-            <div class="flex items-center gap-3">
-              <div class="w-16 h-2 rounded-full bg-zinc-700 overflow-hidden">
-                <div class="w-full h-full bg-gradient-to-r from-pink-500 to-amber-500 rounded-full"></div>
-              </div>
-              <span class="text-sm font-mono text-amber-300 w-20">Executive</span>
-              <span class="text-xs text-zinc-500">2.5× · Maximum · Board reports</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Step-by-Step Workspace -->
-        <div class="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-8 hover:border-zinc-700 transition-colors">
-          <div class="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center mb-6">
-            <span class="text-xl">📁</span>
-          </div>
-          <h3 class="text-xl font-semibold mb-2">
-            <span data-lang="en">Step-by-Step Workspace</span>
-            <span data-lang="vi">Workspace Từng Bước</span>
-          </h3>
-          <p class="text-zinc-400 text-sm mb-6" data-lang="en">Get a full markdown directory to work through each step methodically.
-          </p>
-          <p class="text-zinc-400 text-sm mb-6" data-lang="vi">Nhận thư mục markdown hoàn chỉnh để làm việc từng bước có hệ thống.
-          </p>
-
-          <div class="rounded-lg bg-zinc-950 border border-zinc-800 p-4 font-mono text-xs leading-relaxed">
-            <div class="text-zinc-500 mb-2">solving-plans/my-project/</div>
-            <div class="pl-3 space-y-1">
-              <div><span class="text-zinc-600">├──</span> <span class="text-blue-300">00-OVERVIEW.md</span></div>
-              <div><span class="text-zinc-600">├──</span> <span class="text-zinc-300">01-PROBLEM-DEFINITION.md</span></div>
-              <div><span class="text-zinc-600">├──</span> <span class="text-zinc-300">02-DECOMPOSITION.md</span></div>
-              <div><span class="text-zinc-600">├──</span> <span class="text-zinc-300">03-PRIORITIZATION.md</span></div>
-              <div><span class="text-zinc-600">├──</span> <span class="text-zinc-300">04-ANALYSIS-PLAN.md</span></div>
-              <div><span class="text-zinc-600">├──</span> <span class="text-zinc-300">05-FINDINGS.md</span></div>
-              <div><span class="text-zinc-600">├──</span> <span class="text-zinc-300">06-SYNTHESIS.md</span></div>
-              <div><span class="text-zinc-600">├──</span> <span class="text-zinc-300">07-RECOMMENDATION.md</span></div>
-              <div><span class="text-zinc-600">├──</span> <span class="text-yellow-300">BIAS-WARNINGS.md</span></div>
-              <div><span class="text-zinc-600">└──</span> <span class="text-green-300">DECISION-LOG.md</span></div>
-            </div>
-            <div class="mt-3 text-zinc-500 text-[10px]" data-lang="en">Each file has editable templates with checklists &amp; placeholders.
-              /decide saves to decision-plans/, /code to coding-plans/ (resume later with /code.resume).
-            </div>
-            <div class="mt-3 text-zinc-500 text-[10px]" data-lang="vi">Mỗi file có template sẵn với checklist &amp; placeholder.
-              /decide lưu vào decision-plans/, /code lưu vào coding-plans/ (làm tiếp bằng /code.resume).
-            </div>
+          <div class="card">
+            <p class="step-label"><span data-lang="en">STEP 3</span><span data-lang="vi">BƯỚC 3</span></p>
+            <h3><span data-lang="en">Ask</span><span data-lang="vi">Hỏi</span></h3>
+<pre class="code-block">/decide Postgres vs MongoDB vs DynamoDB
+/solve Signups dropped 15% after
+       the pricing change
+/code.debug &lt;paste the error&gt;
+/decide.deep Nên dùng AWS hay GCP?</pre>
+            <p style="margin-top:12px" data-lang="en">The skills need Python 3. <code>think-better check</code> verifies it.</p>
+            <p style="margin-top:12px" data-lang="vi">Skill cần Python 3. Kiểm tra bằng <code>think-better check</code>.</p>
           </div>
         </div>
       </div>
+    </section>
 
-      <!-- Next-Step Suggestions Banner -->
-      <div class="mt-8 rounded-2xl border border-zinc-800 bg-zinc-900/30 p-8 hover:border-zinc-700 transition-colors">
-        <div class="flex flex-col sm:flex-row items-start sm:items-center gap-6">
-          <div class="flex-1">
-            <h3 class="text-lg font-semibold mb-2">
-              <span data-lang="en">🔗 Guided Thinking Flow</span>
-              <span data-lang="vi">🔗 Luồng Tư Duy Có Hướng Dẫn</span>
-            </h3>
-            <p class="text-zinc-400 text-sm" data-lang="en">Every output ends with <strong class="text-white">contextual next-step
-                suggestions</strong>. Follow the natural progression from quick scan → deep analysis → decision →
-              documentation.</p>
-            <p class="text-zinc-400 text-sm" data-lang="vi">Mọi output đều kết thúc với <strong class="text-white">gợi ý bước tiếp theo</strong>
-              phù hợp ngữ cảnh. Đi theo luồng tự nhiên: scan nhanh → phân tích sâu → quyết định →
-              tài liệu.</p>
-          </div>
-          <div class="rounded-lg bg-zinc-950 border border-zinc-800 p-4 font-mono text-xs w-full sm:w-auto shrink-0">
-            <div class="text-zinc-300 mb-1.5">🎯 <strong>Next Steps:</strong></div>
-            <div class="text-purple-300">/solve.deep <span class="text-zinc-500">— Deeper analysis</span></div>
-            <div class="text-purple-300">/decide <span class="text-zinc-500">— Compare options</span></div>
-            <div class="text-purple-300">save step-by-step <span class="text-zinc-500">— Workspace</span></div>
-          </div>
+    <!-- DOCS -->
+    <section id="docs">
+      <div class="container">
+        <div class="section-head">
+          <h2><span data-lang="en">Documentation</span><span data-lang="vi">Tài liệu</span></h2>
+          <p data-lang="en">Everything lives in the GitHub repository.</p>
+          <p data-lang="vi">Toàn bộ tài liệu nằm trong repository trên GitHub.</p>
+        </div>
+        <div class="grid grid-3">
+          <a class="card" href="https://github.com/HoangTheQuyen/think-better/blob/main/USER-GUIDE.md">
+            <h3>User Guide</h3>
+            <p data-lang="en">Every skill, command and script option; troubleshooting and FAQ.</p>
+            <p data-lang="vi">Mọi skill, lệnh và tùy chọn script; xử lý sự cố và câu hỏi thường gặp.</p>
+            <span class="more">USER-GUIDE.md →</span>
+          </a>
+          <a class="card" href="https://github.com/HoangTheQuyen/think-better/blob/main/QUICK-REFERENCE.md">
+            <h3>Quick Reference</h3>
+            <p data-lang="en">A one-page cheat sheet of commands and workflows.</p>
+            <p data-lang="vi">Tóm tắt một trang các lệnh và quy trình.</p>
+            <span class="more">QUICK-REFERENCE.md →</span>
+          </a>
+          <a class="card" href="https://github.com/HoangTheQuyen/think-better/tree/main/examples">
+            <h3><span data-lang="en">Examples</span><span data-lang="vi">Ví dụ</span></h3>
+            <p data-lang="en">Worked decisions, a hiring choice, resource allocation and two debugging sessions.</p>
+            <p data-lang="vi">Ví dụ thực tế: ra quyết định, tuyển dụng, phân bổ nguồn lực và hai lần debug.</p>
+            <span class="more">examples/ →</span>
+          </a>
+          <a class="card" href="https://github.com/HoangTheQuyen/think-better/blob/main/CHANGELOG.md">
+            <h3>Changelog</h3>
+            <p data-lang="en">What changed in each release.</p>
+            <p data-lang="vi">Thay đổi trong từng phiên bản.</p>
+            <span class="more">CHANGELOG.md →</span>
+          </a>
+          <a class="card" href="https://github.com/HoangTheQuyen/think-better/blob/main/CONTRIBUTING.md">
+            <h3><span data-lang="en">Contributing</span><span data-lang="vi">Đóng góp</span></h3>
+            <p data-lang="en">Add a skill, knowledge records, a slash command or an AI tool.</p>
+            <p data-lang="vi">Thêm skill, bản ghi kiến thức, lệnh slash hoặc công cụ AI.</p>
+            <span class="more">CONTRIBUTING.md →</span>
+          </a>
+          <a class="card" href="https://github.com/HoangTheQuyen/think-better/discussions">
+            <h3>Discussions</h3>
+            <p data-lang="en">Questions, ideas and what you would like next.</p>
+            <p data-lang="vi">Câu hỏi, ý tưởng và điều bạn muốn có tiếp theo.</p>
+            <span class="more">GitHub Discussions →</span>
+          </a>
         </div>
       </div>
-    </div>
-
-    <!-- 7. INSTALLATION BLOCKS -->
-    <div class="mx-auto max-w-7xl px-6 mt-32 mb-20">
-      <h2 class="text-2xl sm:text-3xl font-bold tracking-tight mb-12">
-        <span data-lang="en">Install in seconds.</span>
-        <span data-lang="vi">Cài đặt trong vài giây.</span>
-      </h2>
-
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-        <!-- Step 1 -->
-        <div>
-          <div class="text-sm font-medium text-blue-500 mb-2" data-lang="en">STEP 1</div>
-          <div class="text-sm font-medium text-blue-500 mb-2" data-lang="vi">BƯỚC 1</div>
-          <h3 class="text-lg font-semibold mb-4 text-white">
-            <span data-lang="en">Install the CLI</span>
-            <span data-lang="vi">Cài đặt CLI</span>
-          </h3>
-          <div
-            class="rounded-lg bg-card border border-border p-4 font-mono text-xs overflow-x-auto text-zinc-300 no-scrollbar whitespace-nowrap">
-            <span class="text-zinc-500"># macOS / Linux</span><button
-              class="ml-2 px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-[10px] text-zinc-400"
-              onclick="copyText('curl -fsSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.sh | sh', this)">Copy</button><br>
-            curl -fsSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.sh | sh<br><br>
-            <span class="text-zinc-500"># Windows (PowerShell)</span><button
-              class="ml-2 px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-[10px] text-zinc-400"
-              onclick="copyText('irm https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.ps1 | iex', this)">Copy</button><br>
-            irm https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.ps1 | iex<br><br>
-            <span class="text-zinc-500"># Homebrew</span><br>
-            brew tap HoangTheQuyen/think-better https://github.com/HoangTheQuyen/think-better<br>
-            brew install think-better<br><br>
-            <span class="text-zinc-500"># Scoop</span><br>
-            scoop bucket add think-better https://github.com/HoangTheQuyen/think-better<br>
-            scoop install think-better<br><br>
-            <span class="text-zinc-500"># Go 1.25+</span><br>
-            go install github.com/HoangTheQuyen/think-better/cmd/think-better@latest
-          </div>
-        </div>
-        <!-- Step 2 -->
-        <div>
-          <div class="text-sm font-medium text-blue-500 mb-2" data-lang="en">STEP 2</div>
-          <div class="text-sm font-medium text-blue-500 mb-2" data-lang="vi">BƯỚC 2</div>
-          <h3 class="text-lg font-semibold mb-4 text-white">
-            <span data-lang="en">Initialize Skills</span>
-            <span data-lang="vi">Khởi Tạo Skills</span>
-          </h3>
-          <div class="rounded-lg bg-card border border-border p-4 font-mono text-xs overflow-x-auto text-zinc-300">
-            <span class="text-zinc-500"># Target your AI assistant</span><br>
-            think-better init <span class="text-blue-400">--ai claude</span><br>
-            think-better init <span class="text-blue-400">--ai copilot</span><br>
-            think-better init <span class="text-blue-400">--ai antigravity</span><br>
-            think-better init <span class="text-blue-400">--ai opencode</span><br><br>
-            <span class="text-zinc-500" data-lang="en"># Or once for every project</span>
-            <span class="text-zinc-500" data-lang="vi"># Hoặc một lần cho mọi project</span><br>
-            think-better init <span class="text-blue-400">--ai claude --global</span>
-          </div>
-        </div>
-        <!-- Step 3 -->
-        <div>
-          <div class="text-sm font-medium text-blue-500 mb-2" data-lang="en">STEP 3</div>
-          <div class="text-sm font-medium text-blue-500 mb-2" data-lang="vi">BƯỚC 3</div>
-          <h3 class="text-lg font-semibold mb-4 text-white">
-            <span data-lang="en">Start Thinking</span>
-            <span data-lang="vi">Bắt Đầu Tư Duy</span>
-          </h3>
-          <div class="rounded-lg bg-zinc-900 border border-zinc-700 p-4 font-sans text-sm">
-            <div class="bg-blue-500 text-white rounded-lg rounded-br-none px-4 py-2 w-fit mb-3 text-xs ml-auto">
-              Help me compare Next.js vs Go for my new API.
-            </div>
-            <div class="bg-zinc-800 text-zinc-200 rounded-lg rounded-bl-none px-4 py-2 w-fit text-xs max-w-[85%]">
-              <span class="font-semibold block mb-1">Decision Type: Tech Stack</span>
-              I'll use the Weighted Matrix framework. First, let's identify your core metric...
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
+    </section>
   </main>
 
-  <!-- Minimal Footer -->
-  <footer class="border-t border-zinc-900 bg-black">
-    <div class="mx-auto max-w-7xl px-6 py-12 md:flex md:items-center md:justify-between">
-      <div class="flex justify-center md:justify-start gap-6 mb-6 md:mb-0">
-        <a href="https://github.com/HoangTheQuyen/think-better"
-          class="text-sm text-zinc-500 hover:text-white transition-colors">GitHub</a>
-        <a href="https://github.com/HoangTheQuyen/think-better/blob/main/CONTRIBUTING.md"
-          class="text-sm text-zinc-500 hover:text-white transition-colors">
-          <span data-lang="en">Contributing</span>
-          <span data-lang="vi">Đóng Góp</span>
-        </a>
-        <a href="https://github.com/HoangTheQuyen/think-better/issues"
-          class="text-sm text-zinc-500 hover:text-white transition-colors">
-          <span data-lang="en">Report an Issue</span>
-          <span data-lang="vi">Báo Lỗi</span>
-        </a>
-      </div>
-      <div class="text-center md:text-left text-sm text-zinc-500">
-        MIT License &copy; 2026 HoangTheQuyen.
-      </div>
+  <footer class="site-footer">
+    <div class="container footer-row">
+      <nav class="footer-links" aria-label="Footer">
+        <a href="https://github.com/HoangTheQuyen/think-better">GitHub</a>
+        <a href="https://github.com/HoangTheQuyen/think-better/blob/main/USER-GUIDE.md">User Guide</a>
+        <a href="https://github.com/HoangTheQuyen/think-better/blob/main/CONTRIBUTING.md"><span data-lang="en">Contributing</span><span data-lang="vi">Đóng góp</span></a>
+        <a href="https://github.com/HoangTheQuyen/think-better/issues"><span data-lang="en">Report an issue</span><span data-lang="vi">Báo lỗi</span></a>
+      </nav>
+      <p>MIT License &copy; 2026 HoangTheQuyen</p>
     </div>
   </footer>
 
   <script>
-    // Helper to copy any text
-    function copyText(text, btnElement, isIconBtn = false) {
-      navigator.clipboard.writeText(text).then(() => {
-        if (isIconBtn) {
-          const copyIcon = btnElement.querySelector('.copy-icon');
-          const checkIcon = btnElement.querySelector('.check-icon');
-          if (copyIcon && checkIcon) {
-            copyIcon.classList.add('hidden');
-            checkIcon.classList.remove('hidden');
-            setTimeout(() => {
-              copyIcon.classList.remove('hidden');
-              checkIcon.classList.add('hidden');
-            }, 2000);
-          }
-        } else {
-          const originalText = btnElement.innerText;
-          btnElement.innerText = 'Copied!';
-          btnElement.classList.add('text-green-400');
-          setTimeout(() => {
-            btnElement.innerText = originalText;
-            btnElement.classList.remove('text-green-400');
-          }, 2000);
-        }
-      });
-    }
-  </script>
+    (function () {
+      var root = document.documentElement;
+      document.body.classList.remove('no-js');
 
-  <script>
-    // i18n Language Switcher
-    function setLang(lang) {
-      // Update active class on buttons
-      document.querySelectorAll('.lang-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.textContent.trim() === (lang === 'en' ? 'EN' : 'VN'));
-      });
-
-      // Toggle visibility of data-lang elements
-      document.querySelectorAll('[data-lang]').forEach(el => {
-        el.classList.toggle('active', el.dataset.lang === lang);
-      });
-
-      // Update html lang attribute
-      document.documentElement.lang = lang;
-
-      // Persist preference
-      localStorage.setItem('tb-lang', lang);
-    }
-
-    // Initialize language from localStorage or browser preference
-    (function() {
-      const saved = localStorage.getItem('tb-lang');
-      const browserLang = navigator.language || navigator.userLanguage;
-      const isVN = browserLang.startsWith('vi');
-      setLang(saved || (isVN ? 'vi' : 'en'));
-    })();
-  </script>
-  <script>
-    // Scroll Reveal (Intersection Observer)
-    const revealObserver = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('visible');
-          revealObserver.unobserve(entry.target);
-        }
-      });
-    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
-
-    document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
-  </script>
-
-  <script>
-    // Theme switching
-    function toggleTheme() {
-      const html = document.documentElement;
-      const current = html.getAttribute('data-theme');
-      const next = current === 'dark' ? 'light' : 'dark';
-      setTheme(next);
-    }
-
-    function setTheme(theme) {
-      document.documentElement.setAttribute('data-theme', theme);
-      localStorage.setItem('tb-theme', theme);
-      // Update icon visibility
-      const lightIcon = document.querySelector('.theme-icon-light');
-      const darkIcon = document.querySelector('.theme-icon-dark');
-      if (lightIcon && darkIcon) {
-        lightIcon.style.display = theme === 'light' ? 'inline' : 'none';
-        darkIcon.style.display = theme === 'dark' ? 'inline' : 'none';
+      // Storage can be blocked (private mode, strict settings): never let that break the page.
+      function readLang() {
+        try { return window.localStorage.getItem('tb-lang'); } catch (e) { return null; }
       }
-    }
+      function saveLang(lang) {
+        try { window.localStorage.setItem('tb-lang', lang); } catch (e) { /* ignore */ }
+      }
 
-    // Initialize theme from localStorage (default: dark)
-    (function() {
-      const saved = localStorage.getItem('tb-theme');
-      setTheme(saved || 'dark');
+      function setLang(lang, persist) {
+        if (lang !== 'vi') lang = 'en';
+        root.setAttribute('data-ui-lang', lang);
+        root.lang = lang;
+        var buttons = document.querySelectorAll('.lang-btn');
+        for (var i = 0; i < buttons.length; i++) {
+          buttons[i].setAttribute('aria-pressed', String(buttons[i].getAttribute('data-set-lang') === lang));
+        }
+        if (persist) saveLang(lang);
+      }
+
+      var browserLang = (navigator.language || '').toLowerCase();
+      setLang(readLang() || (browserLang.indexOf('vi') === 0 ? 'vi' : 'en'), false);
+
+      var langButtons = document.querySelectorAll('.lang-btn');
+      for (var i = 0; i < langButtons.length; i++) {
+        langButtons[i].addEventListener('click', function () {
+          setLang(this.getAttribute('data-set-lang'), true);
+        });
+      }
+
+      // Close the mobile menu after following a link.
+      var menu = document.querySelector('.nav-mobile');
+      if (menu) {
+        menu.addEventListener('click', function (e) {
+          if (e.target.closest && e.target.closest('a')) menu.removeAttribute('open');
+        });
+      }
+
+      // Copy buttons (hidden when the Clipboard API is unavailable).
+      var copyButtons = document.querySelectorAll('.copy-btn');
+      for (var j = 0; j < copyButtons.length; j++) {
+        var btn = copyButtons[j];
+        if (!navigator.clipboard) { btn.style.display = 'none'; continue; }
+        btn.addEventListener('click', function () {
+          var b = this;
+          navigator.clipboard.writeText(b.getAttribute('data-copy')).then(function () {
+            var label = b.textContent;
+            b.textContent = root.getAttribute('data-ui-lang') === 'vi' ? 'Đã chép' : 'Copied';
+            b.classList.add('copied');
+            setTimeout(function () { b.textContent = label; b.classList.remove('copied'); }, 1800);
+          }, function () { /* ignore: the text stays selectable */ });
+        });
+      }
     })();
   </script>
 </body>

@@ -1,6 +1,7 @@
 # User Guide: How to Use Think Better
 
-A step-by-step guide to installing and using the bundled skills for structured thinking, decision-making, and problem-solving with your AI assistant.
+How to install the three bundled skills, use their slash commands, run their scripts yourself,
+and fix the usual problems. For a one-page summary see the [Quick Reference](QUICK-REFERENCE.md).
 
 ---
 
@@ -15,7 +16,7 @@ curl -fsSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/ins
 # Windows (PowerShell)
 irm https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.ps1 | iex
 
-# Homebrew / Scoop / go install: see the README
+# Homebrew / Scoop / go install / Nix: see the README
 
 # Or build from source:
 git clone https://github.com/HoangTheQuyen/think-better.git && cd think-better
@@ -23,7 +24,9 @@ make build          # Linux/macOS
 .\build.ps1         # Windows
 ```
 
-### 2. Install a Skill
+### 2. Install the Skills in Your Project
+
+Run this in your project's root folder:
 
 ```bash
 # For Claude Code
@@ -43,9 +46,21 @@ think-better init --ai claude --global
 
 # Only one skill (its slash commands come with it)
 think-better init --ai claude --skill code-solving
+
+# See what would be written first
+think-better init --ai claude --dry-run
 ```
 
-#### Keeping skills up to date
+Where the files go:
+
+| AI tool | Skills | Slash commands | `--global` |
+|---------|--------|----------------|------------|
+| Claude Code | `.claude/skills/<skill>/` | `.claude/commands/` | `~/.claude/skills/`, `~/.claude/commands/` |
+| GitHub Copilot | `.github/prompts/<skill>/` | `.github/prompts/*.prompt.md` | not supported |
+| Antigravity | `.agents/skills/<skill>/` | `.agents/workflows/` | `~/.gemini/config/skills/`, `~/.gemini/config/workflows/` |
+| OpenCode | `.opencode/skills/<skill>/` | `.opencode/commands/` | `~/.config/opencode/skills/`, `~/.config/opencode/commands/` |
+
+### 3. Keep the Skills Up to Date
 
 After upgrading the `think-better` binary, update every install (this project and `--global`) at once:
 
@@ -55,116 +70,206 @@ think-better update --dry-run # show what would change
 think-better update           # apply (limit with --ai, --skill or --global)
 ```
 
-Each install records what it wrote in `.think-better.json` (and `.think-better-workflows.json` next to the slash commands). Files you edited are never overwritten silently: `update` (and `init` on an existing install) keeps them and writes the new version next to them as `<file>.new`; `--force` replaces them after saving yours as `<file>.bak`. `uninstall` likewise only deletes files you have not modified.
+Each install records what it wrote in `.think-better.json` (and `.think-better-workflows.json`
+next to the slash commands). Files you edited are never overwritten silently: `update` (and `init`
+on an existing install) keeps them and writes the new version next to them as `<file>.new`;
+`--force` replaces them after saving yours as `<file>.bak`. `uninstall` likewise only deletes
+files you have not modified. See [Troubleshooting](#troubleshooting) for what to do with `.new` files.
 
-### 3. Open Your AI Assistant
+### 4. Open Your AI Assistant
 
-- **Claude:** Open Claude Code or VS Code with Claude extension
-- **Copilot:** Open VS Code, switch Copilot Chat to agent mode; the commands are prompt files in `.github/prompts/`
-- **OpenCode:** Run `opencode` in the project; the commands are in `.opencode/commands/`
-- **Antigravity:** Open your Antigravity-powered editor
+- **Claude Code:** open Claude Code (terminal, IDE extension or desktop) in the project
+- **GitHub Copilot:** open VS Code and switch Copilot Chat to **agent mode**; the commands are prompt files in `.github/prompts/`
+- **OpenCode:** run `opencode` in the project; the commands are in `.opencode/commands/`
+- **Antigravity:** open the project in Antigravity; the commands are in `.agents/workflows/`
 
-### 4. Start Using
+### 5. Start Using
 
-Just describe your problem naturally, or use a slash command:
+Type a slash command, or describe the problem in your own words:
+
 ```
-"Should we migrate to microservices?"
 /decide.deep Should we migrate to microservices?
 /solve.quick Signups dropped 15% after the pricing change
 /code.debug TypeError in checkout after the last deploy
+"Should we migrate to microservices?"
 ```
+
+**Natural language** works where the AI tool loads skills by their description: Claude Code,
+OpenCode and Antigravity pick the skill from its trigger phrases ("should I", "root cause",
+"fix this bug", "nên chọn", "tìm nguyên nhân", ...). **GitHub Copilot** does not load the skill
+files under `.github/prompts/<skill>/` on its own, so use the slash commands there.
+
+### All slash commands
+
+| Skill | Command | Use it for |
+|-------|---------|------------|
+| make-decision | `/decide.quick` | A fast scan: options, framework, top criteria, two biases |
+| | `/decide` | The default decision plan |
+| | `/decide.deep` | High stakes: pre-mortem, sensitivity, information to gather |
+| | `/decide.exec` | A recommendation-first brief for leadership |
+| | `/decide.resume` | Continue a saved decision workspace (no text: the latest) |
+| problem-solving-pro | `/solve.quick` | A short scan of a problem |
+| | `/solve` | The default 7-step plan |
+| | `/solve.deep` | Alternatives, more mental models and pitfalls |
+| | `/solve.exec` | Adds an executive summary (SCR), key risks and the decision needed |
+| | `/solve.resume` | Continue a saved problem workspace (no text: the latest) |
+| code-solving | `/code` | Any code change; the task type is detected |
+| | `/code.deep` | The same with more techniques and the full review checklist |
+| | `/code.debug` | Bugs and crashes: a failing test first, then the fix |
+| | `/code.feature` | A feature in small tested slices |
+| | `/code.refactor` | Better structure, same behavior |
+| | `/code.perf` | Measure, optimize, measure again |
+| | `/code.review` | Review the diff and the risk areas it touches (no text: your current changes) |
+| | `/code.test` | Tests that can actually fail |
+| | `/code.explain` | How code works, with file:line evidence, without changing it |
+| | `/code.resume` | Continue a saved coding workspace (no text: the latest) |
+
+The other commands ask what you need when you type them without text. Each skill also knows
+what it is not for and points you to the right one: bugs and code changes go to `/code*`,
+choices between options to `/decide*`, business and other non-code problems to `/solve*`. The AI
+answers in your language (the plan the script prints is in English; it translates it for you).
+
+Add *"save step-by-step"* (or in Vietnamese *"lưu"*, *"lưu lại"*, *"lưu từng bước"*) to any request to get a Markdown
+workspace with one file per step: `decision-plans/<name>/`, `solving-plans/<name>/` or
+`coding-plans/<name>/`. Saving again keeps the files you already filled in.
 
 ---
 
 ## 📚 Bundled Skills
 
+### Running the scripts yourself
+
+Your AI runs the skill scripts for you. To run them yourself, work from your **project root**
+and call the script by its path (Python 3, standard library only; on Windows use `python`):
+
+```bash
+# Paths for a Claude Code install. Other tools: .opencode/skills/..., .agents/skills/...,
+# .github/prompts/... (Copilot); --global installs: see the table in Quick Start.
+DECIDE=.claude/skills/make-decision/scripts/search.py
+SOLVE=.claude/skills/problem-solving-pro/scripts/search.py
+CODE=.claude/skills/code-solving/scripts/search.py
+
+python3 $DECIDE "Postgres vs MongoDB vs DynamoDB for our order service" --plan
+```
+
+PowerShell: `$DECIDE = ".claude/skills/make-decision/scripts/search.py"; python $DECIDE "..." --plan`.
+
+Plans, workspaces and journals are written to the folder you run from (or `-o <dir>`), never
+inside the skill folder. For text with quotes, backticks or `$`, pass it on stdin with `--stdin`
+(the slash commands always do):
+
+```bash
+python3 $DECIDE --stdin --plan <<'THINK_BETTER_EOF_7f3a'
+Should we "rewrite" the $billing service?
+THINK_BETTER_EOF_7f3a
+```
+
+The rest of this guide uses `$DECIDE`, `$SOLVE` and `$CODE` for these paths.
+
 ### Skill 1: make-decision
 
-**What it does:** Guides you through structured decision-making with frameworks, bias detection, and facilitation techniques.
+**What it does:** Guides you through structured decision-making with frameworks, bias detection,
+weighted scoring and a decision journal.
 
 **Best for:**
-- Strategic choices (keep it minimal vs scale up)
-- Multi-option selection (choose between 3+ vendors/technologies)
-- Resource allocation (budget distribution)
-- Team decisions (need group consensus)
+- Choosing between two or more options (technologies, vendors, candidates, offers)
+- Resource allocation (budget, headcount)
+- Strategic choices and decisions under uncertainty
+- Team decisions that need agreement
 
-**How it works:** your AI runs these commands for you. To run them yourself, work from the
-skill's folder (`.claude/skills/make-decision` for Claude Code, `.github/prompts/make-decision`
-for Copilot, `.opencode/skills/make-decision` for OpenCode, `.agents/skills/make-decision` for
-Antigravity); plans and journals are still saved in your project root.
+**Knowledge base:** 10 decision frameworks, 8 decision types, 12 cognitive biases with remedies,
+10 analysis techniques, 15 criteria templates (5 criteria each) and 8 facilitation techniques.
+
 ```bash
-cd .claude/skills/make-decision   # or your AI tool's skill folder
+# Step 1: Generate a decision plan (always start here)
+python3 $DECIDE "your decision question here" --plan -p "Project Name"
 
-# Step 1: Generate decision plan (always start here!)
-python scripts/search.py "your decision question here" --plan -p "Project Name"
+# Step 2: Look things up in one domain
+python3 $DECIDE "relevant keywords" --domain frameworks    # 10 decision frameworks
+python3 $DECIDE "relevant keywords" --domain types         # 8 decision types
+python3 $DECIDE "relevant keywords" --domain biases        # 12 cognitive biases
+python3 $DECIDE "relevant keywords" --domain criteria      # 15 criteria templates
+python3 $DECIDE "relevant keywords" --domain analysis      # 10 analysis techniques
+python3 $DECIDE "relevant keywords" --domain facilitation  # 8 facilitation techniques
 
-# Step 2: Deep-dive into specific domains
-python scripts/search.py "relevant keywords" --domain frameworks  # 10 frameworks
-python scripts/search.py "relevant keywords" --domain biases     # 12 cognitive biases
-python scripts/search.py "relevant keywords" --domain criteria   # Evaluation templates
-python scripts/search.py "relevant keywords" --domain analysis   # 10 analysis techniques
-python scripts/search.py "relevant keywords" --domain facilitation # Group decision tips
-
-# Step 3: Create comparison matrix for options; add --scores for totals, winner and sensitivity
-python scripts/search.py --matrix "Option A vs Option B vs Option C" \
+# Step 3: Comparison matrix (at most 5 criteria); add --scores for totals, winner and sensitivity
+python3 $DECIDE --matrix "Option A vs Option B vs Option C" \
   -c "criterion1:3,criterion2:2,criterion3:1" --scores "Option A:4,3,5;Option B:5,4,3;Option C:3,3,4"
 
 # Step 4: Document the decision (with your confidence and when to review it)
-python scripts/search.py --journal "Decision title" -p "Project Name" --confidence 70 --review-in 30d
+python3 $DECIDE --journal "Decision title" -p "Project Name" --confidence 70 --review-in 30d
 
-# Step 5: Update with actual outcome (later); --review --due lists decisions due for review
-python scripts/search.py --journal --review --due
-python scripts/search.py --journal --update "decision-slug" \
+# Step 5: Later: list decisions due for review, then record the actual outcome
+python3 $DECIDE --journal --review --due
+python3 $DECIDE --journal --update "decision-slug" \
   --outcome "What actually happened and what you learned"
 ```
 
-The plan names the options it found in your question, suggests five weighted criteria, and
-warns about the biases that fit the decision type. `--depth quick|standard|deep|executive` changes
-what it contains (executive is a recommendation-first brief). Questions in Vietnamese work too
-("Nên chọn React hay Vue?"). Say "save step-by-step" to get a `decision-plans/<name>/` workspace
-with one file per step and a **Done?** column in `00-OVERVIEW.md`; in a later session,
-`/decide.resume` (or `search.py --status`) shows which steps are done and continues at the next one.
+The plan names the options it found in your question, suggests five weighted criteria from the
+best matching template, and warns about the biases that fit the decision type. Example:
+`"Postgres vs MongoDB vs DynamoDB for our order service"` gives **Multi-Option Selection**, the
+**Weighted Criteria Matrix**, the **Tech Stack / Framework Choice** criteria and warnings for
+Anchoring Effect, Availability Heuristic and Confirmation Bias.
+
+`--depth quick|standard|deep|executive` changes what the plan contains (executive is a
+recommendation-first brief). Questions in Vietnamese work too, with or without accents
+("Nên chọn React hay Vue?", "Nen chon React hay Vue?"). Journals go to `.decisions/` in your
+project. Say "save step-by-step" to get a `decision-plans/<name>/` workspace with one file per
+step and a **Done?** column in `00-OVERVIEW.md`; in a later session, `/decide.resume` (or
+`$DECIDE --status`) shows which steps are done and continues at the next one.
 
 ### Skill 2: problem-solving-pro
 
-**What it does:** Guides you through structured problem-solving with hypothesis testing, root cause analysis, and systematic investigation.
+**What it does:** Guides you through the 7-step problem-solving method (Define → Disaggregate →
+Prioritize → Workplan → Analyze → Synthesize → Communicate) with decomposition trees,
+prioritization, analysis tools, mental models and bias warnings.
 
 **Best for:**
-- Root cause analysis of business and product problems (revenue, churn, conversion)
+- Root cause analysis of business and product problems (revenue, churn, conversion, signups)
 - Organizational and process problems
 - Market, cost and strategy questions
 - Data and analytics investigations
 
-For bugs, incidents and other code changes, use **code-solving** (Skill 3).
+For bugs, incidents and other problems in code, use **code-solving** (Skill 3, `/code.debug`):
+it adds a failing test before the fix and runs your project's own checks.
 
 **How it works:**
 
-In your AI assistant:
 ```
-/solve My API sometimes returns stale data after updates. 
-Happens intermittently (~2% of requests), no clear pattern by time or user.
-Stack: Node.js + Express, PostgreSQL with read replica, Redis cache.
+/solve Signups dropped 15% after the pricing change. Traffic is flat, the drop is
+mostly on the annual plan, and the pricing page was redesigned at the same time.
 
 # Or with depth control:
-/solve.deep My API sometimes returns stale data after updates...
-/solve.exec Revenue declined 20% despite market growth
+/solve.quick Signups dropped 15% after the pricing change
+/solve.deep Revenue dropped 20% despite market growth
+/solve.exec Revenue dropped 20% despite market growth
 ```
 
-The skill will guide you through:
-1. **Problem Decomposition** — Break system into layers
-2. **Hypothesis Generation** — Rank potential causes by likelihood
-3. **Evidence Collection** — Specific tests to validate each hypothesis
-4. **Root Cause Identification** — 5 Whys analysis
-5. **Solution Design** — Compare quick fix vs proper fix vs architectural fix
-6. **Prevention** — Monitoring to catch this in future
+For the first request the plan classifies the problem as **Diagnostic** in the **Business
+Performance** context and recommends:
 
-Add `--type` and `--category` when you know them (e.g. `--type Diagnostic --category "Business Performance"`);
-the plan shows which **Type** and **Context** it used.
-Requests can be in English or Vietnamese (accents optional). `/solve.quick`, `/solve`, `/solve.deep` and
-`/solve.exec` give increasingly detailed plans; `/solve.exec` adds an executive summary (SCR), key risks and
-the decision needed. Say "save step-by-step" to get a `solving-plans/<name>/` workspace with one file per
-step; in a later session, `/solve.resume` (or `search.py --status`) shows which steps are done and continues
-at the first open one.
+1. **Define precisely**: a problem statement that passes the "so what?" test
+2. **Disaggregate** with a Profitability Tree (price × volume, fixed and variable costs)
+3. **Prioritize** with Sensitivity Analysis: which branches move the answer most
+4. **Analyze** with Benchmarking, root cause analysis (5 Whys) and A/B tests
+5. **Communicate** with the Pyramid Principle: the answer first, then the arguments
+6. **Watch for** Confirmation Bias, Narrative Fallacy and Availability Heuristic
+
+Run it yourself:
+
+```bash
+python3 $SOLVE "Signups dropped 15% after the pricing change" --plan
+python3 $SOLVE "Signups dropped 15% after the pricing change" --plan --depth deep -f markdown
+python3 $SOLVE "root cause 5 whys" --domain analysis
+```
+
+Add `--type` and `--category` when you know them (e.g. `--type Diagnostic --category "Business
+Performance"`); the plan shows which **Type** and **Context** it used. Requests can be in English
+or Vietnamese (accents optional): "doanh thu giảm 20% quý này" and "doanh thu giam 20% quy nay"
+give the same plan. `/solve.exec` adds an executive summary (SCR), key risks and the decision
+needed. Say "save step-by-step" to get a `solving-plans/<name>/` workspace with one file per step;
+in a later session, `/solve.resume` (or `$SOLVE --status`) shows which steps are done and
+continues at the first open one.
 
 ### Skill 3: code-solving
 
@@ -180,12 +285,14 @@ Prioritize, Plan, Execute, Verify, Communicate — and requires real evidence at
 - Code review with concrete failure scenarios (`/code.review`)
 - Writing tests that can actually fail, with coverage before and after (`/code.test`)
 - Understanding unfamiliar code with file:line evidence, without changing it (`/code.explain`)
-- Security fixes and few-line changes (`/code`, auto-detected, or `--type security|quick-fix`)
+- Security fixes and few-line changes (`/code`, auto-detected, or `--type security|quick-fix`);
+  trivial edits (a typo, a one-line change) are just done, without the 7 steps
 - Flaky tests, production incidents and migrations (`/code`, auto-detected, or `--type flaky-test|incident|migration`)
 
 **How it works:**
+
 ```
-/code.debug Checkout throws "TypeError: cannot read properties of undefined (reading 'id')"
+/code.debug Checkout throws "TypeError: Cannot read properties of undefined (reading 'id')"
 since yesterday's deploy. Repro: add a gift card, then pay.
 
 /code.feature Add CSV export to the reports page (date range, max 10k rows)
@@ -215,93 +322,88 @@ check first and the root-cause fix.
 
 The skill finds your project's own commands (npm/pnpm/yarn, Make, Go, Cargo, pytest with
 uv/Poetry/PDM, Maven/Gradle, …), the command to run a single test, and the check steps your
-CI runs: `python3 .claude/skills/code-solving/scripts/search.py --detect`.
-Say "save step-by-step" to get a `coding-plans/<name>/` workspace with one file per step.
-Saving again keeps the files you already filled in. The AI ticks each step's gate in
-`00-OVERVIEW.md` once its evidence is written down; in a later session, `/code.resume` (or
-`search.py --status`) shows which steps are done and continues at the first open gate.
+CI runs: `python3 $CODE --detect`. `python3 $CODE --context "<error text>"` shows only what the
+request points at in the project. Say "save step-by-step" to get a `coding-plans/<name>/`
+workspace with one file per step. Saving again keeps the files you already filled in. The AI
+ticks each step's gate in `00-OVERVIEW.md` once its evidence is written down; in a later
+session, `/code.resume` (or `$CODE --status`) shows which steps are done and continues at the
+first open gate.
 
 ---
 
 ## 🎯 Decision-Making Workflows
 
+Each scenario shows the commands the AI runs (or you run, from the project root). With a slash
+command you only type the first line, e.g. `/decide Keep frontend simple or add more features?`.
+
 ### Scenario A: Binary Choice (2 Options)
 
 **Example:** "Keep frontend simple or add more features?"
 
-**Workflow:**
-
 ```bash
-# Step 1: Get decision plan
-python scripts/search.py "binary choice: keep simple vs add features" --plan -p "Product Roadmap"
+# Step 1: Get the decision plan
+python3 $DECIDE "Keep frontend simple or add more features?" --plan -p "Product Roadmap"
+# → Binary Choice, Pros-Cons-Fixes Analysis, Product Feature Prioritization criteria
 
-# Output should recommend: Pros-Cons-Fixes Analysis
+# Step 2: Look up the framework
+python3 $DECIDE "pros cons fixable" --domain frameworks
 
-# Step 2: Search for relevant frameworks
-python scripts/search.py "binary simplicity complexity" --domain frameworks
+# Step 3: Comparison matrix (at most 5 criteria)
+python3 $DECIDE --matrix "Keep simple vs Add features" \
+  -c "user_value:3,development_time:2,maintainability:2,technical_debt:1,learning_curve:1"
 
-# Step 3: Create comparison matrix
-python scripts/search.py --matrix "Keep simple vs Add features" \
-  -c "development_time,maintainability,user_value,technical_debt,learning_curve"
+# Step 4: Check the biases for this decision
+python3 $DECIDE "status quo confirmation" --domain biases
 
-# Step 4: Check for biases specific to this decision
-python scripts/search.py "feature creep perfectionism" --domain biases
-
-# Step 5: Document with decision journal
-python scripts/search.py --journal "Frontend complexity: simple vs feature-rich" \
-  -p "Product Roadmap"
+# Step 5: Document the decision
+python3 $DECIDE --journal "Frontend: keep simple vs add features" -p "Product Roadmap"
 ```
 
-**Key Question to Ask:**
+**Key question:**
 > "Which cons are fixable vs permanent?"
 
-Fixable cons (can be solved with documentation, features, or process changes) are less important than permanent cons (fundamental trade-offs).
+Fixable cons (solved with documentation, features or process changes) matter less than
+permanent cons (fundamental trade-offs).
 
 ---
 
 ### Scenario B: Multi-Option Selection (3+ Options)
 
-**Example:** "Which cloud provider: AWS, Azure, or GCP?"
-
-**Workflow:**
+**Example:** "Which cloud provider: AWS, Azure or GCP?"
 
 ```bash
-# Step 1: Get decision plan (critical for multi-option!)
-python scripts/search.py "choosing between AWS, Azure, and GCP for enterprise migration" \
+# Step 1: Get the decision plan (critical for multi-option!)
+python3 $DECIDE "AWS vs Azure vs GCP for our enterprise migration with HIPAA workloads" \
   --plan -p "Cloud Strategy"
+# → Multi-Option Selection, Weighted Criteria Matrix, Tech Stack / Framework Choice criteria
 
-# Output should recommend: Weighted Criteria Matrix + Sensitivity Analysis
+# Step 2: Other criteria templates that may fit better
+python3 $DECIDE "technology vendor cloud" --domain criteria
 
-# Step 2: Get evaluation criteria template
-python scripts/search.py "technology vendor cloud" --domain criteria
+# Step 3: Analysis techniques for multi-option decisions
+python3 $DECIDE "scoring comparison sensitivity" --domain analysis
 
-# Step 3: Get analysis technique for multi-option decisions
-python scripts/search.py "decision tree scoring comparison" --domain analysis
+# Step 4: Weighted matrix with your scores: totals, winner and the weight change that flips it
+python3 $DECIDE --matrix "AWS vs Azure vs GCP" \
+  -c "total_cost:25,team_expertise:25,service_coverage:20,support:15,compliance:15" \
+  --scores "AWS:4,5,5,5,5;Azure:4,3,4,4,5;GCP:5,2,4,3,4"
 
-# Step 4: Create detailed comparison matrix
-python scripts/search.py --matrix "AWS vs Azure vs GCP" \
-  -c "total_cost,team_expertise,service_coverage,support_quality,compliance,migration_tools"
+# Step 5: Check for anchoring and availability
+python3 $DECIDE "anchoring first impression availability" --domain biases
 
-# Step 5: Run sensitivity analysis
-# (Ask yourself: if weight of X criterion changes, does the winner change?)
-# (Test different scenarios: what if team expertise was less important?)
+# Step 6: If it is a team decision, a facilitation technique
+python3 $DECIDE "anonymous input dot voting" --domain facilitation
 
-# Step 6: Check for anchoring & status quo biases
-python scripts/search.py "anchoring status quo first impression" --domain biases
-
-# Step 7: Use group facilitation technique if team decisions
-python scripts/search.py "structured debate dot voting anonymous" --domain facilitation
-
-# Step 8: Document the final decision
-python scripts/search.py --journal "Cloud migration: chose [WINNER] over alternatives" \
-  -p "Cloud Strategy"
+# Step 7: Document the final decision
+python3 $DECIDE --journal "Cloud migration: chose [WINNER]" -p "Cloud Strategy" --confidence 70 --review-in 3m
 ```
 
-**Critical Steps:**
+**Critical steps:**
 1. ✅ **Define criteria BEFORE evaluating options** (prevents anchoring)
-2. ✅ **Get independent estimates/scores** (before group discussion)
-3. ✅ **Run sensitivity analysis** (identify swing factors)
-4. ✅ **Check references** (for vendors/hires)
+2. ✅ **Keep it to at most 5 criteria**: merge or drop the lightest ones
+3. ✅ **Get independent scores** before the group discussion
+4. ✅ **Read the sensitivity result**: which weight change would flip the winner?
+5. ✅ **Check references** (for vendors and hires)
 
 ---
 
@@ -309,342 +411,326 @@ python scripts/search.py --journal "Cloud migration: chose [WINNER] over alterna
 
 **Example:** "Allocate 10 engineers across 5 projects"
 
-**Workflow:**
-
 ```bash
 # Step 1: Decision plan for allocation
-python scripts/search.py "allocate resources across competing priorities with constraints" \
-  --plan -p "Q2 Planning"
+python3 $DECIDE "allocate 10 engineers across 5 competing projects" --plan -p "Q2 Planning"
+# → Resource Allocation, Expected Value Calculation, Investment / Resource Allocation criteria
 
-# Output should recommend: Iterative Allocation (don't allocate all at once!)
+# Step 2: Frameworks for allocating under uncertainty
+python3 $DECIDE "expected value iterative hypothesis testing" --domain frameworks
 
-# Step 2: Get resource allocation framework
-python scripts/search.py "iterative constraint priority" --domain frameworks
+# Step 3: What do we lose by not doing each project?
+python3 $DECIDE "opportunity cost" --domain analysis
 
-# Step 3: Use opportunity cost analysis
-python scripts/search.py "opportunity cost what do we lose" --domain analysis
-
-# Step 4: Identify decision type (production risk vs growth opportunity)
-python scripts/search.py "prioritization scoring risk reward" --domain types
-
-# Step 5: If team decision, use facilitation
-python scripts/search.py "dot voting priority ranking" --domain facilitation
-
-# Step 6-Plan: Allocate conservative portion (50-70%)
-# Allocate Round 1 with 30% of resources held back
-
-# Step 6-Execute: Measure actual velocity and blockers for 2-3 weeks
-
-# Step 7-Reassess: Based on evidence, reallocate remaining resources
-# Repeat until all resources allocated
+# Step 4: If it is a team decision, a facilitation technique
+python3 $DECIDE "dot voting priority" --domain facilitation
 ```
 
-**Key Principle:**
-> "Iterative allocation beats perfect planning."
-
-You can't predict the future accurately. Better to allocate conservatively, measure real velocity, then adjust.
+**Allocate in rounds.** Commit 50-70% of the people first, measure real velocity and blockers
+for 2-3 weeks, then reallocate the rest on evidence. You cannot predict the future accurately;
+it is cheaper to allocate conservatively and adjust.
 
 ---
 
-### Scenario D: Hiring/Team Decisions
+### Scenario D: Hiring
 
 **Example:** "Choose between 3 senior engineer candidates"
 
-**Workflow:**
-
 ```bash
 # Step 1: Decision plan for hiring
-python scripts/search.py "choosing senior engineer from 3 finalists" --plan -p "Q1 Hiring"
+python3 $DECIDE "hiring senior software engineer from 3 finalists" --plan -p "Q1 Hiring"
+# → Multi-Option Selection, Weighted Criteria Matrix, Hiring Decision criteria
 
-# Output should recommend: Weighted Criteria Matrix
+# Step 2: The hiring criteria template
+python3 $DECIDE "hiring candidate" --domain criteria
 
-# Step 2: Get hiring-specific criteria
-python scripts/search.py "hiring technical fit culture team" --domain criteria
+# Step 3: The biases that matter most in hiring
+python3 $DECIDE "first impression confirmation anchoring" --domain biases -n 5
 
-# Step 3: CRITICAL - Identify biases in hiring (most dangerous!)
-python scripts/search.py "affinity halo confirmation resume driven" --domain biases -n 5
+# Step 4: Group facilitation: scores before discussion
+python3 $DECIDE "anonymous input devil's advocate" --domain facilitation
 
-# Step 4: Get group facilitation technique
-python scripts/search.py "anonymous voting structured interview blind review" --domain facilitation
+# Step 5: Comparison matrix (at most 5 criteria)
+python3 $DECIDE --matrix "Candidate A vs Candidate B vs Candidate C" \
+  -c "skills_match:25,domain_expertise:25,team_complement:20,growth_potential:15,references:15"
 
-# Step 5: Implement bias mitigation:
-#   - Define criteria BEFORE seeing resumes (or profiles)
-#   - Blind review first (remove names, companies, universities)
-#   - Structured interview questions (same for all candidates)
-#   - Anonymous scoring before group discussion
-#   - Devil's advocate role for top choice
-#   - Reference checks (talk to previous managers)
-
-# Step 6: Create comparison matrix
-python scripts/search.py --matrix "Candidate A vs Candidate B vs Candidate C" \
-  -c "technical_skills,domain_expertise,culture_fit,growth_potential,team_complement,references"
-
-# Step 7: Document the decision
-python scripts/search.py --journal "Senior engineer hire: chose [NAME] based on [CRITERIA]" \
-  -p "Q1 Hiring"
+# Step 6: Document the decision
+python3 $DECIDE --journal "Senior engineer hire: chose [NAME] based on [CRITERIA]" -p "Q1 Hiring"
 ```
 
-**Bias Watch:** Hiring decisions are prone to affinity bias, halo effect, and confirmation bias. The most important mitigation is **defining criteria before seeing candidates**.
+**Bias mitigation:** define the criteria before seeing resumes, use the same structured questions
+for every candidate, score anonymously before the group discussion, give someone the devil's
+advocate role for the favorite, and check references with previous managers. The plan warns
+about Anchoring Effect (the first candidate or first impression sets the bar), Confirmation Bias
+(looking for evidence that confirms the first impression) and Availability Heuristic (one vivid
+interview story outweighs the rest).
 
 ---
 
 ## 🔍 Problem-Solving Workflows
 
-### Common Production Issue
-
-**Example:** "API intermittently returns stale data"
-
-**Process:**
-
-```bash
-# In your AI assistant with problem-solving-pro skill:
-
-/solve My API returns stale data ~2% of the time after updates.
-No clear pattern by time, user, or endpoint. Stack: Node.js + Express,
-PostgreSQL (primary + read replica), Redis cache.
-```
-
-**The skill will guide you:**
+### A business problem: signups dropped
 
 ```
-1. DECOMPOSITION
-   - CDN cache layer (possibility: serving cached response)
-   - Application cache layer (possibility: Redis invalidation bug)
-   - Database layer (possibility: reading from stale replica)
-   - Network/infrastructure layer (possibility: packet loss)
-
-2. HYPOTHESIS RANKING
-   Rank by likelihood:
-   - Hypothesis 1 (60%): Redis cache not invalidated on write
-   - Hypothesis 2 (25%): Reading from replica with replication lag
-   - Hypothesis 3 (10%): CDN caching response
-   - Hypothesis 4 (5%): Race condition in app
-
-3. TESTING STRATEGY
-   Test Hypothesis 1 first (highest likelihood × easiest to test)
-   - Check: Is EXPIRE called after update? Is key really deleted?
-   - Look at: Redis logs, application code, TTL values
-
-4. ROOT CAUSE
-   Found: Cache-aside pattern + read replica + replication lag
-   - PATCH invalidates cache ✓
-   - GET has cache miss
-   - GET reads from REPLICA (has 2-5s lag still)
-   - GET repopulates cache with STALE data
-   - Subsequent GETs serve stale for 5 minutes (TTL)
-
-5. SOLUTION OPTIONS
-   Option 1 (Quick): Read from PRIMARY on cache miss (30 min)
-   Option 2 (Proper): Write-through cache (2 hours)
-   Option 3 (Architectural): Consistent cache invalidation (1 day)
-   Choice: Implement Option 2 (best risk/reward)
-
-6. PREVENTION
-   - Add monitoring for cache hit rate drop
-   - Alert on staleness detection
-   - Document cache consistency guarantees
+/solve.deep Signups dropped 15% after the pricing change. Traffic is flat;
+the drop is mostly on the annual plan; the pricing page was redesigned the same week.
 ```
+
+What to expect, step by step:
+
+1. **Define:** "Annual-plan signups fell 15% in the 4 weeks after the price change (monthly flat);
+   find the cause and decide whether to roll back within 2 weeks."
+2. **Disaggregate:** signups = visitors × conversion; split conversion by plan, page version,
+   traffic source and country (MECE branches).
+3. **Prioritize:** the branches that can explain most of the 15% first (price vs page redesign).
+4. **Workplan:** one analysis per branch: funnel by step, an A/B test of the old page, a price
+   sensitivity check with sales.
+5. **Analyze:** test each hypothesis against the data; record what would disprove it.
+6. **Synthesize:** one governing thought ("The new annual price, not the page, explains 80% of the drop").
+7. **Communicate:** answer first (Pyramid Principle), then the evidence, risks and next steps.
+
+The bias warnings (Confirmation Bias, Narrative Fallacy, Availability Heuristic) remind you that
+"it must be the price" is a hypothesis until the data says so. Say "save step-by-step" to get a
+`solving-plans/` workspace and continue later with `/solve.resume`.
+
+### A bug in code
+
+Use `/code.debug`, not `/solve`. See [examples/05](examples/05-debugging-race-condition.md) (stale
+data after an update) and [examples/06](examples/06-code-debug-typeerror.md) (a TypeError after a deploy).
 
 ---
 
 ## 💡 Tips for Best Results
 
-### Before You Decide/Debug
+### Before you decide or investigate
 
 1. **📋 Define the problem precisely**
    - Not: "Cloud is too expensive"
    - But: "Need cloud infrastructure for 500K req/sec, 18-month migration window, HIPAA compliance"
+2. **👥 Identify stakeholders early**: who decides, who is affected, who has relevant experience
+3. **⚖️ Define criteria BEFORE evaluating options**: prevents anchoring and post-hoc rationalization
+4. **🧠 Check your biases explicitly**: `python3 $DECIDE "relevant keywords" --domain biases`, then apply the remedy
+5. **📊 Use the decision journal**: record the rationale and your confidence, then the real outcome
 
-2. **👥 Identify all stakeholders early**
-   - Who decides? Who's affected? Who has relevant experience?
-   - Include them in criteria definition, not just final vote
+### During the decision
 
-3. **⚖️ Define criteria BEFORE evaluating options**
-   - Prevents anchoring (first option influences scoring of others)
-   - Prevents post-hoc rationalization ("This option is good because it has feature X")
+6. **🔍 Read the sensitivity result** for multi-option decisions: which weight change flips the winner?
+7. **👂 Use structured group processes**: anonymous input first, then discussion, then a re-vote
+8. **🧪 Run small experiments (POCs) for technical decisions**: prove assumptions with real data
+9. **📞 Check references**: customers for vendors, previous managers for hires
+10. **⏱️ Allocate resources in rounds**: 50-70% first, measure, adjust
 
-4. **🧠 Check your biases explicitly**
-   - Run: `python scripts/search.py "relevant keywords" --domain biases`
-   - Apply specific remedies for each bias
+### After the decision
 
-5. **📊 Use decision journal religiously**
-   - Document not just the decision, but the rationale
-   - 6-12 months later, update with actual outcomes
-   - This improves your decision calibration over time
-
-### During Decision-Making
-
-6. **🔍 Run sensitivity analysis for multi-option decisions**
-   - Ask: "If I weight criterion X differently, does the winner change?"
-   - Identifies which criteria actually swing the decision
-
-7. **👂 Use structured group processes**
-   - Not: "What do people think?" (groupthink, halo effect)
-   - But: "Anonymous vote first, discuss gaps, revote"
-
-8. **🧪 Run POCs for technical decisions**
-   - Prove assumptions with real data
-   - Don't trust estimates
-
-9. **📞 Check references**
-   - For vendors: Talk to customers
-   - For hires: Call previous managers
-   - For technologies: Test in your environment
-
-10. **⏱️ Use iterative allocation for resource decisions**
-    - Don't allocate all 100% upfront
-    - Allocate 50-70%, measure velocity, adjust
-
-### After Decision
-
-11. **📖 Document the decision**
-    ```bash
-    python scripts/search.py --journal "Decision title" -p "Project Name"
-    ```
-    Include:
-    - Options considered
-    - Criteria and weights
-    - Winner and why
-    - Implementation plan
-    - Known risks
-
-12. **📅 Set a review date**
-    - 3-6 months for tactical decisions
-    - 12 months for strategic decisions
-    - Update journal with actual outcomes
-
-13. **🎓 Extract lessons learned**
-    - What worked in the process?
-    - What surprised you?
-    - What would you do differently?
-    - Which criteria proved most important?
+11. **📖 Document it**: `python3 $DECIDE --journal "Decision title" -p "Project Name" --confidence 70 --review-in 3m`
+12. **📅 Review it**: `python3 $DECIDE --journal --review --due` lists decisions past their review date; record the outcome with `--update`
+13. **🎓 Extract lessons**: what worked, what surprised you, which criteria mattered most
 
 ---
 
 ## 🎓 Decision Frameworks Reference
 
-### When to Use Each Framework
+The plan picks the framework from the decision type. These are the defaults:
 
-| Decision Type | Best Framework | Example |
-|---------------|----------------|---------|
-| **2 options** | Pros-Cons-Fixes | Keep simple vs add features |
-| **3+ options** | Weighted Matrix | AWS vs Azure vs GCP |
-| **Uncertain future** | Scenario Planning | Enter new market or not |
-| **Sequential choices** | Decision Tree | Hire now vs wait 6mo? |
-| **Resource/budget** | Iterative Allocation | Which projects get engineers |
-| **Group alignment** | Nominal Group Technique | Team decision on strategy |
-| **Testing hypotheses** | Hypothesis-Driven | Debugging root cause |
+| Decision type | Framework the plan recommends | Also suggested |
+|---------------|-------------------------------|----------------|
+| **Binary Choice** | Pros-Cons-Fixes Analysis | Pre-Mortem Decision Test, Reversibility Filter |
+| **Multi-Option Selection** | Weighted Criteria Matrix | Logic Tree Option Decomposition, Sensitivity Analysis Decision |
+| **Resource Allocation** | Expected Value Calculation | Sensitivity Analysis Decision, Weighted Criteria Matrix |
+| **Strategic Direction** | Scenario Planning Matrix | Hypothesis-Driven Decision Tree, Pre-Mortem Decision Test |
+| **Operational / Tactical** | Reversibility Filter | Iterative Hypothesis Testing, Pros-Cons-Fixes Analysis |
+| **Decision Under Uncertainty** | Scenario Planning Matrix | Expected Value Calculation, Iterative Hypothesis Testing |
+| **Group / Stakeholder Decision** | Pre-Mortem Decision Test | Weighted Criteria Matrix; facilitation: Nominal Group Technique |
+| **Time-Pressured Decision** | Reversibility Filter | Pros-Cons-Fixes Analysis |
+
+For problems (not choices) use `/solve`; for code, `/code`.
 
 ---
 
 ## ⚠️ Cognitive Biases to Watch
 
-### High-Risk Biases (Always Watch)
+### High-risk biases (always watch)
 
-| Bias | What It Does | How to Counter |
+| Bias | What it does | How to counter |
 |------|-------------|-----------------|
 | **Confirmation Bias** | You notice what confirms your first impression | Actively seek disconfirming evidence |
-| **Anchoring** | First number/option influences everything | Get independent estimates before comparing |
+| **Anchoring Effect** | The first number or option influences everything | Define criteria and get independent estimates before comparing |
 | **Sunk Cost Fallacy** | Past investment makes you continue failing projects | Evaluate as if starting fresh today |
-| **Overconfidence** | Too certain about uncertain outcomes | Use pre-mortem: assume it failed, work backward |
-| **Status Quo Bias** | Prefer current state even when changing is better | Reframe as opportunity cost of NOT acting |
+| **Overconfidence** | Too certain about uncertain outcomes | Pre-mortem: assume it failed, work backward |
+| **Status Quo Bias** | You prefer the current state even when change is better | Reframe as the cost of NOT acting |
 
-### Domain-Specific High-Risk Biases
+### Biases by area
 
-**Hiring:**
-- Affinity Bias (favor candidates like us)
-- Halo Effect (one strong trait colors everything)
-- Resume-Driven Development (choose for trendy skills, not fit)
+These are the biases the skills' knowledge bases attach to each area (make-decision's criteria
+templates, and code-solving for engineering choices):
 
-**Technology:**
-- Not Invented Here (build vs buy bias)
-- Resume-Driven Decisions (choose trendy tech for resumé value)
-- Status Quo Bias (stick with current even if better exists)
-
-**Resource Allocation:**
-- Planning Fallacy (projects take 2-3x longer than estimated)
-- Overconfidence (too certain about estimates)
+| Area | Biases |
+|------|--------|
+| Hiring | Confirmation Bias, Anchoring Effect, Availability Heuristic |
+| Tech stack and frameworks | Availability Heuristic, Confirmation Bias, Survivorship Bias |
+| Build vs buy, business software | Sunk Cost Fallacy, Status Quo Bias, Planning Fallacy, Not Invented Here |
+| Engineering approach | Golden Hammer, Rewrite Fallacy, Premature Optimization |
+| Resource allocation and investment | Sunk Cost Fallacy, Overconfidence, Loss Aversion, Planning Fallacy |
+| Problem investigations | Confirmation Bias, Narrative Fallacy, Availability Heuristic |
 
 ---
 
 ## 📖 Learning Path
 
-### Week 1: Get Familiar
+### Week 1: Get familiar
 - [ ] Install the skills
-- [ ] Read through the examples/ directory (01-06)
-- [ ] Try one simple decision using make-decision skill
-- [ ] Try one simple bug with `/code.debug` (code-solving)
+- [ ] Read the [examples](examples/README.md) (01-06)
+- [ ] Try one simple decision with `/decide`
+- [ ] Try one simple bug with `/code.debug`
 
-### Week 2: Build Habit
-- [ ] Make one multi-option decision using full workflow
-- [ ] Use group facilitation technique in a team decision
-- [ ] Document decision with decision journal
-- [ ] Identify and counter one cognitive bias explicitly
+### Week 2: Build the habit
+- [ ] Make one multi-option decision with the full workflow and scores
+- [ ] Use a facilitation technique in a team decision
+- [ ] Record the decision in the journal
+- [ ] Name and counter one cognitive bias explicitly
 
-### Week 3: Deepen Practice
-- [ ] Run sensitivity analysis on a multi-option decision
-- [ ] Use decision journal to retrospective a past decision
-- [ ] Help colleague/team member through the process
-- [ ] Share a decision case study
+### Week 3: Deepen practice
+- [ ] Use `/solve.deep` on a real business problem and save it step by step
+- [ ] Review a past decision with `--journal --review --due`
+- [ ] Walk a colleague through the process
 
-### Week 4+: Become Expert
-- [ ] Use decision frameworks automatically without consulting skill
-- [ ] Help team improve decision quality
-- [ ] Build decision culture in your organization
-- [ ] Create custom use case in examples/ directory
+### Week 4+: Make it a team habit
+- [ ] Use the frameworks without looking them up
+- [ ] Share a decision write-up with your team
+- [ ] Contribute an example to [examples/](examples/README.md)
+
+---
+
+## Troubleshooting
+
+**"python3: command not found" or the AI says Python is missing.**
+The skills need Python 3.9+ (standard library only). The AI asks you before installing
+anything; it never installs Python on its own. Install it (`brew install python`,
+`sudo apt install python3`, or `winget install Python.Python.3.12` on Windows), open a new
+terminal and run `think-better check`. On Windows Python is usually called `python`; the
+slash commands and the AI adapt the command.
+
+**A script fails or prints an error.**
+Errors go to stderr with exit code 1 and name the input to fix (e.g. scores that do not match
+the criteria, a journal id with no or several matches). Run the same command yourself from the
+project root to see the full message. If the skill files look broken, run `think-better check`:
+it reports each install as installed, outdated, modified or incomplete; `think-better update`
+repairs outdated and incomplete installs. Still failing? [Open a bug report](https://github.com/HoangTheQuyen/think-better/issues/new?template=bug_report.md)
+with the output of `think-better version` and `think-better check`.
+
+**`.new` files appeared after `think-better update`.**
+You had edited those files, so `update` kept your version and wrote the new one next to it as
+`<file>.new`. Compare the two (`diff SKILL.md SKILL.md.new`), copy over what you want, then
+delete the `.new` file. To take the new version and drop your edits, run
+`think-better update --force`: your version is saved as `<file>.bak` first.
+
+**The slash commands do not show up.**
+Check where they were installed with `think-better list`, then restart the AI tool or reload the
+window. For GitHub Copilot, switch Copilot Chat to agent mode; the commands are the
+`.prompt.md` files in `.github/prompts/`. `--global` is not supported for Copilot.
+
+**The AI does not pick the skill when I describe a problem.**
+Use the slash command instead (`/decide`, `/solve`, `/code`). In GitHub Copilot this is the only
+way: the skill files under `.github/prompts/<skill>/` are run by the commands, not loaded on their own.
+
+**`--ai is required in non-interactive mode`.**
+Pass `--ai claude` (or another tool), or set `THINK_BETTER_AI=claude` in your shell.
+
+## Uninstall
+
+```bash
+think-better uninstall --skill make-decision --ai claude --dry-run   # see what would be removed
+think-better uninstall --skill make-decision --ai claude             # asks for confirmation
+think-better uninstall --skill make-decision --ai claude --global    # a --global install
+```
+
+`uninstall` removes one skill and the slash commands that run it; repeat it for
+`problem-solving-pro` and `code-solving`. Files you modified are kept and listed, as is any
+folder that still holds other files. Without a terminal (CI, scripts) add `--force` to skip the
+confirmation. Your plans and journals (`decision-plans/`, `solving-plans/`, `coding-plans/`,
+`.decisions/`) are never touched. To remove the CLI itself, delete the binary
+(`~/.local/bin/think-better` from the install script), or `brew uninstall think-better`,
+`scoop uninstall think-better`.
+
+## FAQ
+
+**Does it cost tokens?**
+The scripts run locally and cost nothing. Your AI tool reads the instructions and the plan the
+script prints, which uses some of its context: a slash command file is about 2 KB, the skill's
+`SKILL.md` (read at the start) 12-18 KB, and a standard plan 4-9 KB (roughly 1,000-2,500 tokens).
+`.quick` plans are shorter, `.deep` and `.exec` longer.
+
+**Does anything leave my machine?**
+No. The CLI copies Markdown, CSV and Python files into your project or home folder, and the
+scripts make no network calls and need no accounts or API keys. Your request goes only to the
+AI tool you already use, as it would without the skills.
+
+**Should I commit the installed skills?**
+Committing `.claude/`, `.github/prompts/`, `.opencode/` or `.agents/` lets everyone on the team
+use the same skills and commands without installing them; the `.think-better.json` manifests let
+`think-better update` tell your edits apart from the shipped files. If only you use them, install
+with `--global` or add those folders to `.gitignore`.
+
+**Should I commit `decision-plans/`, `solving-plans/`, `coding-plans/` and `.decisions/`?**
+They are your working notes. Commit them when they are useful to the team (a decision record
+with its rationale in `.decisions/` is often worth keeping; a step-by-step workspace for a design
+review too). Leave out, or add to `.gitignore`, ones with private or temporary content.
+
+**Do the skills understand Vietnamese?**
+Yes. Requests can be in Vietnamese, with or without accents; the keywords in the knowledge base
+cover both. The AI answers in Vietnamese and translates the plan, which the script prints in
+English. Say "lưu", "lưu lại" or "lưu từng bước" to save a workspace.
+
+**Which skill do I use for a bug?**
+`/code.debug` (code-solving). `/solve` is for business, product and organizational problems.
 
 ---
 
 ## 🆘 Getting Help
 
-### From the Skill Itself
+### From the skills themselves
 
 ```bash
-# Quick start for decision-making
-cd .github/prompts/make-decision
-python scripts/search.py "help guide" --plan
+# Look up one domain (from the project root)
+python3 $DECIDE "keyword" --domain frameworks
+python3 $DECIDE "keyword" --domain biases
+python3 $SOLVE "keyword" --domain decomposition
+python3 $CODE "keyword" --domain errors
 
-# Search a specific domain
-python scripts/search.py "keyword" --domain frameworks
-python scripts/search.py "keyword" --domain biases
-python scripts/search.py "keyword" --domain criteria
-python scripts/search.py "keyword" --domain analysis
-python scripts/search.py "keyword" --domain facilitation
-
-# View available data
-python scripts/search.py "list all frameworks" --domain frameworks
-python scripts/search.py "list all biases" --domain biases
+# Every option of a script
+python3 $DECIDE --help
 ```
 
-### From the Community
+### From the community
 
-- See [examples/](examples/README.md) for detailed case studies
+- See [examples/](examples/README.md) for worked case studies
 - See the [Quick Reference](QUICK-REFERENCE.md) for a one-page summary
-- Ask or report problems in [GitHub issues](https://github.com/HoangTheQuyen/think-better/issues)
+- Ask questions in [GitHub Discussions](https://github.com/HoangTheQuyen/think-better/discussions)
+- Report bugs in [GitHub issues](https://github.com/HoangTheQuyen/think-better/issues)
 
 ---
 
 ## ✅ Checklist: Before You Make a Decision
 
 - [ ] **Problem is precisely defined** (not vague)
-- [ ] **Options are explicitly listed** (no hidden alternatives)
+- [ ] **Options are explicitly listed** (including "do nothing" when it is real)
 - [ ] **Criteria are defined BEFORE evaluating options**
-- [ ] **Criteria have weights** (not all equally important)
-- [ ] **You've checked relevant biases** (and applied remedies)
+- [ ] **At most 5 criteria, with weights** (not all equally important)
+- [ ] **You've checked the relevant biases** (and applied the remedies)
 - [ ] **Stakeholders identified** (and included appropriately)
-- [ ] **If group decision: using structured process** (not groupthink)
-- [ ] **If technical: POC completed** (not just estimates)
-- [ ] **If vendor: references checked** (not just sales pitch)
+- [ ] **If group decision: using a structured process** (not groupthink)
+- [ ] **If technical: a small experiment done** (not just estimates)
+- [ ] **If vendor: references checked** (not just the sales pitch)
 - [ ] **Decision will be documented** (journal entry created)
-- [ ] **Review date set** (when to retrospective)
+- [ ] **Review date set** (`--review-in`)
 
 ---
 
-**Next Steps:**
+**Next steps:**
 1. Install the skills: `think-better init --ai claude`
 2. Pick a real decision you're facing this week
 3. Work through the workflow above for your decision type
-4. Document it with decision journal
-5. 6 months later: update with actual outcomes
+4. Record it in the decision journal
+5. When the review date comes: record the actual outcome
 
 Happy deciding! 🎯

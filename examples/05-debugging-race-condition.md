@@ -2,14 +2,14 @@
 
 **Problem:** API sometimes returns stale data after updates
 
-**Type:** Problem-Solving (Root Cause Analysis)  
-**Skill Used:** problem-solving-pro  
+**Type:** Code change (`debug`)  
+**Skill Used:** code-solving (`/code.debug`)  
 **Duration:** 4 hours (discovery + fix + validation)  
 **Outcome:** ✅ Root cause identified and fixed
 
-> Written before the code-solving skill existed. For a bug in your own code, `/code.debug`
-> is now the better fit: it adds a failing test before the fix and checks your project's own
-> test commands. See [06 - Debugging a TypeError](06-code-debug-typeerror.md).
+> A bug in your own code goes to `/code.debug`, not `/solve`: it asks for a failing test before
+> the fix and runs your project's own checks. `/solve` is for business and product problems.
+> For a shorter walk-through from stack trace to PR, see [06 - Debugging a TypeError](06-code-debug-typeerror.md).
 
 ---
 
@@ -38,28 +38,39 @@
 
 ## 🔬 Process
 
-### Step 1: Install problem-solving skill
+### Step 1: Install the coding skill
 
 ```bash
-think-better init --ai claude --skill problem-solving-pro
+think-better init --ai claude --skill code-solving
 ```
 
-### Step 2: Use skill to guide investigation
+### Step 2: Ask for a plan
 
 In Claude Code:
 ```
-/solve My API sometimes returns stale data after updates. 
-POST /users/{id} succeeds (200 OK) but subsequent GET /users/{id} 
-returns old data for ~30 seconds, then corrects itself.
+/code.debug My API sometimes returns stale data after updates. POST /users/{id} succeeds
+(200 OK) but a GET /users/{id} right after returns old data for ~30 seconds, then corrects itself.
 ```
 
-**Skill responds with structured problem-solving workflow:**
+The plan (`search.py --stdin --plan --type debug`) walks through the 7 gated steps. For this
+request it recommends these techniques and warns about these biases (actual output, shortened):
+
+```
+Techniques: Read the Error Carefully, Minimal Reproduction, Check Recent Changes,
+            Git Bisect, Divide and Conquer
+Biases:     Anchoring on the First Clue, Confirmation Bias in Debugging
+Gate 1 (Define): a failing automated test or a one-command repro that you ran and saw fail
+```
+
+There is no stack trace here, so the first gate is a repro: a script that PATCHes a user and
+GETs it straight back, run in a loop until it returns the old name. With the repro failing,
+the AI moves on to Step 2 (Decompose).
 
 ---
 
-### Step 3: Problem Decomposition
+### Step 3: Decompose: map the layers
 
-Skill breaks problem into layers:
+The request passes through four layers, each a place the stale value could come from:
 
 ```
 ┌─────────────────────┐
@@ -81,9 +92,9 @@ Skill breaks problem into layers:
 └─────────────────────┘
 ```
 
-### Step 4: Hypothesis Generation
+### Step 4: Prioritize: rank the hypotheses
 
-Skill generates ranked hypotheses:
+Ranked by likelihood and cost to test (Step 3 of the plan):
 
 | # | Hypothesis | Likelihood | Test |
 |---|------------|------------|------|
@@ -92,9 +103,10 @@ Skill generates ranked hypotheses:
 | 3 | **CDN serving cached response** | 10% | Check Cache-Control headers |
 | 4 | **Race condition in app code** | 5% | Check if write/read concurrent |
 
-**Prioritization:** Test Hypothesis 1 first (highest likelihood × easiest to test).
+**Prioritization:** Test Hypothesis 1 first (highest likelihood × easiest to test). Divide and
+Conquer splits the layers: the repro bypassing the CDN still fails, so hypothesis 3 is out.
 
-### Step 5: Evidence Collection
+### Step 5: Execute: test one hypothesis at a time
 
 **Test Hypothesis 1: Redis cache invalidation**
 
@@ -219,7 +231,7 @@ app.get('/users/:id', async (req, res) => {
 
 ### Testing
 
-**Test 1: Rapid write-read**
+**Test 1: Rapid write-read** (the Step 1 repro, now passing)
 ```bash
 # Write
 curl -X PATCH https://api.example.com/users/123 \
@@ -269,7 +281,7 @@ app.get('/users/:id', async (req, res) => {
 
 Removing either condition fixes the issue.
 
-### Problem-Solving Pattern
+### Debugging Pattern
 
 **Hypothesis-Driven Investigation** > random debugging:
 - ❌ **Random:** "Let's check logs... try increasing cache TTL... restart Redis..."

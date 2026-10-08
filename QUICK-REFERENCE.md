@@ -3,19 +3,53 @@
 ## Installation & Setup
 
 ```bash
-# Install binary
+# Install the binary
 curl -fsSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.sh | sh
 # Or Windows: irm https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.ps1 | iex
 
-# Install skills and slash commands
-think-better init --ai claude       # or: copilot, antigravity, opencode
+# Install skills and slash commands (in your project root)
+think-better init --ai claude            # Claude Code
+think-better init --ai copilot           # GitHub Copilot (agent mode, .github/prompts/)
+think-better init --ai antigravity       # Antigravity
+think-better init --ai opencode          # OpenCode
 think-better init --ai claude --global   # once for all projects (not Copilot)
 
-# List installed skills
-think-better list
+think-better list                # what is installed where
+think-better check               # Python 3 + each install: installed / outdated / modified / incomplete
+think-better update --dry-run    # after upgrading the binary: what would change
+think-better update              # apply; your edited files are kept, new version saved as <file>.new
+think-better uninstall --skill make-decision --ai claude   # keeps files you modified
+```
 
-# Verify setup
-think-better check
+Flags: `--ai`, `--skill`, `--global`, `--force` (init/update: replace your edits, saving them as
+`.bak`; uninstall: no confirmation), `--dry-run`. `THINK_BETTER_AI=claude` sets the default `--ai`.
+
+---
+
+## Slash Commands
+
+| Skill | Commands |
+|-------|----------|
+| make-decision | `/decide.quick` · `/decide` · `/decide.deep` · `/decide.exec` · `/decide.resume` |
+| problem-solving-pro | `/solve.quick` · `/solve` · `/solve.deep` · `/solve.exec` · `/solve.resume` |
+| code-solving | `/code` · `/code.deep` · `/code.debug` · `/code.feature` · `/code.refactor` · `/code.perf` · `/code.review` · `/code.test` · `/code.explain` · `/code.resume` |
+
+Add "save step-by-step" (or "lưu", "lưu lại", "lưu từng bước") to save a workspace; continue it with the
+`.resume` command (no text: the latest workspace). `/code.review` with no text reviews your current changes.
+In Claude Code, OpenCode and Antigravity you can also just describe the problem; in GitHub
+Copilot use the slash commands.
+
+---
+
+## Running the Scripts Yourself
+
+From the project root. Paths for Claude Code (others: `.opencode/skills/`, `.agents/skills/`,
+`.github/prompts/` for Copilot):
+
+```bash
+DECIDE=.claude/skills/make-decision/scripts/search.py
+SOLVE=.claude/skills/problem-solving-pro/scripts/search.py
+CODE=.claude/skills/code-solving/scripts/search.py
 ```
 
 ---
@@ -24,68 +58,69 @@ think-better check
 
 ### Binary Choice (2 Options)
 ```bash
-python scripts/search.py "your decision" --plan -p "Project"
-python scripts/search.py --matrix "Option A vs Option B" -c "criterion1,criterion2"
-python scripts/search.py "relevant keyword" --domain biases
-python scripts/search.py --journal "Decision title" -p "Project"
+python3 $DECIDE "your decision" --plan -p "Project"
+python3 $DECIDE --matrix "Option A vs Option B" -c "criterion1:3,criterion2:2,criterion3:1"
+python3 $DECIDE "status quo confirmation" --domain biases
+python3 $DECIDE --journal "Decision title" -p "Project"
 ```
-**Framework:** Pros-Cons-Fixes Analysis  
+**Framework:** Pros-Cons-Fixes Analysis
 **Key Q:** Which cons are fixable vs permanent?
 
 ---
 
 ### Multi-Option Selection (3+ Options)
 ```bash
-# 1. Get decision plan
-python scripts/search.py "choosing between A, B, C for [purpose]" --plan -p "Project"
+# 1. Get the decision plan
+python3 $DECIDE "choosing between A, B, C for [purpose]" --plan -p "Project"
 
-# 2. Get criteria template
-python scripts/search.py "[topic]" --domain criteria
+# 2. Get a criteria template
+python3 $DECIDE "[topic]" --domain criteria
 
 # 3. Get analysis techniques
-python scripts/search.py "comparison scoring sensitivity" --domain analysis
+python3 $DECIDE "comparison scoring sensitivity" --domain analysis
 
-# 4. Create matrix, then score it: weighted totals, winner, and the weight change that flips it
-python scripts/search.py --matrix "A vs B vs C" -c "c1:3,c2:2,c3:1"
-python scripts/search.py --matrix "A vs B vs C" -c "c1:3,c2:2,c3:1" --scores "A:4,3,5;B:5,4,3;C:3,3,4"
+# 4. Matrix (at most 5 criteria), then score it: weighted totals, winner, the weight change that flips it
+python3 $DECIDE --matrix "A vs B vs C" -c "c1:3,c2:2,c3:1"
+python3 $DECIDE --matrix "A vs B vs C" -c "c1:3,c2:2,c3:1" --scores "A:4,3,5;B:5,4,3;C:3,3,4"
 
 # 5. Check biases
-python scripts/search.py "anchoring status quo first impression" --domain biases
+python3 $DECIDE "anchoring first impression" --domain biases
 
 # 6. Group facilitation (if team)
-python scripts/search.py "anonymous voting structured" --domain facilitation
+python3 $DECIDE "anonymous input dot voting" --domain facilitation
 
 # 7. Document (confidence and a review date), and list the decisions due for review later
-python scripts/search.py --journal "Chose [WINNER] because..." -p "Project" --confidence 70 --review-in 30d
-python scripts/search.py --journal --review --due
+python3 $DECIDE --journal "Chose [WINNER] because..." -p "Project" --confidence 70 --review-in 30d
+python3 $DECIDE --journal --review --due
 ```
-**Framework:** Weighted Criteria Matrix + Sensitivity Analysis  
-**Key:** Define criteria BEFORE evaluating options
+**Framework:** Weighted Criteria Matrix + Sensitivity Analysis
+**Key:** Define criteria BEFORE evaluating options; at most 5 criteria
 
 ---
 
 ### Resource Allocation
 ```bash
-python scripts/search.py "allocate resources across priorities" --plan -p "Project"
-python scripts/search.py "iterative allocation" --domain frameworks
-python scripts/search.py "opportunity cost" --domain analysis
+python3 $DECIDE "allocate resources across priorities" --plan -p "Project"
+python3 $DECIDE "expected value" --domain frameworks
+python3 $DECIDE "opportunity cost" --domain analysis
 
-# Remember: Allocate 50-70% in Round 1, measure velocity, reallocate
+# Remember: allocate 50-70% in round 1, measure velocity, reallocate the rest
 ```
-**Framework:** Iterative Allocation  
+**Framework:** Expected Value Calculation
 **Key:** Don't allocate 100% upfront; learn before committing
 
 ---
 
 ### Coding (bugs, features, refactors, performance, reviews, tests, explanations)
 ```bash
-/code.debug [error message, repro steps, what changed]
+/code.debug [error message and stack trace, repro steps, what changed]
 /code.feature [what users can do when it is done]
 /code.refactor [module and the change it should make easier]
 /code.perf [metric, current value, target]
 /code.review [PR or files]
 /code.test [module or behavior to protect]
 /code.explain [what you want to understand]
+/code.deep [high-stakes change: more techniques, full review checklist]
 /code.resume [which saved workspace, or nothing for the latest]
 /code [anything else: flaky tests, incidents, migrations, security fixes, small changes]
 
@@ -94,176 +129,160 @@ python scripts/search.py "opportunity cost" --domain analysis
 # 3-4 Plan: tasks with tests          5 Execute: small green steps
 # 6 Verify: Step 1 check + project checks pass
 # 7 Communicate: PR description / postmortem
+
+python3 $CODE --detect     # the project's test/lint/build commands
 ```
-**Key:** No fix without a test that failed first; no "done" without the checks' output
+**Key:** No fix without a test that failed first; no "done" without the checks' output.
+Bugs in code go here, not to `/solve`.
 
 ---
 
 ### Problem-Solving (business, product, process)
 ```bash
-# In your AI assistant with problem-solving-pro skill:
-/solve [Describe problem, environment, what you've tried]
+/solve [Describe the problem, the context, what you've tried]
 
 # With depth control:
 /solve.quick Signups dropped after the pricing change
-/solve.deep Revenue declining despite growth
-/solve.exec Board-level crisis analysis
+/solve.deep Revenue dropped 20% despite market growth
+/solve.exec Revenue dropped 20% despite market growth   (adds an executive summary)
 
-# Continue a saved step-by-step workspace ("save step-by-step") at the first open step:
+# Continue a saved step-by-step workspace at the first open step:
 /solve.resume [which saved workspace, or nothing for the latest]
 
-# Vietnamese works too: /solve.quick doanh thu giảm 20% quý này
+# Vietnamese works too, with or without accents: /solve.quick doanh thu giảm 20% quý này
 
-# The skill guides you through:
-# 1. Problem decomposition (break into layers)
-# 2. Hypothesis ranking (by likelihood)
-# 3. Evidence collection (specific tests)
-# 4. Root cause (5 Whys)
-# 5. Solution options (quick vs proper vs architectural)
-# 6. Prevention (monitoring, alerts)
+# The 7 steps:
+# 1 Define  2 Disaggregate (issue/profitability tree)  3 Prioritize (80/20)
+# 4 Workplan  5 Analyze (test hypotheses)  6 Synthesize ("so what?")
+# 7 Communicate (answer first: Pyramid Principle)
 ```
-**Key:** Test hypotheses by likelihood × ease of testing
+**Key:** Rank hypotheses by impact × ease of testing; the answer leads the communication
 
 ---
 
-## Domain-Specific Searches
+## Domain Searches
+
+| Skill | `--domain` | What's in it |
+|-------|-----------|--------------|
+| make-decision | `frameworks` | 10 decision frameworks |
+| | `types` | 8 decision types |
+| | `biases` | 12 cognitive biases with remedies |
+| | `analysis` | 10 analysis techniques |
+| | `criteria` | 15 criteria templates, 5 criteria each |
+| | `facilitation` | 8 facilitation techniques |
+| problem-solving-pro | `decomposition` | 18 decomposition frameworks |
+| | `heuristics` | 13 mental models |
+| | `communication` | 10 communication patterns |
+| | `steps`, `problem-types`, `prioritization`, `analysis`, `biases`, `team` | the rest of the method |
+| code-solving | `errors` | 44 common error messages |
+| | `task-types` | 12 task types |
+| | `steps`, `debugging`, `changes`, `testing`, `principles`, `biases`, `review`, `artifacts` | techniques, checklists and pitfalls |
 
 ```bash
-# Get decision-making frameworks (10 available)
-python scripts/search.py "keywords" --domain frameworks
-
-# Get decision type classifications (8 types)
-python scripts/search.py "keywords" --domain types
-
-# Get cognitive biases (12 with remedies)
-python scripts/search.py "keywords" --domain biases
-
-# Get analysis techniques (10 methods)
-python scripts/search.py "keywords" --domain analysis
-
-# Get evaluation criteria (8 templates)
-python scripts/search.py "keywords" --domain criteria
-
-# Get group facilitation techniques (8 methods)
-python scripts/search.py "keywords" --domain facilitation
+python3 $DECIDE "keywords" --domain criteria
+python3 $SOLVE "keywords" --domain decomposition
+python3 $CODE "keywords" --domain errors
 ```
 
 ---
 
 ## Decision Journey
 
-### Before Deciding
-- ✅ Define problem precisely
-- ✅ List all options/alternatives
-- ✅ Define criteria BEFORE evaluating options
+### Before deciding
+- ✅ Define the problem precisely
+- ✅ List all options (including "do nothing" when real)
+- ✅ Define criteria BEFORE evaluating options (at most 5)
 - ✅ Identify stakeholders
 - ✅ Check relevant biases and apply remedies
 
-### During Decision
-- ✅ Get independent scores/estimates first
-- ✅ Run sensitivity analysis (multi-option)
-- ✅ Use structured group process (if team)
+### During the decision
+- ✅ Get independent scores first
+- ✅ Read the sensitivity result (multi-option)
+- ✅ Use a structured group process (if team)
 - ✅ Check references (vendors/hires)
-- ✅ POCs for technical decisions
+- ✅ Small experiments for technical decisions
 
-### After Decision
-- ✅ Create journal entry with rationale
-- ✅ Set review date (3-6 months or 12 months)
-- ✅ Document implementation plan
-- ✅ Identify known risks
+### After the decision
+- ✅ Journal entry with rationale, confidence and review date
+- ✅ Document the implementation plan and known risks
 
-### Retrospective
-- ✅ Update journal with actual outcomes
+### Review
+- ✅ `--journal --review --due`, then `--update` with the actual outcome
 - ✅ Extract lessons learned
-- ✅ Improve future calibration
 
 ---
 
 ## High-Risk Biases (Always Watch)
 
-| Bias | Watch For | Counter |
+| Bias | Watch for | Counter |
 |------|-----------|---------|
-| **Confirmation** | Noticing what supports first impression | Seek disconfirming evidence actively |
-| **Anchoring** | First number/option influences rest | Independent estimates before comparing |
-| **Sunk Cost** | Past investment justifying future | Evaluate as if starting fresh |
+| **Confirmation Bias** | Noticing what supports the first impression | Seek disconfirming evidence actively |
+| **Anchoring Effect** | First number/option influences the rest | Independent estimates before comparing |
+| **Sunk Cost Fallacy** | Past investment justifying more | Evaluate as if starting fresh |
 | **Overconfidence** | Too certain about uncertain outcomes | Pre-mortem, track calibration |
-| **Status Quo** | Preference for current state | Reframe as opportunity cost |
+| **Status Quo Bias** | Preference for the current state | Reframe as the cost of not acting |
 
-### Domain-Specific
-- **Hiring:** Affinity, Halo Effect, Resume-Driven
-- **Tech:** Resume-Driven, Not Invented Here, Status Quo
-- **Allocation:** Planning Fallacy, Overconfidence
+### By area
+
+| Area | Biases |
+|------|--------|
+| Hiring | Confirmation Bias, Anchoring Effect, Availability Heuristic |
+| Tech stack | Availability Heuristic, Confirmation Bias, Survivorship Bias |
+| Build vs buy | Sunk Cost Fallacy, Status Quo Bias, Not Invented Here |
+| Allocation | Sunk Cost Fallacy, Overconfidence, Loss Aversion, Planning Fallacy |
 
 ---
 
 ## Pro Tips
 
-### Decision-Making
-1. **Pros-Cons-Fixes** for binary choices — Ask "is this fixable?"
-2. **Sensitivity Analysis** for multi-option — What if weights change?
-3. **Define Criteria First** — Prevents anchoring and post-hoc rationalization
-4. **Use Anonymous Voting** — Surfaces minority views before group pressure
-5. **Reference Checks** — Talk to customers/previous managers, not just sales pitch
+### Decision-making
+1. **Pros-Cons-Fixes** for binary choices: ask "is this fixable?"
+2. **Sensitivity analysis** for multi-option: which weight change flips the winner?
+3. **Define criteria first**: prevents anchoring and post-hoc rationalization
+4. **Anonymous input first**: surfaces minority views before group pressure
+5. **Reference checks**: talk to customers and previous managers, not just the sales pitch
 
-### Problem-Solving
-1. **Break Into Layers** — Decompose by system architecture
-2. **Rank by Likelihood** — Test highest probability hypotheses first
-3. **Measure Before Fixing** — Understand the problem before proposing solution
-4. **5 Whys** — Work backward from symptom to root cause
-5. **Prevention Matters** — Add monitoring to catch this in future
-
----
-
-## Common Decision Types & Frameworks
-
-| Situation | Framework | Time | Who |
-|-----------|-----------|------|-----|
-| 2 options | Pros-Cons-Fixes | 1-2 hrs | Individual/Team |
-| 3+ options | Weighted Matrix | 2-4 hrs | Individual/Team |
-| Uncertain | Scenario Planning | 2-4 hrs | Team |
-| Sequential | Decision Tree | 1-2 hrs | Team |
-| Resources | Iterative Allocation | 2-4 weeks | Team |
-| Debugging | Hypothesis Testing | 1-4 hrs | Individual |
-| Team aligned | Nominal Group | 2-3 hrs | Group |
+### Problem-solving
+1. **Decompose MECE**: branches that don't overlap and cover the whole problem
+2. **Rank hypotheses**: test the likely, cheap ones first
+3. **Measure before fixing**: understand the problem before proposing a solution
+4. **5 Whys**: work back from the symptom to the root cause
+5. **Answer first**: lead with the recommendation, then the evidence
 
 ---
 
-## Quick Prompts for AI Assistant
+## Quick Prompts for Your AI Assistant
 
 ```
-## For Decision-Making
-
+## For decision-making
 /decide Should we [option A] or [option B]?
-/decide.deep Choosing between [A], [B], and [C] for [purpose].
-/decide.exec Strategic analysis of [major decision] for board discussion
+/decide.deep Choosing between [A], [B] and [C] for [purpose].
+/decide.exec Strategic analysis of [major decision] for the leadership meeting
 /decide.resume [which saved decision, or nothing for the latest]
 /decide Nên chọn [A] hay [B]?   (Vietnamese works too)
 
-## For Coding
-
-/code.debug [Error]. Repro: [steps]. Started after [change].
+## For coding
+/code.debug [Error and stack trace]. Repro: [steps]. Started after [change].
 /code.feature [Feature] so that [user outcome]. Out of scope: [x].
 /code.review [PR link or files]
 /code.test [Module]: protect [behaviors]. Known bugs: [x].
 /code.explain How does [feature] work, from [entry point] to [result]?
 
-## For Problem-Solving
+## For problem-solving
+/solve [Describe the symptom]. Context: [market, product, team].
+Data so far: [numbers]. I've tried [what you've tried].
 
-/solve [Describe symptom]. Happens in [environment].
-Stack: [tech stack]. I've tried [what you've tried so far].
-
-/solve.deep Why does [system] sometimes [fail condition]?
-Recent changes: [recent deployments/config changes]
+/solve.deep Why did [metric] change after [event]?
 ```
 
 ---
 
 ## Resources
 
-- **Main Guide:** [USER-GUIDE.md](USER-GUIDE.md) — Full workflows with examples
-- **Case Studies:** [examples/](examples/) — Real decisions with outcomes
-- **Skill Reference:** `.agents/skills/make-decision/SKILL.md` — Full documentation
-- **Coding Example:** [examples/06-code-debug-typeerror.md](examples/06-code-debug-typeerror.md) — `/code.debug` from stack trace to PR
+- **Main guide:** [USER-GUIDE.md](USER-GUIDE.md): full workflows, [Troubleshooting](USER-GUIDE.md#troubleshooting) and [FAQ](USER-GUIDE.md#faq)
+- **Case studies:** [examples/](examples/README.md)
+- **Coding example:** [examples/06-code-debug-typeerror.md](examples/06-code-debug-typeerror.md): `/code.debug` from stack trace to PR
+- **Skill reference:** the `SKILL.md` in each installed skill folder
 
 ---
 

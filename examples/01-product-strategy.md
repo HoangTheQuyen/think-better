@@ -36,27 +36,30 @@ think-better init --ai copilot --skill make-decision
 
 ### Step 2: Generate decision plan
 
+Run from the project root (Copilot installs the skill under `.github/prompts/`):
+
 ```bash
-cd .github/prompts/make-decision
-python scripts/search.py "Should we add more bundled skills to the CLI tool or keep it minimal with 2 skills" \
+DECIDE=.github/prompts/make-decision/scripts/search.py
+python3 $DECIDE "Should we add more bundled skills to the CLI tool or keep it minimal with 2 skills" \
   --plan -p "CLI Product Strategy" -f markdown
 ```
 
-**Output:**
+**Output (shortened):**
 ```
-Decision Type: Binary Choice
-Recommended Framework: Pros-Cons-Fixes Analysis
+Decision type: Binary Choice (matched: should we, 2 options)
+Options: add more bundled skills to the CLI tool | keep it minimal with 2 skills
+Recommended framework: Pros-Cons-Fixes Analysis
 ```
 
-**Bias Warnings:**
-- ⚠️ **Overconfidence** [High] — Don't assume you know what users need
-- ⚠️ **Loss Aversion** [Medium] — Fear of missing features shouldn't override simplicity
-- ⚠️ **Sunk Cost Fallacy** [High] — Past work on other skills shouldn't drive the decision
+**Bias warnings** (from the plan, with how they applied here):
+- ⚠️ **Confirmation Bias** [High]: we only looked for reasons to keep it small; we also listed what users lose
+- ⚠️ **Sunk Cost Fallacy** [High]: past work on other skills shouldn't drive the decision
+- ⚠️ **Status Quo Bias** [Medium]: "minimal" is also the current state; we asked what staying put costs
 
 ### Step 3: Create comparison matrix
 
 ```bash
-python scripts/search.py --matrix "Keep minimal (2 skills) vs Add more skills (10 bundled)" \
+python3 $DECIDE --matrix "Keep minimal (2 skills) vs Add more skills (10 bundled)" \
   -c "binary_size,maintenance_burden,user_value,distribution_complexity,update_frequency"
 ```
 
