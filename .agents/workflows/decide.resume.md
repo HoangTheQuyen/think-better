@@ -1,7 +1,6 @@
 ---
 description: Resume a saved decision workspace (decision-plans/) at the first step that is not done
-  yet. Use when user wants to continue an earlier decision ("continue the decision", "resume", "tiếp
-  tục quyết định").
+  yet. Use when user wants to continue an earlier decision ("continue the decision", "resume").
 ---
 
 ## Resume a Decision
@@ -23,8 +22,7 @@ description: Resume a saved decision workspace (decision-plans/) at the first st
 - **Output**: `--status` lists each step's file and whether it is done, then the **Next** step with
   its guidance. If it says there is no saved workspace, tell the user and suggest starting one with
   `/decide` and asking to save it; do not invent a workspace.
-- **Language**: answer in the user's language. The script's output is in English: translate it when
-  you present it, and keep commands, flags, file names and option names exactly as written.
+- **Language**: Respond in English. The script's output is in English: show it as it is, and keep commands, flags, file names and option names exactly as written.
 - **Next steps**: do not add a Next steps table; end with the decision, its kill criteria and the
   review date.
 

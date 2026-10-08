@@ -5,8 +5,7 @@ description: |
   "fix this bug", "debug this", "exception", "stack trace", "crash", "the code is not working",
   "add a feature", "refactor", "clean up this code", "the code is slow", "memory leak",
   "flaky test", "CI is failing", "production is down", "upgrade the dependency", "migrate",
-  "review my code", "write tests", "sửa lỗi", "bị lỗi", "thêm tính năng", "tái cấu trúc",
-  "tối ưu code", "code chạy chậm", "nâng cấp thư viện", "review code".
+  "review my code", "write tests", "review code".
   Trivial edits (a typo, a rename, a one-line change with an obvious result) do not need this
   process; just make the change.
   Do NOT use for problems outside the code (business, product, process; use problem-solving-pro)
@@ -71,8 +70,7 @@ The here-string ends at a line that starts with `'@`. If a line of the user's te
 
 ## How to Use This Workflow
 
-**Language:** answer in the user's language. The scripts' output is in English: translate it
-when you present it, and keep commands, flags, file names and option names exactly as written.
+**Language:** Respond in English. The scripts' output is in English: show it as it is, and keep commands, flags, file names and option names exactly as written.
 
 If the user has not said what they want done, ask before running anything. Trivial edits (a typo,
 a rename, a one-line change with an obvious result) do not need the plan: make the change and
@@ -105,8 +103,7 @@ python3 .agents/skills/code-solving/scripts/search.py --stdin --plan --type <typ
 THINK_BETTER_EOF_7f3a
 ```
 
-If the user asked to save the work ("save", "step-by-step", "workspace", "lưu", "lưu lại",
-"lưu từng bước"), run the Step 5 command instead of this one: it prints the same plan.
+If the user asked to save the work ("save", "step-by-step", "workspace"), run the Step 5 command instead of this one: it prints the same plan.
 
 Omit `--type` to auto-detect (the plan says when it is unsure). The plan contains the 7 steps with task-specific guidance and gates, the project's own check commands, techniques, testing strategy, design principles, bias warnings, a review checklist and the hand-off template.
 
@@ -174,8 +171,7 @@ THINK_BETTER_EOF_7f3a
 
 ### Step 5: Save a Workspace (optional)
 
-When the user asks to save or work step by step ("save", "step-by-step", "workspace", "lưu",
-"lưu lại", "lưu từng bước"), run this instead of the Step 2 command, not after it:
+When the user asks to save or work step by step ("save", "step-by-step", "workspace"), run this instead of the Step 2 command, not after it:
 
 ```bash
 python3 .agents/skills/code-solving/scripts/search.py --stdin --plan --type <type> --persist --step-docs -p "<short-name>" -f markdown <<'THINK_BETTER_EOF_7f3a'
