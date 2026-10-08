@@ -62,9 +62,7 @@ func parseFlags(fs *flag.FlagSet, args []string, usage string) (ok bool, code in
 		fs.VisitAll(func(*flag.Flag) { hasFlags = true })
 		if hasFlags {
 			_, _ = fmt.Fprintln(w, "\nFlags:")
-			fs.SetOutput(w)
-			fs.PrintDefaults()
-			fs.SetOutput(io.Discard)
+			printFlagDefaults(w, fs)
 		}
 	}
 
@@ -139,12 +137,15 @@ func promptChoice(prompt string, options []string) string {
 	for i, opt := range options {
 		_, _ = fmt.Fprintf(stderr, "  %d) %s\n", i+1, opt)
 	}
-	_, _ = fmt.Fprintf(stderr, "Choose [1-%d]: ", len(options))
-	input := readLine()
-	for i, opt := range options {
-		if input == strconv.Itoa(i+1) || strings.EqualFold(input, opt) {
-			return opt
+	for range promptAttempts {
+		_, _ = fmt.Fprintf(stderr, "Choose [1-%d]: ", len(options))
+		input := readLine()
+		for i, opt := range options {
+			if input == strconv.Itoa(i+1) || strings.EqualFold(input, opt) {
+				return opt
+			}
 		}
+		_, _ = fmt.Fprintf(stderr, "%q is not one of the choices.\n", input)
 	}
 	return ""
 }
