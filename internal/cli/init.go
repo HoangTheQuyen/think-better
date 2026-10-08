@@ -1,8 +1,9 @@
 package cli
 
 import (
-	"flag"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -10,182 +11,134 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/HoangTheQuyen/think-better/internal/checker"
 	"github.com/HoangTheQuyen/think-better/internal/installer"
 	"github.com/HoangTheQuyen/think-better/internal/skills"
-	"github.com/HoangTheQuyen/think-better/internal/targets"
 )
 
-// RunInit handles the "init" subcommand.
-func RunInit(args []string) int {
-	fs := flag.NewFlagSet("init", flag.ContinueOnError)
-	var sf SharedFlags
-	AddSharedFlags(fs, &sf)
+const initUsage = `
+Install decision-making frameworks and problem-solving skills for AI assistants.
 
-	fs.Usage = func() {
-		fmt.Fprintln(os.Stderr, `Install decision-making frameworks and problem-solving skills for AI assistants.
-
-Installs cognitive bias detection, strategic planning frameworks, and critical thinking
-methodologies for Claude AI, GitHub Copilot, Antigravity, or OpenCode.
-
-Usage:
-  think-better init [--ai <target>] [--skill <name>] [--global] [--force]
+Installs the skills and their slash commands for Claude Code, GitHub Copilot,
+Antigravity or OpenCode. Running init again updates an existing install, like
+'think-better update': files you modified are kept and the new version is
+saved next to them as <file>.new. With --force they are replaced, and your
+version is saved as <file>.bak first.
 
 Use --global to install for your user account so every project can use the
 skills (supported for claude, opencode and antigravity).
 
-Flags:`)
-		fs.PrintDefaults()
+Usage:
+  think-better init [--ai <target>] [--skill <name>] [--global] [--force] [--dry-run]`
+
+// RunInit handles the "init" subcommand.
+func RunInit(args []string) int {
+	flags := newFlagSet("init")
+	var sf SharedFlags
+	AddSharedFlags(flags, &sf, "Replace files you modified (your version is saved as <file>.bak)")
+	flags.BoolVar(&sf.DryRun, "dry-run", false, "Show what would change without writing anything")
+	if ok, code := parseFlags(flags, args, initUsage); !ok {
+		return code
 	}
 
-	if err := fs.Parse(args); err != nil {
-		return 1
-	}
-
-	// Resolve AI target
-	ai, err := ValidateAI(sf.AI)
+	target, err := resolveTarget(sf.AI)
 	if err != nil {
 		Errorf("%v", err)
 		return 1
 	}
-
-	target := targets.FindTarget(ai)
-	if target == nil {
-		Errorf("invalid --ai value %q: must be %s", ai, strings.Join(targets.TargetNames(), " or "))
+	ai := target.Name
+	skillsToInstall, err := selectSkills(sf.Skill)
+	if err != nil {
+		Errorf("%v", err)
 		return 1
 	}
-
-	// Resolve skill list
-	var skillsToInstall []*skills.SkillPackage
-	if sf.Skill != "" {
-		s := skills.FindSkill(sf.Skill)
-		if s == nil {
-			Errorf("unknown skill %q. Available: %s", sf.Skill, strings.Join(skills.SkillNames(), ", "))
-			return 1
-		}
-		skillsToInstall = append(skillsToInstall, s)
-	} else {
-		for i := range skills.Registry {
-			skillsToInstall = append(skillsToInstall, &skills.Registry[i])
-		}
-	}
-
 	target, baseDir, err := ResolveScope(target, sf.Global)
 	if err != nil {
 		Errorf("%v", err)
 		return 1
 	}
 
-	// Warn if target directory doesn't exist (only relevant for copilot which uses .github/)
-	if ai == "copilot" && !target.IsGlobal() {
-		githubDir := filepath.Join(baseDir, ".github")
-		if _, err := os.Stat(githubDir); os.IsNotExist(err) {
-			fmt.Fprintln(os.Stderr, "warning: .github/ directory does not exist (will be created)")
+	// Copilot installs into .github/, which a project may not have yet
+	if ai == "copilot" && !target.IsGlobal() && !sf.DryRun {
+		if _, err := os.Stat(filepath.Join(baseDir, ".github")); errors.Is(err, fs.ErrNotExist) {
+			_, _ = fmt.Fprintln(stderr, "warning: .github/ directory does not exist (will be created)")
 		}
 	}
 
-	inst := installer.NewInstaller(baseDir)
-	interactive := IsTerminal()
-	totalFiles := 0
+	inst := installer.NewInstaller(baseDir, Version())
+	opts := installer.Options{Force: sf.Force, DryRun: sf.DryRun}
+	var results []*installer.Result
 	hasError := false
-
-	for _, skill := range skillsToInstall {
-		fmt.Printf("Installing skill %q for %s...\n", skill.Name, ai)
-
-		created, err := inst.Install(skill, target, sf.Force, interactive)
+	for i, skill := range skillsToInstall {
+		res, err := inst.Install(skill, target, opts)
+		if i > 0 {
+			_, _ = fmt.Fprintln(stdout)
+		}
 		if err != nil {
 			Errorf("%v", err)
 			hasError = true
 			continue
 		}
-
-		if created == nil {
-			// User declined overwrite
-			fmt.Printf("Skipped %q\n", skill.Name)
-			continue
+		verb := "Installing"
+		if res.Existing {
+			verb = "Updating"
 		}
-
-		installPath := target.Display(target.InstallDir(skill.Name))
-		for _, f := range created {
-			fmt.Printf("  Created %s\n", filepath.ToSlash(filepath.Join(installPath, f)))
-		}
-		fmt.Printf("\n✓ Installed %d files to %s\n", len(created), installPath)
-		totalFiles += len(created)
+		_, _ = fmt.Fprintf(stdout, "%s skill %q for %s (%s)...\n", verb, skill.Name, ai, target.Display(target.InstallDir(skill.Name)))
+		printResult(target, res, sf.DryRun)
+		results = append(results, res)
 	}
-
-	// Install workflow files (slash commands, e.g. /solve, /decide) for targets that support them
-	// Always attempt workflow installation regardless of skill errors —
-	// workflows are independent of skills and should not be blocked by them.
-	installed := make([]string, len(skillsToInstall))
-	for i, s := range skillsToInstall {
-		installed[i] = s.Name
-	}
-	if target.HasWorkflows() {
-		wfCreated, err := inst.InstallWorkflows(target, sf.Force, installed...)
-		if err != nil {
-			Errorf("installing workflows: %v", err)
-			hasError = true
-		} else if len(wfCreated) > 0 {
-			workflowDir := target.Display(target.WorkflowDir())
-			fmt.Printf("\nInstalling workflows to %s...\n", workflowDir)
-			for _, f := range wfCreated {
-				fmt.Printf("  Created %s\n", filepath.ToSlash(filepath.Join(workflowDir, f)))
-			}
-			fmt.Printf("✓ Installed %d workflow files\n", len(wfCreated))
-			totalFiles += len(wfCreated)
-		} else {
-			fmt.Printf("\n✓ Workflows already up-to-date at %s\n", target.Display(target.WorkflowDir()))
-		}
-	}
+	printMergeHint(results, sf.DryRun)
 
 	if hasError {
 		return 1
 	}
-
-	// Next steps & prerequisite check
-	if totalFiles > 0 {
-		fmt.Println("\nNext steps:")
-		if target.IsGlobal() {
-			fmt.Println("  - Installed for your user account: available in every project")
-		}
-		if ai == "antigravity" {
-			fmt.Println("  - Skills installed as Antigravity skills (SKILL.md entry points)")
-			for _, s := range skillsToInstall {
-				fmt.Printf("  - Skill %q is available in %s\n", s.Name, target.Display(target.InstallDir(s.Name)))
-			}
-			printSlashCommands("Workflows installed", installed)
-		} else if ai == "claude" || ai == "copilot" {
-			for _, s := range skillsToInstall {
-				fmt.Printf("  - Skill %q is available in %s\n", s.Name, target.Display(target.InstallDir(s.Name)))
-			}
-			printSlashCommands("Slash commands installed", installed)
-			if ai == "copilot" {
-				fmt.Println("  - Use them in Copilot Chat (agent mode) by typing / and the command name")
-			}
-		} else if ai == "opencode" {
-			fmt.Println("  - Skills installed as OpenCode skills (SKILL.md entry points)")
-			for _, s := range skillsToInstall {
-				fmt.Printf("  - Skill %q is available in %s\n", s.Name, target.Display(target.InstallDir(s.Name)))
-			}
-			fmt.Println("  - OpenCode will auto-discover skills via the native skill tool")
-			printSlashCommands("Slash commands installed", installed)
-		} else if len(skillsToInstall) == 1 {
-			fmt.Printf("  - Open your AI assistant and type /%s to start\n", skillsToInstall[0].Name)
-		} else {
-			for _, s := range skillsToInstall {
-				fmt.Printf("  - Type /%s to use %s\n", s.Name, s.Description)
-			}
-		}
-
-		// Check Python
-		pyResult := checker.CheckPython()
-		if !pyResult.Found {
-			fmt.Println("  - Python 3 is required for skill scripts")
-		} else {
-			fmt.Printf("  - Python %s available for skill scripts\n", pyResult.Version)
-		}
+	if sf.DryRun {
+		_, _ = fmt.Fprintln(stdout, "\nDry run: nothing was changed.")
+		return 0
 	}
 
+	changed := 0
+	for _, r := range results {
+		changed += r.Count(installer.ActionCreate, installer.ActionUpdate, installer.ActionReplace)
+	}
+	if changed == 0 {
+		return 0
+	}
+
+	installed := make([]string, len(skillsToInstall))
+	for i, s := range skillsToInstall {
+		installed[i] = s.Name
+	}
+	_, _ = fmt.Fprintln(stdout, "\nNext steps:")
+	if target.IsGlobal() {
+		_, _ = fmt.Fprintln(stdout, "  - Installed for your user account: available in every project")
+	}
+	switch ai {
+	case "antigravity":
+		_, _ = fmt.Fprintln(stdout, "  - Skills installed as Antigravity skills (SKILL.md entry points)")
+	case "opencode":
+		_, _ = fmt.Fprintln(stdout, "  - Skills installed as OpenCode skills (SKILL.md entry points)")
+	}
+	for _, s := range skillsToInstall {
+		_, _ = fmt.Fprintf(stdout, "  - Skill %q is available in %s\n", s.Name, target.Display(target.InstallDir(s.Name)))
+	}
+	switch ai {
+	case "antigravity":
+		printSlashCommands("Workflows installed", installed)
+	case "opencode":
+		_, _ = fmt.Fprintln(stdout, "  - OpenCode will auto-discover skills via the native skill tool")
+		printSlashCommands("Slash commands installed", installed)
+	default:
+		printSlashCommands("Slash commands installed", installed)
+	}
+	if ai == "copilot" {
+		_, _ = fmt.Fprintln(stdout, "  - Use them in Copilot Chat (agent mode) by typing / and the command name")
+	}
+
+	if py := checkPython(); py.Found {
+		_, _ = fmt.Fprintf(stdout, "  - Python %s available for skill scripts\n", py.Version)
+	} else {
+		_, _ = fmt.Fprintln(stdout, "  - Python 3 is required for skill scripts")
+	}
 	return 0
 }
 
@@ -213,6 +166,6 @@ func printSlashCommands(label string, installed []string) {
 	for _, group := range order {
 		cmds := groups[group]
 		sort.Strings(cmds)
-		fmt.Printf("  - %s: %s\n", label, strings.Join(cmds, ", "))
+		_, _ = fmt.Fprintf(stdout, "  - %s: %s\n", label, strings.Join(cmds, ", "))
 	}
 }

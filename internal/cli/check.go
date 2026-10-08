@@ -1,47 +1,54 @@
 package cli
 
 import (
-	"flag"
 	"fmt"
 	"os"
+	"strings"
 
-	"github.com/HoangTheQuyen/think-better/internal/checker"
 	"github.com/HoangTheQuyen/think-better/internal/installer"
 	"github.com/HoangTheQuyen/think-better/internal/skills"
 )
 
-// RunCheck handles the "check" subcommand.
-func RunCheck(args []string) int {
-	fs := flag.NewFlagSet("check", flag.ContinueOnError)
+const checkUsage = `
+Verify prerequisites and the state of installed skills.
 
-	fs.Usage = func() {
-		fmt.Fprintln(os.Stderr, `Verify runtime prerequisites for decision-making and problem-solving skills.
+Checks that Python 3 is available for the analysis scripts (bias detection,
+framework search, data processing), and reports each installed skill, in
+every AI tool, in this project and in your user account, as installed,
+outdated, modified (you edited files) or incomplete.
 
-Checks Python 3 availability for analysis scripts (bias detection, framework search, data processing).
+Exits 1 when Python 3 is missing or an install is incomplete, and with
+--strict also when an install is outdated. Skills that are not installed
+anywhere are reported but are not an error.
 
 Usage:
-  think-better check
+  think-better check [--json] [--strict]`
 
-Flags:`)
-		fs.PrintDefaults()
-	}
+type checkOutput struct {
+	OK     bool         `json:"ok"`
+	Python pythonJSON   `json:"python"`
+	Skills []checkSkill `json:"skills"`
+}
 
-	if err := fs.Parse(args); err != nil {
-		return 1
-	}
+type pythonJSON struct {
+	Found   bool   `json:"found"`
+	Version string `json:"version,omitempty"`
+	Path    string `json:"path,omitempty"`
+}
 
-	fmt.Println("Checking prerequisites...")
+type checkSkill struct {
+	Name      string         `json:"name"`
+	Installed bool           `json:"installed"`
+	Locations []locationJSON `json:"locations"`
+}
 
-	warnings := 0
-
-	// Check Python
-	pyResult := checker.CheckPython()
-	if pyResult.Found {
-		fmt.Printf("  ✓ Python %s found at %s\n", pyResult.Version, pyResult.Path)
-	} else {
-		fmt.Println("  ✗ Python 3 not found")
-		fmt.Println("    Install from https://python.org or your package manager")
-		warnings++
+// RunCheck handles the "check" subcommand.
+func RunCheck(args []string) int {
+	flags := newFlagSet("check")
+	jsonFlag := flags.Bool("json", false, "Output JSON")
+	strict := flags.Bool("strict", false, "Also fail when an installed skill is outdated")
+	if ok, code := parseFlags(flags, args, checkUsage); !ok {
+		return code
 	}
 
 	cwd, err := os.Getwd()
@@ -50,31 +57,77 @@ Flags:`)
 		return 1
 	}
 
-	// Check skill installation status across all AI tools, project and global
+	py := checkPython()
+	out := checkOutput{Python: pythonJSON{Found: py.Found, Version: py.Version, Path: py.Path}, Skills: []checkSkill{}}
+	var lines []string
+	problems := 0
+	if py.Found {
+		lines = append(lines, fmt.Sprintf("  ✓ Python %s found at %s", py.Version, py.Path))
+	} else {
+		lines = append(lines, "  ✗ Python 3 not found", "    Install from https://python.org or your package manager")
+		problems++
+	}
+
 	home := userHome()
 	for i := range skills.Registry {
 		skill := &skills.Registry[i]
+		entry := checkSkill{Name: skill.Name, Locations: []locationJSON{}}
 		locations := findSkillLocations(skill, cwd, home)
 		if len(locations) == 0 {
-			fmt.Printf("  ✗ Skill %q not installed (run: think-better init)\n", skill.Name)
-			warnings++
-			continue
+			lines = append(lines, fmt.Sprintf("  - Skill %q not installed (install with: think-better init --skill %s)", skill.Name, skill.Name))
 		}
 		for _, loc := range locations {
-			if loc.Status == installer.StatusIncomplete {
-				fmt.Printf("  ⚠ Skill %q incomplete in %s (run: think-better init --force)\n", skill.Name, loc.Path)
-				warnings++
-			} else {
-				fmt.Printf("  ✓ Skill %q installed for %s (%s)\n", skill.Name, loc.Label, loc.Path)
+			entry.Installed = true
+			entry.Locations = append(entry.Locations, toLocationJSON(loc))
+			st := loc.Status
+			where := fmt.Sprintf("for %s (%s)", loc.Label, loc.Path)
+			fix := updateCommand(skill.Name, loc)
+			switch {
+			case st.Status == installer.StatusIncomplete:
+				lines = append(lines, fmt.Sprintf("  ✗ Skill %q incomplete %s: %s missing (fix with: %s)",
+					skill.Name, where, plural(len(st.Missing), "file", "files"), fix))
+				problems++
+			case st.Outdated:
+				lines = append(lines, fmt.Sprintf("  ⚠ Skill %q %s %s (update with: %s)", skill.Name, statusLabel(st), where, fix))
+				if *strict {
+					problems++
+				}
+			case len(st.Modified) > 0:
+				lines = append(lines, fmt.Sprintf("  ✓ Skill %q installed %s, %s by you", skill.Name, where, plural(len(st.Modified), "file", "files")+" modified"))
+			default:
+				lines = append(lines, fmt.Sprintf("  ✓ Skill %q installed %s", skill.Name, where))
 			}
 		}
+		out.Skills = append(out.Skills, entry)
+	}
+	out.OK = problems == 0
+
+	code := 0
+	if problems > 0 {
+		code = 1
+	}
+	if *jsonFlag {
+		if printJSON(out) != 0 {
+			return 1
+		}
+		return code
 	}
 
-	if warnings > 0 {
-		fmt.Printf("\n%d warning(s)\n", warnings)
-		return 1
+	_, _ = fmt.Fprintln(stdout, "Checking prerequisites...")
+	_, _ = fmt.Fprintln(stdout, strings.Join(lines, "\n"))
+	if problems > 0 {
+		_, _ = fmt.Fprintf(stdout, "\n%s found\n", plural(problems, "problem", "problems"))
+		return code
 	}
+	_, _ = fmt.Fprintln(stdout, "\n✓ All prerequisites met")
+	return code
+}
 
-	fmt.Println("\n✓ All prerequisites met")
-	return 0
+// updateCommand is the command that brings one location up to date.
+func updateCommand(skill string, loc skillLocation) string {
+	cmd := fmt.Sprintf("think-better update --ai %s --skill %s", loc.Target.Name, skill)
+	if loc.Global() {
+		cmd += " --global"
+	}
+	return cmd
 }

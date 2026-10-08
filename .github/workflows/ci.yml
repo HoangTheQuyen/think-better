@@ -4,13 +4,24 @@ on:
     push:
         branches: [main]
     pull_request:
+    # The Release workflow calls this workflow to run the same checks on the
+    # exact commit it is about to release.
+    workflow_call:
+        inputs:
+            release:
+                description: Called by the Release workflow (skips the jobs that only test the already-published release)
+                type: boolean
+                default: false
 
 permissions:
     contents: read
 
 concurrency:
-    group: ci-${{ github.ref }}
-    cancel-in-progress: true
+    # In a workflow_call, `github.workflow` is the caller's name ("Release"), so
+    # a release run never shares a group with, or gets cancelled by, a push to
+    # main. Only superseded pull request runs are cancelled.
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
     go:
@@ -20,6 +31,7 @@ jobs:
             matrix:
                 os: [ubuntu-latest, macos-latest, windows-latest]
         runs-on: ${{ matrix.os }}
+        timeout-minutes: 15
         steps:
             - uses: actions/checkout@v7
 
@@ -48,6 +60,7 @@ jobs:
 
     lint:
         runs-on: ubuntu-latest
+        timeout-minutes: 10
         steps:
             - uses: actions/checkout@v7
 
@@ -55,27 +68,15 @@ jobs:
               with:
                   go-version-file: go.mod
 
+            # verify: false skips `golangci-lint config verify`, which downloads
+            # the config JSON schema at run time and has timed out in CI. The
+            # config is still parsed (and rejected if invalid) by `run`.
+            # Keep `version` in sync with the Makefile's GOLANGCI_LINT_VERSION.
             - uses: golangci/golangci-lint-action@v8
               with:
                   version: v2.5.0
-
-    goreleaser:
-        name: GoReleaser config
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v7
-              with:
-                  fetch-depth: 0
-
-            - uses: actions/setup-go@v7
-              with:
-                  go-version-file: go.mod
-
-            - uses: goreleaser/goreleaser-action@v6
-              with:
-                  distribution: goreleaser
-                  version: "~> v2"
-                  args: release --snapshot --clean
+                  verify: false
+                  args: --timeout=5m
 
     python:
         name: Skill scripts (Python ${{ matrix.python }}, ${{ matrix.os }})
@@ -83,11 +84,14 @@ jobs:
             fail-fast: false
             matrix:
                 os: [ubuntu-latest]
-                python: ["3.9", "3.13"]
+                python: ["3.9", "3.13", "3.14"]
                 include:
                     - os: windows-latest
                       python: "3.13"
+                    - os: macos-latest
+                      python: "3.13"
         runs-on: ${{ matrix.os }}
+        timeout-minutes: 15
         steps:
             - uses: actions/checkout@v7
 
@@ -101,24 +105,143 @@ jobs:
             - name: Skill engine regression tests
               run: python scripts/test_skill_engines.py
 
-    install-scripts:
+            - name: Docs match the repository
+              if: runner.os == 'Linux'
+              run: python scripts/test_docs.py
+
+    goreleaser:
+        name: GoReleaser config
+        # The release itself runs GoReleaser for real.
+        if: ${{ !inputs.release }}
         runs-on: ubuntu-latest
+        timeout-minutes: 20
+        steps:
+            - uses: actions/checkout@v7
+              with:
+                  fetch-depth: 0
+
+            - uses: actions/setup-go@v7
+              with:
+                  go-version-file: go.mod
+
+            # syft generates the SBOMs (`sboms:` in .goreleaser.yaml).
+            - uses: anchore/sbom-action/download-syft@v0
+
+            # Exact version, same as release.yml; see .goreleaser.yaml for why.
+            - uses: goreleaser/goreleaser-action@v6
+              with:
+                  distribution: goreleaser
+                  version: v2.18.2
+                  install-only: true
+
+            - name: goreleaser check
+              run: sh .github/scripts/goreleaser-check.sh
+
+            - name: Snapshot release (no signing)
+              run: goreleaser release --snapshot --clean --skip=sign
+
+            - name: Check release assets
+              run: |
+                  # install.sh / install.ps1 download these exact names, and the
+                  # release attests everything listed in checksums.txt.
+                  for asset in linux-amd64 linux-arm64 darwin-amd64 darwin-arm64 windows-amd64.exe windows-arm64.exe; do
+                    grep -q "  think-better-$asset\$" dist/checksums.txt || { echo "::error::think-better-$asset missing from checksums.txt"; exit 1; }
+                  done
+                  test "$(find dist -maxdepth 1 -name '*.sbom.json' | wc -l)" -eq 6
+                  ./dist/think-better_linux_amd64_v1/think-better version
+
+            - name: Check the build is reproducible
+              run: |
+                  grep -v '\.sbom\.json$' dist/checksums.txt | sort > "$RUNNER_TEMP/first.txt"
+                  goreleaser release --snapshot --clean --skip=sign,sbom,before
+                  grep -v '\.sbom\.json$' dist/checksums.txt | sort > "$RUNNER_TEMP/second.txt"
+                  diff -u "$RUNNER_TEMP/first.txt" "$RUNNER_TEMP/second.txt"
+
+    install-scripts:
+        name: install.sh (${{ matrix.os }})
+        # These install the already-published release, so they say nothing
+        # about the commit being released.
+        if: ${{ !inputs.release }}
+        strategy:
+            fail-fast: false
+            matrix:
+                os: [ubuntu-latest, macos-latest]
+        runs-on: ${{ matrix.os }}
+        timeout-minutes: 10
         steps:
             - uses: actions/checkout@v7
 
             - name: ShellCheck
-              run: shellcheck install.sh build.sh
+              if: runner.os == 'Linux'
+              run: shellcheck install.sh build.sh .github/scripts/*.sh
 
-            - name: Install latest release with install.sh
+            - name: install.ps1 is ASCII-only
+              if: runner.os == 'Linux'
+              # Windows PowerShell 5.1 reads BOM-less scripts in the ANSI code
+              # page; non-ASCII characters there break parsing.
+              run: |
+                  if LC_ALL=C grep -n '[^[:print:][:space:]]' install.ps1; then
+                    echo "::error file=install.ps1::install.ps1 must be ASCII-only"
+                    exit 1
+                  fi
+
+            - name: Install latest release
               run: INSTALL_DIR="$RUNNER_TEMP/bin" sh install.sh
 
+            - name: Install a pinned version, with and without the leading v
+              run: |
+                  for v in v1.3.0 1.3.0; do
+                    THINK_BETTER_VERSION="$v" INSTALL_DIR="$RUNNER_TEMP/bin" sh install.sh
+                    "$RUNNER_TEMP/bin/think-better" version | grep -F 'v1.3.0'
+                  done
+
+            - name: Uninstall
+              run: |
+                  THINK_BETTER_UNINSTALL=1 INSTALL_DIR="$RUNNER_TEMP/bin" sh install.sh
+                  test ! -e "$RUNNER_TEMP/bin/think-better"
+
     install-script-windows:
+        name: install.ps1 (${{ matrix.shell }})
+        if: ${{ !inputs.release }}
+        strategy:
+            fail-fast: false
+            matrix:
+                # powershell = Windows PowerShell 5.1, pwsh = PowerShell 7.
+                shell: [powershell, pwsh]
         runs-on: windows-latest
+        timeout-minutes: 10
+        defaults:
+            run:
+                shell: ${{ matrix.shell }}
         steps:
             - uses: actions/checkout@v7
 
-            - name: Install latest release with install.ps1
-              shell: pwsh
+            - name: PowerShell version and install dir
               run: |
-                  $env:INSTALL_DIR = Join-Path $env:RUNNER_TEMP "think-better"
+                  $PSVersionTable
+                  Add-Content -Path $env:GITHUB_ENV -Value "INSTALL_DIR=$(Join-Path $env:RUNNER_TEMP 'think-better')"
+
+            - name: Install latest release
+              run: ./install.ps1
+
+            - name: Install a pinned version without the leading v (again, as with irm | iex)
+              run: |
+                  $env:THINK_BETTER_VERSION = "1.3.0"
+                  Get-Content -Raw ./install.ps1 | Invoke-Expression
+                  $out = & (Join-Path $env:INSTALL_DIR "think-better.exe") version
+                  if ("$out" -notmatch 'v1\.3\.0') { throw "unexpected version output: $out" }
+
+            - name: User PATH has exactly one entry for the install dir
+              run: |
+                  $dir = $env:INSTALL_DIR.TrimEnd('\')
+                  $entries = @(([Environment]::GetEnvironmentVariable("Path", "User") -split ';') | Where-Object { $_ -and $_.TrimEnd('\') -eq $dir })
+                  if ($entries.Count -ne 1) { throw "expected 1 user PATH entry for $dir, found $($entries.Count)" }
+
+            - name: Uninstall
+              run: |
+                  $env:THINK_BETTER_UNINSTALL = "1"
                   ./install.ps1
+                  if (Test-Path (Join-Path $env:INSTALL_DIR "think-better.exe")) { throw "binary still present" }
+                  $dir = $env:INSTALL_DIR.TrimEnd('\')
+                  $entries = @(([Environment]::GetEnvironmentVariable("Path", "User") -split ';') | Where-Object { $_ -and $_.TrimEnd('\') -eq $dir })
+                  if ($entries.Count -ne 0) { throw "user PATH still contains $dir" }

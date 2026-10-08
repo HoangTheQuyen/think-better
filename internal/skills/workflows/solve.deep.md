@@ -28,6 +28,7 @@ TASK
 
 3. If user mentions "save", "persist", "step-by-step", "workspace":
    Replace `<project-name>` with a short name for this work; files are saved in the project.
+   In a later session, `/solve.resume` continues at the first step not done yet.
 // turbo
 ```
 python3 .agents/skills/problem-solving-pro/scripts/search.py --stdin --plan --depth deep --persist --step-docs -p "<project-name>" -f markdown <<'TASK'
@@ -35,14 +36,6 @@ $ARGUMENTS
 TASK
 ```
 
-4. Present the output, then append:
-
-```
----
-🎯 **Next Steps:**
-| Command | Description |
-|---------|-------------|
-| `/solve.exec` | Executive summary for leadership/stakeholders |
-| `/decide.deep` | Detailed comparison of options from this analysis |
-| Add "save step-by-step" | Create markdown workspace for each step |
-```
+4. Present the output as it is. It already ends with the **Next Steps** table for this depth;
+   do not add another one. If it says no type or context matched, re-run with `--type` /
+   `--category` (values are in the note and in SKILL.md) before presenting.

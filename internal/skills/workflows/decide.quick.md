@@ -25,14 +25,6 @@ $ARGUMENTS
 TASK
 ```
 
-3. Present the output, then append:
-
-```
----
-🎯 **Next Steps:**
-| Command | Description |
-|---------|-------------|
-| `/decide` | Full standard comparison |
-| `/decide.deep` | Detailed comparison with alternatives |
-| `/solve.quick` | Quick scan of the root problem first |
-```
+3. Present the output in the user's language (the plan is in English; keep option names as the
+   user wrote them). The plan already ends with a **Next Steps** table: show that table once, at the end
+   of your answer, and do not add another one.

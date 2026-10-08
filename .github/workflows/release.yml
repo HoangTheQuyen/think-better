@@ -4,58 +4,144 @@ on:
     push:
         tags:
             - "v*"
-    # Release without pushing a tag yourself: Actions → Release → Run workflow,
-    # enter the version (e.g. v1.1.0). The tag is created on the current main.
+    # Release without pushing a tag yourself: Actions -> Release -> Run workflow
+    # (on main). The tag is created on the commit that passed the checks.
     workflow_dispatch:
         inputs:
             version:
-                description: "Version tag to create and release, e.g. v1.1.0"
-                required: true
+                description: "Version tag to create, e.g. v1.4.0 (default: v + the VERSION file)"
+                required: false
 
-permissions:
-    contents: write
+permissions: {}
+
+# One release at a time. A second run waits; a release that may already be
+# half-published is never cancelled.
+concurrency:
+    group: release
+    cancel-in-progress: false
 
 jobs:
-    release:
+    preflight:
+        name: Validate version
+        # Fails (and so stops everything after it) for a manual run outside
+        # main, a tag that is not on main, a malformed or existing tag, or a
+        # tag that does not match the VERSION file.
         runs-on: ubuntu-latest
+        timeout-minutes: 5
+        permissions:
+            contents: read
+        outputs:
+            version: ${{ steps.version.outputs.version }}
+        steps:
+            - uses: actions/checkout@v7
+              with:
+                  fetch-depth: 0
+
+            - name: Resolve and validate the version
+              id: version
+              env:
+                  INPUT_VERSION: ${{ inputs.version }}
+              run: |
+                  set -eu
+                  fail() { echo "::error::$*"; exit 1; }
+
+                  file_version="v$(tr -d '[:space:]' < VERSION)"
+
+                  if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+                    [ "$GITHUB_REF" = "refs/heads/main" ] || fail "Run the Release workflow from main (got $GITHUB_REF)."
+                    version="${INPUT_VERSION:-$file_version}"
+                    case "$version" in v*) ;; *) version="v$version" ;; esac
+                    if git rev-parse -q --verify "refs/tags/$version" >/dev/null; then
+                      fail "Tag $version already exists."
+                    fi
+                  else
+                    version="$GITHUB_REF_NAME"
+                    git merge-base --is-ancestor "$GITHUB_SHA" origin/main ||
+                      fail "Tag $version points at $GITHUB_SHA, which is not on main. Release from main."
+                  fi
+
+                  printf '%s' "$version" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$' ||
+                    fail "Version must look like v1.2.3 or v1.2.3-rc.1, got '$version'."
+
+                  # flake.nix reads its version from VERSION, so it must match the tag
+                  # (a pre-release v1.4.0-rc.1 matches VERSION 1.4.0).
+                  [ "${version%%-*}" = "$file_version" ] ||
+                    fail "VERSION file says ${file_version#v} but the release is $version. Bump VERSION in a PR to main first (see CONTRIBUTING.md, Releasing)."
+
+                  echo "version=$version" >> "$GITHUB_OUTPUT"
+                  echo "Releasing $version from $GITHUB_SHA"
+
+    checks:
+        name: CI
+        needs: preflight
+        # Same jobs as on every push/PR: go vet + tests on 3 OSes, golangci-lint,
+        # Python skill smoke + engine tests.
+        uses: ./.github/workflows/ci.yml
+        with:
+            release: true
+        permissions:
+            contents: read
+
+    release:
+        needs: [preflight, checks]
+        if: github.event_name == 'push' || github.ref == 'refs/heads/main'
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        permissions:
+            contents: write # publish the release, push the tag and the Formula/bucket commit
+            id-token: write # keyless cosign signature and build provenance (Sigstore OIDC)
+            attestations: write # store the build provenance attestations
         steps:
             - uses: actions/checkout@v7
               with:
                   fetch-depth: 0
 
             # Tags pushed with GITHUB_TOKEN do not trigger another run, so this
-            # job does not release twice.
+            # job does not release twice. The tag goes on the commit the checks
+            # just ran on (github.sha).
             - name: Create tag (manual run)
               if: github.event_name == 'workflow_dispatch'
               env:
-                  VERSION: ${{ inputs.version }}
+                  VERSION: ${{ needs.preflight.outputs.version }}
               run: |
-                  if ! printf '%s' "$VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$'; then
-                    echo "::error::version must look like v1.2.3 or v1.2.3-rc.1, got '$VERSION'"
-                    exit 1
-                  fi
-                  if git rev-parse -q --verify "refs/tags/$VERSION" >/dev/null; then
-                    echo "::error::tag $VERSION already exists"
-                    exit 1
-                  fi
                   git config user.name "github-actions[bot]"
                   git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-                  git tag -a "$VERSION" -m "$VERSION"
+                  git tag -a "$VERSION" -m "$VERSION" "$GITHUB_SHA"
                   git push origin "refs/tags/$VERSION"
 
             - uses: actions/setup-go@v7
               with:
                   go-version-file: go.mod
 
-            # Builds all platforms, writes checksums.txt, publishes the GitHub
-            # Release, and commits Formula/think-better.rb and
-            # bucket/think-better.json back to main (Homebrew tap + Scoop bucket).
-            # Uses the built-in GITHUB_TOKEN; if main is protected, allow
-            # github-actions to bypass the rule or the commit will be rejected.
+            # SBOMs (`sboms:` in .goreleaser.yaml) and signing (`signs:`).
+            - uses: anchore/sbom-action/download-syft@v0
+            - uses: sigstore/cosign-installer@v3
+
+            # Builds all platforms, writes checksums.txt, SBOMs and the cosign
+            # bundle, publishes the GitHub Release, and commits
+            # Formula/think-better.rb and bucket/think-better.json back to main
+            # (Homebrew tap + Scoop bucket). Uses the built-in GITHUB_TOKEN; if
+            # main is protected, allow github-actions to bypass the rule or the
+            # commit will be rejected.
+            # Exact GoReleaser version (same as ci.yml); see .goreleaser.yaml.
             - uses: goreleaser/goreleaser-action@v6
               with:
                   distribution: goreleaser
-                  version: "~> v2"
+                  version: v2.18.2
                   args: release --clean
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            # SLSA build provenance for every published asset; verify with
+            # `gh attestation verify <file> --repo HoangTheQuyen/think-better`.
+            # checksums.txt lists every asset under its published name (the raw
+            # think-better-<os>-<arch> binaries only get that name on upload).
+            - name: Attest build provenance (all assets)
+              uses: actions/attest-build-provenance@v3
+              with:
+                  subject-checksums: dist/checksums.txt
+
+            - name: Attest build provenance (checksums.txt)
+              uses: actions/attest-build-provenance@v3
+              with:
+                  subject-path: dist/checksums.txt

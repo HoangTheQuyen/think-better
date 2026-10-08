@@ -1,11 +1,34 @@
-# GoReleaser config — builds release binaries, archives, checksums, and
-# commits the Homebrew formula (Formula/) and Scoop manifest (bucket/) back
-# into this repository, so it doubles as the tap and the bucket.
-# Docs: https://goreleaser.com  ·  Local dry run: goreleaser release --snapshot --clean
+# GoReleaser config - builds release binaries, archives, checksums, SBOMs and
+# a cosign signature, and commits the Homebrew formula (Formula/) and Scoop
+# manifest (bucket/) back into this repository, so it doubles as the tap and
+# the bucket.
+#
+# Docs: https://goreleaser.com
+# Local dry run: make release-snapshot (goreleaser release --snapshot --clean --skip=sign)
+#
+# GoReleaser version: pinned to an exact release in .github/workflows/release.yml
+# and ci.yml (GORELEASER_VERSION). Keep them in sync when bumping.
+#
+# Why `brews` and not `homebrew_casks`: GoReleaser deprecated `brews` in
+# favour of casks, so `goreleaser check` exits 2 ("valid, but uses deprecated
+# properties"); `goreleaser release` still works and only warns. Switching to
+# a cask would change things for users:
+#   - `brew upgrade` does not move an installed formula to a cask, so existing
+#     users would silently stay on the last formula release;
+#   - casks of an unsigned, un-notarized binary get the macOS quarantine flag
+#     (Gatekeeper blocks the first run unless we strip it in a hook);
+#   - casks on Linux need a recent Homebrew, while the formula works today.
+# So we keep the formula (Formula/think-better.rb, installed with
+# `brew install HoangTheQuyen/think-better/think-better`), pin GoReleaser to an
+# exact version that still supports `brews`, and CI accepts exit code 2 from
+# `goreleaser check` only when `brews` is the sole deprecation
+# (scripts in .github/workflows/ci.yml). Revisit before GoReleaser v3.
 version: 2
 
 project_name: think-better
 
+# The Release workflow already ran the full CI suite (vet, tests, lint, Python
+# tests) on this commit; this keeps local `make release-snapshot` honest too.
 before:
   hooks:
     - go test ./...
@@ -20,8 +43,11 @@ builds:
     goarch: [amd64, arm64]
     flags:
       - -trimpath
+    # Reproducible builds: no wall-clock time anywhere in the output. The
+    # binary's mtime and its build date both come from the tagged commit.
+    mod_timestamp: "{{ .CommitTimestamp }}"
     ldflags:
-      - -s -w -X main.version={{ .Tag }} -X main.commit={{ .ShortCommit }} -X main.buildDate={{ time "2006-01-02" }}
+      - -s -w -X main.version={{ .Tag }} -X main.commit={{ .ShortCommit }} -X main.buildDate={{ slice .CommitDate 0 10 }}
 
 archives:
   # Raw binaries named think-better-<os>-<arch>[.exe]: the assets that
@@ -39,24 +65,88 @@ archives:
       - goos: windows
         formats: [zip]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    builds_info:
+      mtime: "{{ .CommitDate }}"
     files:
-      - LICENSE
-      - README.md
+      - src: LICENSE
+        info:
+          mtime: "{{ .CommitDate }}"
+      - src: README.md
+        info:
+          mtime: "{{ .CommitDate }}"
 
 checksum:
   name_template: checksums.txt
 
+# One SPDX SBOM per packaged archive (needs syft on PATH).
+sboms:
+  - artifacts: archive
+    ids: [packaged]
+
+# Keyless cosign signature of checksums.txt (which covers every asset),
+# using the workflow's GitHub OIDC identity. Produces checksums.txt.sigstore.json.
+# Verify: see SECURITY.md. Skipped in snapshots (--skip=sign).
+signs:
+  - cmd: cosign
+    artifacts: checksum
+    signature: "${artifact}.sigstore.json"
+    args:
+      - sign-blob
+      - "--bundle=${signature}"
+      - "${artifact}"
+      - --yes
+    output: true
+
 changelog:
-  use: github-native
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - "^Merge pull request"
+      - "^Merge branch"
+      - "^chore\\(brew\\)"
+      - "^chore\\(scoop\\)"
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\([[:word:]./-]+\))??!?:.+$'
+      order: 0
+    - title: Bug fixes
+      regexp: '^.*?fix(\([[:word:]./-]+\))??!?:.+$'
+      order: 1
+    - title: Documentation
+      regexp: '^.*?docs(\([[:word:]./-]+\))??!?:.+$'
+      order: 2
+    - title: Others
+      order: 999
 
 release:
   github:
     owner: HoangTheQuyen
     name: think-better
+  header: |
+    ## Install or upgrade
+
+    **macOS / Linux**
+    ```sh
+    curl -fsSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.sh | THINK_BETTER_VERSION={{ .Tag }} sh
+    # Homebrew: brew install HoangTheQuyen/think-better/think-better   (upgrade: brew upgrade think-better)
+    ```
+
+    **Windows (PowerShell)**
+    ```powershell
+    $env:THINK_BETTER_VERSION = "{{ .Tag }}"; irm https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.ps1 | iex
+    # Scoop: scoop bucket add think-better https://github.com/HoangTheQuyen/think-better; scoop install think-better   (upgrade: scoop update think-better)
+    ```
+
+    **Go**: `go install github.com/HoangTheQuyen/think-better/cmd/think-better@{{ .Tag }}`
+
+    Then, in your project: `think-better init --ai claude` (or `copilot`, `antigravity`, `opencode`). Skill scripts need Python 3 (`think-better check`).
+
+    **Verify a download**: `gh attestation verify <file> --repo HoangTheQuyen/think-better` (details in [SECURITY.md](https://github.com/HoangTheQuyen/think-better/blob/main/SECURITY.md#verifying-releases)).
 
 # Homebrew:
-#   brew tap HoangTheQuyen/think-better https://github.com/HoangTheQuyen/think-better
-#   brew install think-better
+#   brew install HoangTheQuyen/think-better/think-better
+#   (or: brew tap HoangTheQuyen/think-better https://github.com/HoangTheQuyen/think-better && brew install think-better)
 brews:
   - name: think-better
     ids: [packaged]
@@ -76,7 +166,7 @@ brews:
     skip_upload: auto
     commit_msg_template: "chore(brew): update formula to {{ .Tag }}"
     test: |
-      system "#{bin}/think-better", "version"
+      assert_match version.to_s, shell_output("#{bin}/think-better version")
     caveats: |
       Install skills in your project with:
         think-better init --ai claude   # or: copilot, antigravity, opencode
@@ -102,3 +192,6 @@ scoops:
       email: 41898282+github-actions[bot]@users.noreply.github.com
     commit_msg_template: "chore(scoop): update manifest to {{ .Tag }}"
     skip_upload: auto
+    # GoReleaser has no `notes` field for Scoop; print the hint after install.
+    post_install:
+      - "Write-Host 'think-better skill scripts need Python 3 (e.g. scoop install python). Check with: think-better check'"

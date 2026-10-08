@@ -16,6 +16,7 @@ import csv
 import math
 import re
 import sys
+import unicodedata
 from collections import Counter
 from pathlib import Path
 
@@ -34,8 +35,8 @@ CSV_CONFIG = {
     },
     "types": {
         "file": "decision-types.csv",
-        "search_cols": ["Decision Type", "Keywords", "Characteristics", "Warning Signs", "Example Scenarios"],
-        "output_cols": ["Decision Type", "Characteristics", "Recommended Frameworks", "Analysis Methods", "Common Pitfalls", "Warning Signs", "Example Scenarios"],
+        "search_cols": ["Decision Type", "Strong Signals", "Keywords", "Characteristics", "Warning Signs", "Example Scenarios"],
+        "output_cols": ["Decision Type", "Characteristics", "Recommended Frameworks", "Analysis Methods", "Key Biases", "Facilitation", "Common Pitfalls", "Warning Signs", "Example Scenarios"],
     },
     "biases": {
         "file": "cognitive-biases.csv",
@@ -49,8 +50,8 @@ CSV_CONFIG = {
     },
     "criteria": {
         "file": "criteria-templates.csv",
-        "search_cols": ["Domain", "Keywords", "Description", "Criteria"],
-        "output_cols": ["Domain", "Description", "Criteria", "Default Weights", "Measurement Guidance", "Common Mistakes"],
+        "search_cols": ["Domain", "Strong Signals", "Keywords", "Description", "Criteria"],
+        "output_cols": ["Domain", "Description", "Criteria", "Default Weights", "Measurement Guidance", "Common Mistakes", "Key Biases"],
     },
     "facilitation": {
         "file": "facilitation.csv",
@@ -73,15 +74,26 @@ _SUFFIXES = ("ations", "ation", "ings", "ing", "ies", "ied", "ed", "es", "ly", "
 
 
 def stem(word: str) -> str:
-    """Light suffix stemmer so 'choosing', 'chose' and 'choose' style variants match."""
+    """Light suffix stemmer so inflected forms meet.
+
+    'hire', 'hiring', 'hired' -> 'hir'; 'uncertain', 'uncertainty' -> 'uncertain';
+    'decline', 'declining', 'declined' -> 'declin'; 'secure', 'security' -> 'secur'.
+    """
     for suffix in _SUFFIXES:
         if word.endswith(suffix) and len(word) - len(suffix) >= 3:
             word = word[: -len(suffix)]
             if suffix in ("ies", "ied"):
                 word += "y"
             break
-    if len(word) > 4 and word.endswith("e"):
+    # Nouns in -ity / -ty meet their adjective (security/secure, uncertainty/uncertain)
+    if word.endswith("ity") and len(word) >= 6:
+        word = word[:-3]
+    elif word.endswith("ty") and len(word) >= 6:
+        word = word[:-2]
+    # Drop a trailing e whether or not a suffix came off: hire/hiring, agree/agreed
+    while len(word) > 3 and word.endswith("e"):
         word = word[:-1]
+    # dropp -> drop, plann -> plan (l and s stay: scal(l), clas(s))
     if len(word) > 3 and word[-1] == word[-2] and word[-1] not in "aeiouls":
         word = word[:-1]
     return word
@@ -94,9 +106,24 @@ def tokenize(text) -> list:
 
 
 # ============ OUTPUT PATHS ============
+def fold(text) -> str:
+    """Accent-insensitive form: 'Nên chọn' -> 'Nen chon', 'đ' -> 'd'.
+
+    NFC and NFD input give the same result, so text typed on any OS (or
+    without diacritics) matches the knowledge base.
+    """
+    text = unicodedata.normalize("NFKD", str(text))
+    text = "".join(c for c in text if not unicodedata.combining(c))
+    return unicodedata.normalize("NFC", text.replace("đ", "d").replace("Đ", "D"))
+
+
 def slugify(text: str, max_len: int = 50) -> str:
-    """Filesystem-safe slug: no separators, no '..', never empty."""
-    slug = re.sub(r"[^\w\s-]", " ", str(text).lower())
+    """Filesystem-safe slug: no separators, no '..', never empty.
+
+    Vietnamese (and other accented Latin) text becomes plain ASCII, so a file
+    name never depends on how the OS normalizes Unicode (NFC vs NFD).
+    """
+    slug = re.sub(r"[^\w\s-]", " ", fold(text).lower())
     slug = re.sub(r"[\s_-]+", "-", slug).strip("-")[:max_len].strip("-")
     return slug or "decision"
 
@@ -165,7 +192,7 @@ class BM25:
 
     @staticmethod
     def tokenize(text: str) -> list:
-        return tokenize(text)
+        return tokenize(fold(text))
 
     def fit(self, corpus: list) -> None:
         """Build IDF index from a list of document strings."""
@@ -232,6 +259,87 @@ def load_csv(domain: str) -> list:
         return [row for row in reader if any(v.strip() for v in row.values())]
 
 
+# ============ KEYWORD SIGNALS ============
+STRONG_WEIGHT = 3
+
+
+def has_accents(text) -> bool:
+    """True when text carries diacritics (e.g. Vietnamese typed with its accents)."""
+    text = unicodedata.normalize("NFC", str(text))
+    return fold(text) != text
+
+
+def match_tokens(text, folded: bool = True) -> list:
+    """Lowercased, stemmed words (accents folded unless folded=False); stopwords kept so
+    phrases like 'by friday' match."""
+    text = fold(text) if folded else unicodedata.normalize("NFC", str(text))
+    words = re.sub(r"[^\w\s]", " ", text.lower()).split()
+    return [stem(w) for w in words]
+
+
+def query_grams(query: str, longest: int = 6) -> tuple:
+    """(n-grams of the query's words, folded) for phrase matching.
+
+    Text typed with accents is matched exactly, so 'chi nhánh' (branch) never
+    meets 'nhanh' (fast); text typed without accents is matched against the
+    keywords with their accents folded away.
+    """
+    folded = not has_accents(query)
+    tokens = match_tokens(query, folded)
+    grams = set()
+    for n in range(1, longest + 1):
+        grams.update(tuple(tokens[i:i + n]) for i in range(len(tokens) - n + 1))
+    return grams, folded
+
+
+def _phrases(cell: str, folded: bool = True) -> list:
+    """Comma-separated keyword phrases of a CSV cell as (token tuple, phrase), duplicates removed."""
+    seen, phrases = set(), []
+    for phrase in str(cell or "").split(","):
+        tokens = tuple(match_tokens(phrase, folded))
+        if tokens and tokens not in seen:
+            seen.add(tokens)
+            phrases.append((tokens, phrase.strip()))
+    return phrases
+
+
+def signal_matches(query: str, row: dict) -> tuple:
+    """(score, matched phrases) of a row's 'Strong Signals' (3 each) and 'Keywords' (1 each).
+
+    A phrase matches when its words appear next to each other in the query;
+    a phrase counts once even when it is listed in both columns.
+    """
+    grams, folded = query_grams(query)
+    score, matched, counted = 0, [], set()
+    for col, weight in (("Strong Signals", STRONG_WEIGHT), ("Keywords", 1)):
+        for tokens, phrase in _phrases(row.get(col, ""), folded):
+            if tokens in grams and tokens not in counted:
+                counted.add(tokens)
+                score += weight
+                matched.append(phrase)
+    return score, matched
+
+
+def rank_by_signals(query: str, domain: str) -> list:
+    """Rows of a domain as (score, row, matched), best first; ties keep CSV order."""
+    ranked = []
+    for index, row in enumerate(load_csv(domain)):
+        score, matched = signal_matches(query, row)
+        ranked.append((score, -index, row, matched))
+    ranked.sort(key=lambda x: (x[0], x[1]), reverse=True)
+    return [(score, row, matched) for score, _, row, matched in ranked]
+
+
+def find_row(domain: str, name: str) -> dict:
+    """The row of a domain whose first column equals name (case-insensitive), or {}."""
+    wanted = re.sub(r"\(.*?\)", "", str(name)).strip().lower()
+    for row in load_csv(domain):
+        have = re.sub(r"\(.*?\)", "", next(iter(row.values()), "")).strip().lower()
+        if have and (have == wanted or (len(wanted) >= 4 and have.startswith(wanted))):
+            return row
+    return {}
+
+
 def search_domain(query: str, domain: str, max_results: int = MAX_RESULTS) -> dict:
     """Search a single domain using BM25. Returns result dict."""
     config = CSV_CONFIG.get(domain)
@@ -279,7 +387,7 @@ def search_domain(query: str, domain: str, max_results: int = MAX_RESULTS) -> di
 # ============ DOMAIN DETECTION ============
 DOMAIN_KEYWORDS = {
     "frameworks": [
-        "framework", "methodology", "approach", "method", "tree", "matrix",
+        "framework", "methodology", "phương pháp", "khung", "approach", "method", "tree", "matrix",
         "hypothesis", "mece", "decomposition", "evaluation", "pros cons",
         "pre-mortem", "scenario planning", "weighted criteria", "reversibility",
         "iterative", "expected value", "sensitivity",
@@ -290,25 +398,25 @@ DOMAIN_KEYWORDS = {
         "uncertainty", "group decision", "stakeholder", "time-pressured",
     ],
     "biases": [
-        "bias", "cognitive", "fallacy", "heuristic", "debiasing",
+        "bias", "cognitive", "fallacy", "thiên kiến", "ngụy biện", "heuristic", "debiasing",
         "confirmation", "anchoring", "sunk cost", "status quo",
         "overconfidence", "framing", "groupthink", "loss aversion",
         "recency", "survivorship", "planning fallacy", "availability",
     ],
     "analysis": [
-        "analysis", "technique", "quantitative", "qualitative",
+        "analysis", "technique", "phân tích", "quantitative", "qualitative",
         "sensitivity", "break-even", "decision tree", "scenario",
         "scoring", "opportunity cost", "risk-reward", "bayesian",
         "pre-mortem", "reference class", "forecasting",
     ],
     "criteria": [
-        "criteria", "template", "weight", "scoring", "evaluation",
+        "criteria", "template", "weight", "tiêu chí", "trọng số", "scoring", "evaluation",
         "technology selection", "hiring", "vendor", "investment",
         "market entry", "product feature", "organizational change",
         "location", "facility",
     ],
     "facilitation": [
-        "facilitation", "group", "team", "workshop", "voting",
+        "facilitation", "group", "team", "workshop", "voting", "nhóm", "bỏ phiếu",
         "debate", "red team", "devil's advocate", "nominal group",
         "anonymous", "alignment", "workplan", "structured",
     ],
@@ -317,13 +425,13 @@ DOMAIN_KEYWORDS = {
 
 def auto_detect_domains(query: str, top_n: int = 3) -> list:
     """Detect most relevant domains for a query using keyword scoring."""
-    query_lower = query.lower()
+    query_lower = fold(query).lower()
     scores = {}
 
     for domain, keywords in DOMAIN_KEYWORDS.items():
         score = 0
         for kw in keywords:
-            if kw in query_lower:
+            if fold(kw) in query_lower:
                 score += len(kw.split())  # Multi-word keywords score higher
         scores[domain] = score
 

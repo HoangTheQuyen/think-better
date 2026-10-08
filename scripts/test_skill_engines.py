@@ -8,6 +8,7 @@ skill at a time with load_skill() instead of plain imports.
 """
 
 import importlib
+import json
 import os
 import shutil
 import subprocess
@@ -858,6 +859,711 @@ class StdinInputTests(unittest.TestCase):
                     r = run_script(SKILLS / skill / "scripts/search.py", ["bias", "-n", "0"], cwd=tmp)
                     self.assertEqual(r.returncode, 2)
                     self.assertIn("must be 1 or more", r.stderr)
+
+
+class ProblemSolvingProTests(unittest.TestCase):
+    """problem-solving-pro: Vietnamese and English classification, depth, data references, resume."""
+
+    SCRIPT = SKILLS / "problem-solving-pro/scripts/search.py"
+
+    # (request, problem type, category): half Vietnamese, including text typed without accents
+    LABELED = [
+        ("Revenue dropped 20% despite market growth", "Diagnostic", "Business Performance"),
+        ("Reduce homelessness in our city", "Wicked", "Policy / Public Sector"),
+        ("We are running out of cash in 4 months", "Diagnostic", "Crisis / Turnaround"),
+        ("Should we enter the Vietnamese market?", "Opportunity", "Market Entry Strategy"),
+        ("I'm burned out at work", "Diagnostic", "Organizational Change"),
+        ("Our cloud bill doubled in three months", "Diagnostic", "Cost Reduction"),
+        ("Cut operating costs by 15% without layoffs", "Well-Structured", "Cost Reduction"),
+        ("Forecast demand for next quarter", "Prediction", "Data / Analytics Problem"),
+        ("Should we acquire our main competitor", "Opportunity", "Partnership / M&A"),
+        ("Negotiate a new contract with our biggest supplier", "Negotiation", "Partnership / M&A"),
+        ("Design a better onboarding flow for new users", "Design", "Product Development"),
+        ("A startup using AI is disrupting our core business", "Ill-Structured", "Innovation / Disruption"),
+        ("Production outage took checkout down for 3 hours", "Diagnostic", "Crisis / Turnaround"),
+        ("Employee attrition doubled after the reorganization", "Diagnostic", "Organizational Change"),
+        ("Two departments disagree over who owns the marketing budget", "Negotiation", "Organizational Change"),
+        ("Optimize warehouse inventory levels to minimize holding cost", "Well-Structured", "Cost Reduction"),
+        ("Our dashboard metrics don't match the finance numbers", "Diagnostic", "Data / Analytics Problem"),
+        ("doanh thu giảm 20% quý này", "Diagnostic", "Business Performance"),
+        ("Mở rộng sang thị trường Nhật Bản", "Opportunity", "Market Entry Strategy"),
+        ("Công ty sắp hết tiền mặt", "Diagnostic", "Crisis / Turnaround"),
+        ("Cắt giảm chi phí vận hành 15% mà không sa thải", "Well-Structured", "Cost Reduction"),
+        ("Dự báo nhu cầu bán hàng quý tới", "Prediction", "Data / Analytics Problem"),
+        ("Có nên mua lại đối thủ cạnh tranh không", "Opportunity", "Partnership / M&A"),
+        ("Nhân viên nghỉ việc nhiều sau khi tái cấu trúc", "Diagnostic", "Organizational Change"),
+        ("Thiết kế tính năng mới cho ứng dụng di động", "Design", "Product Development"),
+        ("Đàm phán lại hợp đồng với nhà cung cấp lớn nhất", "Negotiation", "Partnership / M&A"),
+        ("Tỷ lệ khách hàng rời bỏ tăng mạnh", "Diagnostic", "Business Performance"),
+        ("Hệ thống bị sập, khách hàng không thanh toán được", "Diagnostic", "Crisis / Turnaround"),
+        ("Giảm ùn tắc giao thông ở Hà Nội", "Wicked", "Policy / Public Sector"),
+        ("Đối thủ dùng AI đang thay đổi cả ngành của chúng tôi", "Ill-Structured", "Innovation / Disruption"),
+        ("Nhân viên bị kiệt sức vì quá tải công việc", "Diagnostic", "Organizational Change"),
+        ("Hóa đơn cloud tăng gấp đôi", "Diagnostic", "Cost Reduction"),
+        ("Số liệu trên dashboard không khớp với báo cáo tài chính", "Diagnostic", "Data / Analytics Problem"),
+        ("Hai phòng ban mâu thuẫn về ngân sách marketing", "Negotiation", "Organizational Change"),
+        ("doanh thu giam manh sau khi tang gia", "Diagnostic", "Business Performance"),
+        ("Tối ưu lịch giao hàng để giảm chi phí vận chuyển", "Well-Structured", "Cost Reduction"),
+    ]
+
+    @classmethod
+    def setUpClass(cls):
+        cls.core, cls.advisor = load_skill("problem-solving-pro")
+        cls.engine = cls.advisor.ProblemSolvingAdvisor()
+
+    def cli(self, cwd, *args, stdin=None):
+        env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", PYTHONIOENCODING="utf-8")
+        r = subprocess.run([sys.executable, str(self.SCRIPT)] + list(args), cwd=cwd, env=env, capture_output=True,
+                           input=(stdin or "").encode("utf-8"))
+        return r.returncode, r.stdout.decode("utf-8"), r.stderr.decode("utf-8")
+
+    def test_labeled_requests_classify(self):
+        vietnamese = sum(1 for q, _, _ in self.LABELED if not q.isascii() or "giam" in q)
+        self.assertGreaterEqual(len(self.LABELED), 30)
+        self.assertGreaterEqual(vietnamese * 2, len(self.LABELED))
+        for query, ptype, category in self.LABELED:
+            with self.subTest(query=query):
+                plan = self.engine.generate(query)
+                self.assertEqual((plan["problem_type"]["name"], plan["problem_category"]), (ptype, category))
+                self.assertEqual(plan["classification"]["type_source"], "auto")
+                self.assertEqual(plan["classification"]["category_source"], "auto")
+                self.assertEqual(plan["hints"], [])
+
+    def test_accents_are_optional(self):
+        self.assertEqual(self.core.fold_accents("Giảm chi phí ĐIỆN"), "Giam chi phi DIEN")
+        for accented, plain in (("Công ty sắp hết tiền mặt", "Cong ty sap het tien mat"),
+                                ("Mở rộng sang thị trường Nhật Bản", "Mo rong sang thi truong Nhat Ban")):
+            with self.subTest(query=plain):
+                self.assertEqual(self.core.classify_category(plain), self.core.classify_category(accented))
+
+    def test_unmatched_request_tells_the_ai_to_pass_type_and_category(self):
+        plan = self.engine.generate("zzz qqq")
+        self.assertEqual((plan["classification"]["type_source"], plan["classification"]["category_source"]),
+                         ("default", "default"))
+        text = self.advisor.format_markdown(plan)
+        self.assertIn("No problem type matched clearly. Re-run with `--type`", text)
+        self.assertIn("Re-run with `--category`", text)
+        for value in self.core.problem_type_names() + self.core.category_names():
+            self.assertIn(value, text)
+        plan = self.engine.generate("zzz qqq", problem_type="Wicked", category="Policy / Public Sector")
+        self.assertEqual(plan["hints"], [])
+        self.assertNotIn("Re-run", self.advisor.format_markdown(plan))
+
+    def test_depth_changes_the_plan(self):
+        query = "Revenue dropped 20% despite market growth"
+        plans = {d: self.engine.generate(query, depth=d) for d in self.advisor.VALID_DEPTHS}
+        md = {d: self.advisor.format_markdown(p) for d, p in plans.items()}
+        sizes = [len(md[d]) for d in ("quick", "standard", "deep", "executive")]
+        self.assertEqual(sizes, sorted(sizes))
+        self.assertLess(sizes[0] * 2, sizes[1])
+        self.assertLess(sizes[1] * 1.5, sizes[2])
+        for heading in ("The 7 Steps", "Problem-Solving Checklist", "Decision Rules", "Prioritization:"):
+            self.assertNotIn(heading, md["quick"])
+            self.assertIn(heading, md["standard"])
+        self.assertIn("First Move", md["quick"])
+        self.assertNotIn("Danger zone", md["standard"])
+        self.assertIn("Danger zone", md["deep"])
+        self.assertIn("Pitfalls:", md["deep"])
+        self.assertGreater(len(plans["deep"]["mental_models"]), len(plans["standard"]["mental_models"]))
+        self.assertGreater(len(plans["deep"]["bias_warnings"]), len(plans["standard"]["bias_warnings"]))
+        self.assertGreater(len(plans["deep"]["decomposition"]["alternatives"]
+                               + plans["deep"]["analysis"]["alternatives"]),
+                           len(plans["standard"]["decomposition"]["alternatives"]
+                               + plans["standard"]["analysis"]["alternatives"]))
+        for heading in ("Executive Summary (SCR)", "**Situation:**", "**Complication:**", "**Resolution",
+                        "Key Risks", "Decision Needed"):
+            self.assertNotIn(heading, md["deep"])
+            self.assertIn(heading, md["executive"])
+        # ASCII follows the same depth rules, and every box line has the same width
+        for depth in ("quick", "executive"):
+            box = self.advisor.format_ascii_box(plans[depth]).splitlines()
+            self.assertEqual({len(line) for line in box}, {self.advisor.BOX_WIDTH})
+        self.assertIn("EXECUTIVE SUMMARY", self.advisor.format_ascii_box(plans["executive"]))
+
+    def test_biases_and_mental_models_come_from_type_and_context(self):
+        for query, ptype, category in self.LABELED:
+            with self.subTest(query=query):
+                plan = self.engine.generate(query)
+                self.assertGreaterEqual(len(plan["bias_warnings"]), 3)
+                self.assertGreaterEqual(len(plan["mental_models"]), 3)
+        rule = self.engine._find_reasoning_rule("Crisis / Turnaround")
+        plan = self.engine.generate("Công ty sắp hết tiền mặt")
+        first_bias = self.core.split_names(rule["Key_Biases"])[0]
+        first_model = self.core.find_record("heuristics", self.core.split_names(rule["Key_Heuristics"])[0])
+        self.assertEqual(plan["bias_warnings"][0]["bias"], first_bias)
+        self.assertEqual(plan["mental_models"][0]["name"], first_model["Mental Model"])
+
+    def test_every_referenced_name_resolves(self):
+        data = SKILLS / "problem-solving-pro" / "data"
+        refs = [  # (file, column, separator, domains the names must exist in)
+            ("reasoning.csv", "Decomposition_Style", None, ("decomposition", "prioritization")),
+            ("reasoning.csv", "Analysis_Priority", None, ("analysis", "prioritization")),
+            ("reasoning.csv", "Communication_Style", None, ("communication",)),
+            ("reasoning.csv", "Key_Heuristics", ";", ("heuristics",)),
+            ("reasoning.csv", "Key_Biases", ";", ("biases",)),
+            ("problem-types.csv", "Key Biases", ";", ("biases",)),
+            ("problem-types.csv", "Mental Models", ";", ("heuristics",)),
+        ]
+        checked = 0
+        for file, column, sep, domains in refs:
+            for row in self.core._load_csv(data / file):
+                for name in self.core.split_names(row[column], sep):
+                    with self.subTest(file=file, column=column, name=name):
+                        self.assertTrue(any(self.core.find_record(d, name) for d in domains),
+                                        f"{name!r} in {file}:{column} is not defined in {domains}")
+                        checked += 1
+        self.assertGreater(checked, 100)
+
+    def test_every_step_is_rendered_with_its_gate(self):
+        plan = self.engine.generate("Revenue dropped 20%")
+        self.assertEqual([s["number"] for s in plan["methodology"]["steps"]], list(range(1, 8)))
+        text = self.advisor.format_markdown(plan)
+        for step in plan["methodology"]["steps"]:
+            self.assertIn(step["name"], text)
+            self.assertIn(step["gate"], text)
+        self.assertIn("If revenue problem: decompose price x volume", text)
+        self.assertIn("stakes HIGH", text)
+        self.assertIn("(auto-detected)", text)
+
+    def test_long_request_is_shortened_in_titles_but_kept_in_files(self):
+        query = "Revenue dropped " + " ".join(f"word{i}" for i in range(700))
+        plan = self.engine.generate(query)
+        self.assertLessEqual(len(plan["project_name"]), 60)
+        text = self.advisor.format_markdown(plan)
+        self.assertLess(max(len(line) for line in text.splitlines()[:3]), 700)
+        with tempfile.TemporaryDirectory() as tmp:
+            path, _ = self.advisor.persist_plan(plan, tmp)
+            self.assertIn("word699", Path(path).read_text(encoding="utf-8"))
+
+    def test_json_plan(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            code, out, err = self.cli(tmp, "--stdin", "--plan", "--json", stdin="Hóa đơn cloud tăng gấp đôi")
+            self.assertEqual(code, 0, err)
+            plan = json.loads(out)
+            self.assertEqual(plan["query"], "Hóa đơn cloud tăng gấp đôi")
+            self.assertEqual(plan["problem_category"], "Cost Reduction")
+            self.assertEqual(len(plan["methodology"]["steps"]), 7)
+            code, out, err = self.cli(tmp, "cloud bill doubled", "--plan", "--json", "--persist", "--step-docs",
+                                      "-p", "cloud")
+            self.assertEqual(code, 0, err)
+            self.assertIn("00-OVERVIEW.md", json.loads(out)["saved"]["written"])
+            self.assertEqual(os.listdir(tmp), ["solving-plans"])
+
+    def test_next_steps_appear_once(self):
+        for path in sorted((ROOT / ".agents" / "workflows").glob("solve*.md")):
+            text = path.read_text(encoding="utf-8")
+            with self.subTest(workflow=path.name):
+                if path.name == "solve.resume.md":
+                    self.assertIn("--stdin --status", text)
+                else:
+                    self.assertNotIn("Next Steps:**", text)
+        with tempfile.TemporaryDirectory() as tmp:
+            for depth in self.advisor.VALID_DEPTHS:
+                code, out, _ = self.cli(tmp, "revenue dropped", "--plan", "--depth", depth, "-f", "markdown")
+                self.assertEqual(out.count("Next Steps"), 1, depth)
+
+    def test_resume_status_and_done(self):
+        request = "Công ty sắp hết tiền mặt trong 4 tháng, cần làm gì?"
+        with tempfile.TemporaryDirectory() as tmp:
+            code, out, err = self.cli(tmp, "--stdin", "--plan", "--persist", "--step-docs", "-p", "Cash Crunch",
+                                      "-f", "markdown", stdin=request)
+            self.assertEqual(code, 0, err)
+            self.assertIn("/solve.resume", out)
+            plan_dir = Path(tmp) / "solving-plans" / "cash-crunch"
+            state = json.loads((plan_dir / ".workspace.json").read_text(encoding="utf-8"))
+            self.assertEqual(state["request"], request)
+            self.assertEqual(state["category"], "Crisis / Turnaround")
+            self.assertIn(request, (plan_dir / "01-PROBLEM-DEFINITION.md").read_text(encoding="utf-8"))
+            self.assertIn("| Step | File | Done? |", (plan_dir / "00-OVERVIEW.md").read_text(encoding="utf-8"))
+
+            code, out, _ = self.cli(tmp, "--status")
+            self.assertEqual(code, 0)
+            self.assertIn("### Next: 1. Define the Problem", out)
+            self.assertIn("| 1. Define the Problem | `01-PROBLEM-DEFINITION.md` | not yet | ☐ |", out)
+            self.assertIn("**Done when (quality gate):**", out)
+
+            define = plan_dir / "01-PROBLEM-DEFINITION.md"
+            define.write_text(define.read_text(encoding="utf-8") + "\nCash runway: 4 months\n", encoding="utf-8")
+            code, out, _ = self.cli(tmp, "--done", "define", "-p", "cash crunch")
+            self.assertEqual(code, 0)
+            self.assertIn("Done: 1. Define the Problem", out)
+            self.assertIn("| 1. Define the Problem | `01-PROBLEM-DEFINITION.md` | yes | ☑ |", out)
+            self.assertIn("### Next: 2. Disaggregate the Problem", out)
+            self.assertIn("--done 2 -p cash-crunch", out)
+
+            # Saving again keeps the notes, the ticks and their "filled" state
+            self.cli(tmp, "--stdin", "--plan", "--persist", "--step-docs", "-p", "Cash Crunch", stdin=request)
+            code, out, _ = self.cli(tmp, "--status", "--json", "-p", "cash crunch")
+            status = json.loads(out)
+            self.assertTrue(status["rows"][0]["filled"] and status["rows"][0]["done"])
+
+            # A second workspace; the request text picks the right one, else the latest
+            self.cli(tmp, "Design a better onboarding flow", "--plan", "--persist", "--step-docs", "-p", "onboarding")
+            code, out, _ = self.cli(tmp, "--stdin", "--status", stdin="tiếp tục vụ tiền mặt")
+            self.assertIn("## Workspace: cash-crunch", out)
+            self.assertIn("Other workspaces: `onboarding`", out)
+
+            for step in ("2", "prioritize", "plan", "5", "synthesize"):
+                self.cli(tmp, "--done", step, "-p", "cash-crunch")
+            code, out, _ = self.cli(tmp, "--done", "communicate", "-p", "cash-crunch")
+            self.assertIn("All steps are done", out)
+            code, out, _ = self.cli(tmp, "--undone", "5", "-p", "cash-crunch")
+            self.assertIn("### Next: 5. Conduct Analyses", out)
+
+            code, _, err = self.cli(tmp, "--done", "9", "-p", "cash-crunch")
+            self.assertEqual(code, 2)
+            self.assertIn("unknown step", err)
+            code, _, err = self.cli(tmp, "--status", "-p", "nope")
+            self.assertEqual(code, 1)
+            self.assertIn("cash-crunch", err)
+
+    def test_workspaces_saved_before_tracking_still_resume(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.cli(tmp, "revenue dropped", "--plan", "--persist", "--step-docs", "-p", "old")
+            plan_dir = Path(tmp) / "solving-plans" / "old"
+            (plan_dir / ".workspace.json").unlink()
+            overview = plan_dir / "00-OVERVIEW.md"
+            text = overview.read_text(encoding="utf-8")
+            overview.write_text(text[:text.index("| Step |")], encoding="utf-8")
+            code, out, _ = self.cli(tmp, "--status")
+            self.assertEqual(code, 0)
+            self.assertIn("| 1. Define the Problem | `01-PROBLEM-DEFINITION.md` | ? | ☐ |", out)
+            self.assertIn("saved before progress tracking", out)
+            code, out, _ = self.cli(tmp, "--done", "1")
+            self.assertEqual(code, 0)
+            self.assertIn("### Next: 2. Disaggregate the Problem", out)
+            self.assertIn("## Progress", overview.read_text(encoding="utf-8"))
+
+
+class MakeDecisionUpgradeTests(unittest.TestCase):
+    """make-decision: classification regression set (English and Vietnamese), options, depths,
+    scoring matrix, journal, workspace resume and the shared stemmer."""
+
+    SCRIPT = SKILLS / "make-decision" / "scripts" / "search.py"
+
+    # (request, decision type, criteria template); about half Vietnamese
+    CASES = [
+        ("React or Vue for our new project?", "Binary Choice", "Tech Stack / Framework Choice"),
+        ("Postgres vs MongoDB for the orders service", "Binary Choice", "Tech Stack / Framework Choice"),
+        ("AWS vs Azure vs GCP", "Multi-Option Selection", "Tech Stack / Framework Choice"),
+        ("Build in-house vs Buy SaaS vs Hire agency for our new CRM system", "Multi-Option Selection",
+         "Technology Selection"),
+        ("Buy a house or keep renting", "Binary Choice", "Housing / Home"),
+        ("We have to decide by Friday whether to renew the vendor contract or switch suppliers",
+         "Time-Pressured Decision", "Vendor / Partner Selection"),
+        ("Should we raise prices given uncertain demand?", "Decision Under Uncertainty", "Pricing"),
+        ("Which CRM: Salesforce, HubSpot or Pipedrive", "Multi-Option Selection", "Technology Selection"),
+        ("Accept the job offer at Google or stay at my current startup", "Binary Choice", "Job Offer / Career"),
+        ("Which of three candidates should we hire for the senior backend role", "Multi-Option Selection",
+         "Hiring Decision"),
+        ("How should we split the Q3 budget across marketing, sales and R&D", "Resource Allocation",
+         "Investment / Resource Allocation"),
+        ("Should we expand into the Japanese market next year", "Strategic Direction", "Market Entry / Expansion"),
+        ("Board must reach consensus on the new CEO", "Group / Stakeholder Decision", "Hiring Decision"),
+        ("Should I do an MBA or keep working", "Binary Choice", "Education / Study"),
+        ("Should I relocate to Berlin for better career opportunities", "Binary Choice",
+         "Relocation / Where to Live"),
+        ("Which features should go into the next sprint", "Operational / Tactical", "Product Feature Prioritization"),
+        ("Launch now with unknown demand and incomplete data", "Decision Under Uncertainty", "General Decision"),
+        ("Should we restructure the company into business units? The leadership team disagrees",
+         "Group / Stakeholder Decision", "Organizational Change"),
+        ("Where should we open our new office: Austin or Denver", "Binary Choice", "Location / Facility"),
+        ("Should we migrate to microservices or keep the monolith", "Binary Choice", "Tech Stack / Framework Choice"),
+        ("Pick a JavaScript framework: Svelte, React, Angular or Vue", "Multi-Option Selection",
+         "Tech Stack / Framework Choice"),
+        ("Should I accept the offer from Stripe? The deadline is tomorrow", "Time-Pressured Decision",
+         "Job Offer / Career"),
+        ("Allocate the engineering headcount between platform and growth teams", "Resource Allocation",
+         "Investment / Resource Allocation"),
+        ("Should we set our SaaS subscription price at $29 or $49", "Binary Choice", "Pricing"),
+        ("nên chọn React hay Vue", "Binary Choice", "Tech Stack / Framework Choice"),
+        ("nen chon react hay vue cho du an moi", "Binary Choice", "Tech Stack / Framework Choice"),
+        ("Nên dùng AWS, Azure hay GCP cho hệ thống mới?", "Multi-Option Selection", "Tech Stack / Framework Choice"),
+        ("So sánh Postgres với MongoDB cho dịch vụ đơn hàng", "Binary Choice", "Tech Stack / Framework Choice"),
+        ("Nên dùng Flutter hay React Native cho app mobile", "Binary Choice", "Tech Stack / Framework Choice"),
+        ("Mua nhà hay tiếp tục thuê nhà?", "Binary Choice", "Housing / Home"),
+        ("Có nên nhận offer ở công ty mới với mức lương cao hơn không?", "Binary Choice", "Job Offer / Career"),
+        ("Có nên nghỉ việc để đi du học thạc sĩ không?", "Binary Choice", "Education / Study"),
+        ("Phải quyết định trước thứ Sáu: gia hạn hợp đồng với nhà cung cấp hay đổi sang bên khác",
+         "Time-Pressured Decision", "Vendor / Partner Selection"),
+        ("Có nên tăng giá sản phẩm khi nhu cầu thị trường chưa rõ ràng?", "Decision Under Uncertainty", "Pricing"),
+        ("Chọn nhà cung cấp CRM nào: Salesforce, HubSpot hay Pipedrive", "Multi-Option Selection",
+         "Technology Selection"),
+        ("Tuyển ứng viên A hay ứng viên B cho vị trí trưởng nhóm", "Binary Choice", "Hiring Decision"),
+        ("Phân bổ ngân sách marketing quý 3 giữa Facebook, Google và TikTok thế nào", "Resource Allocation",
+         "Investment / Resource Allocation"),
+        ("Có nên mở rộng sang thị trường Nhật Bản năm sau không", "Strategic Direction", "Market Entry / Expansion"),
+        ("Hội đồng quản trị cần thống nhất chọn CEO mới", "Group / Stakeholder Decision", "Hiring Decision"),
+        ("Nên học thạc sĩ hay đi làm luôn", "Binary Choice", "Education / Study"),
+        ("Có nên chuyển vào Sài Gòn sống và làm việc không", "Binary Choice", "Relocation / Where to Live"),
+        ("Ưu tiên tính năng nào cho sprint tới", "Operational / Tactical", "Product Feature Prioritization"),
+        ("Ra mắt sản phẩm khi chưa có dữ liệu về nhu cầu, rủi ro cao", "Decision Under Uncertainty",
+         "General Decision"),
+        ("Ban lãnh đạo không đồng ý về việc tái cấu trúc công ty", "Group / Stakeholder Decision",
+         "Organizational Change"),
+        ("Chọn văn phòng mới ở quận 1 hay quận 7", "Binary Choice", "Location / Facility"),
+        ("Gấp: cần quyết định ngay hôm nay có ký hợp đồng thuê ngoài hay không", "Time-Pressured Decision",
+         "Vendor / Partner Selection"),
+        ("Nên đặt giá gói SaaS 29 đô hay 49 đô", "Binary Choice", "Pricing"),
+        ("Mình nên chuyển sang Đà Nẵng sống hay ở lại Hà Nội", "Binary Choice", "Relocation / Where to Live"),
+        ("Nên đầu tư vàng hay gửi tiết kiệm ngân hàng", "Binary Choice", "Investment / Resource Allocation"),
+    ]
+
+    @classmethod
+    def setUpClass(cls):
+        cls.core, cls.advisor = load_skill("make-decision")
+        cls.journal = cls.advisor.journal
+        cls.workspace = cls.advisor.workspace
+
+    def plan(self, query, depth="standard", **kwargs):
+        return self.advisor.DecisionAdvisor(query, **kwargs).generate(depth=depth)
+
+    def cli(self, args, cwd, stdin=None):
+        env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", PYTHONIOENCODING="utf-8")
+        r = subprocess.run([sys.executable, str(self.SCRIPT)] + args, cwd=cwd, env=env, capture_output=True,
+                           input=(stdin or "").encode("utf-8"))
+        return r.returncode, r.stdout.decode("utf-8"), r.stderr.decode("utf-8")
+
+    # ---- classification ----
+    def test_regression_set_types_and_criteria(self):
+        vietnamese = sum(1 for q, _, _ in self.CASES if self.core.has_accents(q) or q.startswith("nen "))
+        self.assertGreaterEqual(len(self.CASES), 30)
+        self.assertGreaterEqual(vietnamese * 2, len(self.CASES) - 1)
+        for query, dtype, template in self.CASES:
+            with self.subTest(query=query):
+                plan = self.plan(query)
+                self.assertEqual(plan["decision_type"]["name"], dtype)
+                self.assertEqual(plan["criteria"]["domain"], template)
+
+    def test_unicode_form_does_not_change_the_result(self):
+        import unicodedata
+        for query in ("nên chọn React hay Vue", "Mua nhà hay tiếp tục thuê nhà?"):
+            nfd = unicodedata.normalize("NFD", query)
+            with self.subTest(query=query):
+                a, b = self.plan(query), self.plan(nfd)
+                self.assertEqual(a["decision_type"]["name"], b["decision_type"]["name"])
+                self.assertEqual(a["criteria"]["domain"], b["criteria"]["domain"])
+                self.assertEqual(self.core.slugify(query), self.core.slugify(nfd))
+                self.assertTrue(self.core.slugify(nfd).isascii())
+
+    def test_accented_text_is_matched_exactly(self):
+        # "chi nhánh" (branch) must not count as "nhanh" (fast) - a Time-Pressured signal
+        plan = self.plan("Có nên mở thêm chi nhánh ở Đà Nẵng không")
+        self.assertNotEqual(plan["decision_type"]["name"], "Time-Pressured Decision")
+        self.assertEqual(plan["criteria"]["domain"], "Location / Facility")
+
+    def test_unmatched_request_says_so(self):
+        plan = self.plan("zzz qqq")
+        self.assertEqual(plan["decision_type"]["source"], "default")
+        self.assertEqual(plan["criteria"]["domain"], "General Decision")
+        text = self.advisor.DecisionAdvisor("zzz qqq").format_markdown(plan)
+        self.assertIn("No decision type matched clearly. Re-run with `--type`", text)
+        for name in self.advisor.DecisionAdvisor.decision_type_names():
+            self.assertIn(name, text)
+        self.assertNotIn("No decision type matched", self.advisor.DecisionAdvisor("x").format_markdown(
+            self.plan("React or Vue?")))
+
+    def test_knowledge_base_references_resolve(self):
+        for row in self.core.load_csv("types"):
+            for col, domain in (("Recommended Frameworks", "frameworks"), ("Analysis Methods", "analysis"),
+                                ("Key Biases", "biases"), ("Facilitation", "facilitation")):
+                for name in self.advisor.split_names(row[col]):
+                    with self.subTest(type=row["Decision Type"], col=col, name=name):
+                        self.assertTrue(self.core.find_row(domain, name))
+            self.assertNotIn("Expected Value Calculation", row["Analysis Methods"])
+        for row in self.core.load_csv("criteria"):
+            with self.subTest(template=row["Domain"]):
+                names = self.advisor.split_names(row["Criteria"])
+                weights = [int(w) for w in self.advisor.split_names(row["Default Weights"])]
+                self.assertEqual(len(names), 5)  # SKILL.md: never more than 5 criteria
+                self.assertEqual(sum(weights), 100)
+                for bias in self.advisor.split_names(row["Key Biases"]):
+                    self.assertTrue(self.core.find_row("biases", bias), bias)
+                self.assertTrue(all(i["guide"] for i in self.advisor.criteria_items(row)))
+
+    def test_every_plan_has_criteria_biases_and_analysis(self):
+        for query, _, _ in self.CASES + [("zzz qqq", "", "")]:
+            with self.subTest(query=query):
+                plan = self.plan(query)
+                self.assertEqual(len(plan["criteria"]["items"]), 5)
+                self.assertEqual(sum(i["weight"] for i in plan["criteria"]["items"]), 100)
+                self.assertGreaterEqual(len(plan["bias_warnings"]), 3)
+                self.assertGreaterEqual(len(plan["analysis_techniques"]), 2)
+                frameworks = {r["Framework"] for r in self.core.load_csv("frameworks")}
+                for a in plan["analysis_techniques"]:
+                    self.assertNotIn(a["technique"], frameworks)
+
+    # ---- options ----
+    def test_options_are_parsed(self):
+        cases = [
+            ("Which CRM: Salesforce, HubSpot or Pipedrive", ["Salesforce", "HubSpot", "Pipedrive"]),
+            ("Should we use Postgres or MySQL", ["Postgres", "MySQL"]),
+            ("React or Vue for our new project?", ["React", "Vue"]),
+            ("Build in-house vs Buy SaaS vs Hire agency", ["Build in-house", "Buy SaaS", "Hire agency"]),
+            ("nên chọn React hay Vue", ["React", "Vue"]),
+            ("nen chon react hay vue", ["react", "vue"]),
+            ("Dùng Go hoặc Rust cho dịch vụ mới", ["Dùng Go", "Rust"]),
+            ("Chọn giữa Shopee, Lazada và Tiki để mở gian hàng", ["Shopee", "Lazada", "Tiki"]),
+            ("So sánh Postgres với MongoDB", ["Postgres", "MongoDB"]),
+            ("Postgres so với MongoDB", ["Postgres", "MongoDB"]),
+            ("Allocate headcount between platform and growth", ["platform", "growth"]),
+            ("Should we set the price at $29 or $49", ["$29", "$49"]),
+            ("Should we renew the contract or not", ["renew the contract", "Not (keep things as they are)"]),
+            ("How should we split the budget across marketing, sales and R&D", []),
+            ("We need to decide fast, the offer expires Friday", []),
+            ("Should we raise prices given uncertain demand?", []),
+        ]
+        for text, expected in cases:
+            with self.subTest(text=text):
+                self.assertEqual(self.advisor.parse_options(text), expected)
+
+    def test_plan_and_saved_files_name_the_options_and_request(self):
+        import json
+        query = "nên chọn React hay Vue cho dự án mới"
+        plan = self.plan(query)
+        text = self.advisor.DecisionAdvisor(query).format_markdown(plan)
+        self.assertIn("**Options:** React | Vue", text)
+        self.assertIn(f"**Request:** {query}", text)
+        with tempfile.TemporaryDirectory() as tmp:
+            code, out, err = self.cli(["--stdin", "--plan", "--persist", "--step-docs", "-p", "Frontend"], tmp, query)
+            self.assertEqual(code, 0, err)
+            folder = Path(tmp) / "decision-plans" / "frontend"
+            options = (folder / "05-OPTIONS.md").read_text(encoding="utf-8")
+            self.assertIn("| React |", options)
+            self.assertIn("| Criterion | Weight | React | Vue |", options)
+            self.assertNotIn("Option A", options)
+            criteria = (folder / "03-CRITERIA.md").read_text(encoding="utf-8")
+            self.assertIn("| Team expertise and learning curve | 25 |", criteria)
+            self.assertIn(query, (folder / "01-DECISION-TYPE.md").read_text(encoding="utf-8"))
+            decision = (folder / "06-DECISION.md").read_text(encoding="utf-8")
+            self.assertIn("## Pre-Mortem", decision)
+            self.assertIn("## Kill Criteria", decision)
+            state = json.loads((folder / ".workspace.json").read_text(encoding="utf-8"))
+            self.assertEqual(state["request"], query)
+            self.assertEqual(state["options"], ["React", "Vue"])
+            code, out, err = self.cli(["--stdin", "--plan", "--persist", "-p", "Single"], tmp, query)
+            self.assertIn(query, (Path(tmp) / "decision-plans/single/PLAN.md").read_text(encoding="utf-8"))
+
+    # ---- depth ----
+    def test_depths_are_materially_different(self):
+        query = "Should we migrate to microservices or keep the monolith"
+        texts = {d: self.advisor.DecisionAdvisor(query).format_markdown(self.plan(query, d))
+                 for d in self.advisor.VALID_DEPTHS}
+
+        def headings(text):
+            return [line[3:] for line in text.splitlines() if line.startswith("## ")]
+
+        self.assertEqual(len({tuple(headings(t)) for t in texts.values()}), 4)
+        self.assertLess(len(texts["quick"]), len(texts["standard"]))
+        self.assertLess(len(texts["standard"]), len(texts["deep"]))
+        self.assertNotIn("Bias Warnings", headings(texts["quick"]))
+        self.assertNotIn("Decision Checklist", headings(texts["quick"]))
+        for section in ("Pre-Mortem", "Sensitivity", "Reversibility", "Information to Gather"):
+            self.assertIn(section, headings(texts["deep"]))
+            self.assertNotIn(section, headings(texts["standard"]))
+        execu = headings(texts["executive"])
+        self.assertEqual(execu[0], "Recommendation")
+        for section in ("Decision Needed", "Key Risks", "Reversibility", "What Would Change the Call"):
+            self.assertIn(section, execu)
+        self.assertLess(execu.index("Key Risks"), execu.index("Criteria and Weights"))
+        self.assertIn("Executive Decision Brief", texts["executive"])
+        self.assertEqual(len(self.plan(query, "quick")["criteria"]["items"]), 3)
+
+    # ---- matrix ----
+    def test_matrix_criteria_and_alignment(self):
+        m = self.advisor.build_matrix("React vs Vue", "Cost,,Speed")
+        self.assertEqual([c["name"] for c in m["criteria"]], ["Cost", "Speed"])
+        text = self.advisor.format_matrix(self.advisor.build_matrix(
+            "Which CRM: Salesforce, HubSpot or Pipedrive", "Total cost:3,Fit:2", "Salesforce:2,5;HubSpot:4,4;"
+            "Pipedrive:5,2"))
+        table = [ln for ln in text.split("Winner")[0].splitlines() if " | " in ln]
+        self.assertEqual(len(table), 4)
+        self.assertEqual(len({tuple(i for i, ch in enumerate(ln) if ch == "|") for ln in table}), 1)
+        self.assertEqual([ln.split(" | ")[0].strip() for ln in table[1:] if not ln.startswith("-")],
+                         ["Salesforce", "HubSpot", "Pipedrive"])
+        md = self.advisor.format_matrix(m, "markdown")
+        self.assertIn("| Option | Cost (w 1, 50%) | Speed (w 1, 50%) | Weighted |", md)
+
+    def test_weighted_scores_winner_and_sensitivity(self):
+        m = self.advisor.build_matrix("React vs Vue", "Cost:3,Speed:2,Risk:1", "React:4,3,5;Vue:5,4,3")
+        totals = {o["name"]: round(o["total"], 2) for o in m["options"]}
+        self.assertEqual(totals, {"React": 3.83, "Vue": 4.33})
+        self.assertEqual(m["winner"], "Vue")
+        first = m["sensitivity"][0]
+        self.assertEqual((first["criterion"], first["new_winner"]), ("Risk", "React"))
+        self.assertAlmostEqual(first["new_weight"], 2.5)
+        # At the reported weight the two options tie
+        weights = [3, 2, first["new_weight"]]
+        self.assertAlmostEqual(self.advisor.weighted_total([4, 3, 5], weights),
+                               self.advisor.weighted_total([5, 4, 3], weights))
+        cost = next(s for s in m["sensitivity"] if s["criterion"] == "Cost")
+        self.assertIsNone(cost["change"])  # dropping Cost to 0 only ties
+        text = self.advisor.format_matrix(m, "markdown")
+        self.assertIn("**Winner:** Vue", text)
+        self.assertIn("weight of Risk rises from 1 to 2.5", text)
+
+        dominant = self.advisor.build_matrix("A vs B", "X:1,Y:1", "A:5,5;B:1,1")
+        self.assertTrue(all(s["change"] is None for s in dominant["sensitivity"]))
+        tie = self.advisor.build_matrix("A vs B", "X:1,Y:1", "A:5,1;B:1,5")
+        self.assertEqual(tie["tie"], ["A", "B"])
+        for criteria, scores in (("X:1,Y:1", "A:5;B:1,1"), ("X:1,Y:1", "C:1,1;B:1,1"), ("X:1,Y", "A:1,1"),
+                                 ("X:1,X:2", None), ("X:-1,Y:1", None)):
+            with self.subTest(criteria=criteria, scores=scores), self.assertRaises(ValueError):
+                self.advisor.build_matrix("A vs B", criteria, scores)
+
+    def test_matrix_cli_reads_stdin_and_reports_errors(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            code, out, err = self.cli(["--stdin", "--matrix", "-f", "markdown", "-c", "Cost:3,Speed:2,Risk:1",
+                                       "--scores", "React:4,3,5;Vue:5,4,3"], tmp, 'nên chọn "React" hay `Vue`?')
+            self.assertEqual(code, 0, err)
+            self.assertIn("**Winner:** Vue", out)
+            code, out, err = self.cli(["--matrix", "A vs B", "-c", "X:1,Y:1", "--scores", "A:1"], tmp)
+            self.assertEqual(code, 1)
+            self.assertIn("1 scores but there are 2 criteria", err)
+            self.assertEqual(out, "")
+
+    # ---- journal ----
+    def test_journal_create_update_and_review(self):
+        from datetime import date
+        with tempfile.TemporaryDirectory() as tmp:
+            code, out, err = self.cli(["--stdin", "--journal", "--confidence", "70", "--review-in", "2w"], tmp,
+                                      "Chọn React hay Vue cho dự án mới")
+            self.assertEqual(code, 0, err)
+            files = list((Path(tmp) / ".decisions").glob("*.md"))
+            self.assertEqual(len(files), 1)
+            entry = files[0]
+            self.assertTrue(entry.name.isascii())
+            self.assertIn("chon-react-hay-vue", entry.name)
+            text = entry.read_text(encoding="utf-8")
+            self.assertIn("- **Confidence:** 70%", text)
+            self.assertIn("1. React\n2. Vue", text)
+            self.assertIn("- **Framework:** Pros-Cons-Fixes Analysis", text)
+            self.assertRegex(text, r"\*\*Review by:\*\* \d{4}-\d{2}-\d{2}")
+            entry.write_text(text + "\n## My notes\nkeep me\n", encoding="utf-8")
+
+            outcome = "saved to C:\\Users\\me\n## not a heading\n\\1 \\g<0>"
+            code, out, err = self.cli(["--journal", "--update", "chon-react", "--outcome", outcome], tmp)
+            self.assertEqual(code, 0, err)
+            text = entry.read_text(encoding="utf-8")
+            self.assertIn("saved to C:\\Users\\me", text)
+            self.assertIn("\\1 \\g<0>", text)
+            self.assertNotIn("\n## not a heading", text)
+            self.assertIn("## My notes\nkeep me", text)
+            self.assertEqual(text.count("## Reflection"), 1)
+            self.assertIn("**Status:** Reviewed", text)
+            code, out, err = self.cli(["--journal", "--update", "chon-react", "--stdin"], tmp, "second outcome")
+            self.assertEqual(code, 0, err)
+            text = entry.read_text(encoding="utf-8")
+            self.assertIn("saved to C:\\Users\\me", text)  # earlier outcome kept
+            self.assertIn("second outcome", text)
+
+            self.cli(["--journal", "React again"], tmp)
+            code, out, err = self.cli(["--journal", "--update", "react", "--outcome", "x"], tmp)
+            self.assertEqual(code, 1)
+            self.assertIn("2 journal entries match", err)
+            self.assertEqual(out, "")
+            code, out, err = self.cli(["--journal", "--update", "zzz", "--outcome", "x"], tmp)
+            self.assertEqual(code, 1)
+            self.assertIn("no journal entry matches", err)
+
+            other = Path(tmp) / "elsewhere"
+            code, out, err = self.cli(["--journal", "Pick a CRM", "-o", str(other)], tmp)
+            self.assertEqual(code, 0, err)
+            self.assertEqual(len(list((other / ".decisions").glob("*.md"))), 1)
+            code, out, err = self.cli(["--journal", "--review", "-o", str(other)], tmp)
+            self.assertIn("Pick a CRM", out)
+            self.assertNotIn("React again", out)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            j = self.journal
+            j.create_journal("old decision", output_dir=tmp, today=date(2026, 1, 5), review_days=30)
+            j.create_journal("zebra newest", output_dir=tmp, today=date(2026, 3, 1), review_days=7)
+            j.create_journal("aardvark middle", output_dir=tmp, today=date(2026, 2, 1), review_days=365)
+            listing = j.review_journals(tmp, today=date(2026, 3, 20))
+            order = [ln.split(" | ")[1] for ln in listing.splitlines() if ln.startswith("[")]
+            self.assertEqual(order, ["zebra newest", "aardvark middle", "old decision"])
+            due = j.review_journals(tmp, due=True, today=date(2026, 3, 20))
+            self.assertIn("old decision", due)
+            self.assertIn("zebra newest", due)
+            self.assertIn("overdue", due)
+            self.assertNotIn("aardvark middle", due)
+            self.assertEqual(j.parse_duration("2w"), 14)
+            with self.assertRaises(ValueError):
+                j.parse_duration("3q")
+
+    # ---- workspace resume ----
+    def test_status_done_and_undone(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            code, out, err = self.cli(["--stdin", "--plan", "--persist", "--step-docs", "-p", "Cloud"], tmp,
+                                      "AWS vs Azure vs GCP")
+            self.assertEqual(code, 0, err)
+            self.assertIn("--status -p cloud", out)
+            overview = (Path(tmp) / "decision-plans/cloud/00-OVERVIEW.md").read_text(encoding="utf-8")
+            self.assertIn("| Step | File | Done? |", overview)
+            code, out, err = self.cli(["--stdin", "--status"], tmp, "azure")
+            self.assertEqual(code, 0, err)
+            self.assertIn("### Next: 1. Classify the decision", out)
+            self.assertIn("AWS vs Azure vs GCP", out)
+            code, out, err = self.cli(["--done", "1", "-p", "cloud"], tmp)
+            code, out, err = self.cli(["--done", "criteria", "-p", "cloud"], tmp)
+            self.assertEqual(code, 0, err)
+            self.assertIn("### Next: 2. Apply the framework", out)
+            status = self.workspace.workspace_status(Path(tmp) / "decision-plans/cloud")
+            self.assertEqual([r["done"] for r in status["rows"]], [True, False, True, False, False, False])
+            code, out, err = self.cli(["--undone", "1", "-p", "cloud"], tmp)
+            self.assertIn("### Next: 1. Classify the decision", out)
+            code, out, err = self.cli(["--done", "9", "-p", "cloud"], tmp)
+            self.assertEqual(code, 1)
+            self.assertIn("unknown step", err)
+            code, out, err = self.cli(["--status", "-p", "nope"], tmp)
+            self.assertEqual(code, 1)
+            self.assertIn("No workspace named", err)
+        with tempfile.TemporaryDirectory() as tmp:
+            code, out, err = self.cli(["--status"], tmp)
+            self.assertEqual(code, 1)
+            self.assertIn("No saved workspace", err)
+
+    # ---- CLI odds and ends ----
+    def test_json_plan_blank_plan_and_next_steps_once(self):
+        import json
+        with tempfile.TemporaryDirectory() as tmp:
+            code, out, err = self.cli(["--stdin", "--plan", "--json"], tmp, "nên chọn React hay Vue")
+            self.assertEqual(code, 0, err)
+            data = json.loads(out)
+            self.assertEqual(data["options"], ["React", "Vue"])
+            self.assertEqual(data["request"], "nên chọn React hay Vue")
+            self.assertEqual(data["criteria"]["domain"], "Tech Stack / Framework Choice")
+            code, out, err = self.cli(["--stdin", "--plan", "--json", "--persist", "-p", "j"], tmp, "React or Vue")
+            self.assertTrue(json.loads(out)["saved"]["written"])
+            code, out, err = self.cli(["   ", "--plan"], tmp)
+            self.assertEqual(code, 1)
+            self.assertIn("describe the decision", err)
+            for depth in self.advisor.VALID_DEPTHS:
+                code, out, err = self.cli(["--stdin", "--plan", "-f", "markdown", "--depth", depth], tmp, "A or B")
+                self.assertEqual(out.count("Next Steps"), 1, depth)
+        for path in sorted((ROOT / ".agents" / "workflows").glob("decide*.md")):
+            with self.subTest(workflow=path.name):
+                self.assertNotIn("🎯 **Next Steps:**", path.read_text(encoding="utf-8"))
+        self.assertTrue((ROOT / ".agents" / "workflows" / "decide.resume.md").exists())
+
+    def test_prompt_mirrors_skill(self):
+        folder = SKILLS / "make-decision"
+        skill = (folder / "SKILL.md").read_text(encoding="utf-8")
+        body = skill[skill.index("\n---\n", 4) + 5:].lstrip("\n")
+        self.assertEqual((folder / "PROMPT.md").read_text(encoding="utf-8"), body)
+
+    # ---- shared stemmer ----
+    def test_stemmer_joins_inflected_forms_in_every_skill(self):
+        groups = [("hire", "hiring", "hired", "hires"), ("uncertain", "uncertainty"), ("secure", "security"),
+                  ("decline", "declining", "declined"), ("agree", "agreed"), ("employee", "employees"),
+                  ("case", "cases"), ("rent", "renting")]
+        cores = {name: load_skill(name)[0] for name in ("problem-solving-pro", "make-decision", "code-solving")}
+        for name, core in cores.items():
+            for words in groups:
+                with self.subTest(skill=name, words=words):
+                    self.assertEqual(len({core.stem(w) for w in words}), 1, [core.stem(w) for w in words])
+            self.assertEqual(core.stem("city"), cores["make-decision"].stem("city"))
+            self.assertNotEqual(core.stem("party"), core.stem("par"))
 
 
 if __name__ == "__main__":

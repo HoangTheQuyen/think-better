@@ -7,6 +7,10 @@
 **Duration:** 4 hours (discovery + fix + validation)  
 **Outcome:** ✅ Root cause identified and fixed
 
+> Written before the code-solving skill existed. For a bug in your own code, `/code.debug`
+> is now the better fit: it adds a failing test before the fix and checks your project's own
+> test commands. See [06 - Debugging a TypeError](06-code-debug-typeerror.md).
+
 ---
 
 ## 📋 Context
@@ -42,9 +46,9 @@ think-better init --ai claude --skill problem-solving-pro
 
 ### Step 2: Use skill to guide investigation
 
-In Claude/Cursor AI assistant:
+In Claude Code:
 ```
-@workspace /solve My API sometimes returns stale data after updates. 
+/solve My API sometimes returns stale data after updates. 
 POST /users/{id} succeeds (200 OK) but subsequent GET /users/{id} 
 returns old data for ~30 seconds, then corrects itself.
 ```

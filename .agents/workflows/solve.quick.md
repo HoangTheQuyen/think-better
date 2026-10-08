@@ -25,14 +25,6 @@ $ARGUMENTS
 TASK
 ```
 
-3. Present the output, then append:
-
-```
----
-🎯 **Next Steps:**
-| Command | Description |
-|---------|-------------|
-| `/solve` | Full standard analysis |
-| `/solve.deep` | Deep dive with alternatives & mental models |
-| `/decide.quick` | Quick decision from this analysis |
-```
+3. Present the output as it is. It already ends with the **Next Steps** table for this depth;
+   do not add another one. If it says no type or context matched, re-run with `--type` /
+   `--category` (values are in the note and in SKILL.md) before presenting.

@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Think Better — AI Brain Upgrade</title>
   <meta name="description"
-    content="Inject 70+ years of decision science directly into your AI assistant. Open-source CLI for Claude, Copilot, and more.">
+    content="Open-source CLI that installs three thinking skills and 20 slash commands (/decide, /solve, /code) into Claude Code, GitHub Copilot, Antigravity and OpenCode.">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="/favicon.png">
@@ -20,7 +20,7 @@
   <meta property="og:url" content="https://thinkbetter.dev/">
   <meta property="og:title" content="Think Better — Stop Babysitting Your AI">
   <meta property="og:description"
-    content="Open-source CLI that injects elite decision-making frameworks (MECE, Issue Trees, Pre-Mortems) into your AI prompts. Turn your AI from a Code Monkey into a Staff Engineer.">
+    content="Open-source CLI that gives your AI assistant decision frameworks, a problem-solving method and a gated coding workflow: /decide, /solve and /code for Claude Code, GitHub Copilot, Antigravity and OpenCode.">
   <meta property="og:image" content="https://thinkbetter.dev/og-image.png">
   <meta property="og:site_name" content="Think Better">
 
@@ -28,7 +28,7 @@
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Think Better — Stop Babysitting Your AI">
   <meta name="twitter:description"
-    content="Open-source CLI that injects elite decision-making frameworks into your AI prompts. For Claude, Copilot & Antigravity.">
+    content="Decision frameworks, root-cause analysis and evidence-gated coding for your AI assistant. For Claude Code, GitHub Copilot, Antigravity & OpenCode.">
   <meta name="twitter:image" content="https://thinkbetter.dev/og-image.png">
 
   <!-- Tailwind CSS (CDN for zero-build-step deployment) -->
@@ -298,7 +298,7 @@
           <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
           <span class="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
         </span>
-        Available for Claude, Copilot & Antigravity
+        For Claude Code, GitHub Copilot, Antigravity &amp; OpenCode
       </div>
 
       <h1
@@ -311,18 +311,18 @@
         class="mx-auto max-w-2xl text-lg sm:text-xl text-zinc-400 leading-relaxed mb-10 opacity-0 animate-fade-up delay-200">
         Your AI writes code fast but makes <strong class="text-white font-medium">terrible architectural
           decisions</strong>.
-        Think Better is an open-source CLI that injects
-        <strong class="text-white font-medium">elite decision-making frameworks</strong> (MECE, Issue Trees,
-        Pre-Mortems)
-        directly into your prompts — turning a Code Monkey into a Staff Engineer.
+        Think Better is an open-source CLI that installs three skills into your AI assistant:
+        <strong class="text-white font-medium">/decide</strong> for choices,
+        <strong class="text-white font-medium">/solve</strong> for root causes and
+        <strong class="text-white font-medium">/code</strong> for code changes with evidence at every step.
       </p>
       <p data-lang="vi"
         class="mx-auto max-w-2xl text-lg sm:text-xl text-zinc-400 leading-relaxed mb-10 opacity-0 animate-fade-up delay-200">
         AI của bạn code nhanh nhưng <strong class="text-white font-medium">ra quyết định kiến trúc tệ hại</strong>.
-        Think Better là công cụ CLI mã nguồn mở, tiêm
-        <strong class="text-white font-medium">framework ra quyết định cấp chuyên gia</strong> (MECE, Issue Trees,
-        Pre-Mortems)
-        trực tiếp vào prompt — biến Code Monkey thành Staff Engineer.
+        Think Better là công cụ CLI mã nguồn mở, cài ba skill vào trợ lý AI của bạn:
+        <strong class="text-white font-medium">/decide</strong> để chọn lựa,
+        <strong class="text-white font-medium">/solve</strong> để tìm nguyên nhân gốc và
+        <strong class="text-white font-medium">/code</strong> để sửa code có bằng chứng ở từng bước.
       </p>
 
       <!-- Install Snippet (Vercel Style) -->
@@ -338,10 +338,10 @@
             <div class="text-[10px] font-bold text-zinc-500 mb-1 tracking-wider uppercase pl-1">macOS / Linux</div>
             <div class="flex items-center justify-between bg-[#0a0a0a] border border-zinc-800/50 rounded p-2">
               <code
-                class="font-mono text-[11px] sm:text-xs text-zinc-300 overflow-x-auto no-scrollbar whitespace-nowrap pt-0.5 block leading-relaxed">curl -sSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.sh | bash<br>think-better init --ai claude</code>
+                class="font-mono text-[11px] sm:text-xs text-zinc-300 overflow-x-auto no-scrollbar whitespace-nowrap pt-0.5 block leading-relaxed">curl -fsSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.sh | sh<br>think-better init --ai claude</code>
               <button
                 class="ml-3 shrink-0 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 p-1.5 rounded transition-colors relative self-start mt-1"
-                onclick="copyText('curl -sSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.sh | bash\nthink-better init --ai claude', this, true)">
+                onclick="copyText('curl -fsSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.sh | sh\nthink-better init --ai claude', this, true)">
                 <svg class="copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
@@ -366,6 +366,29 @@
               <button
                 class="ml-3 shrink-0 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 p-1.5 rounded transition-colors relative self-start mt-1"
                 onclick="copyText('irm https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.ps1 | iex\nthink-better init --ai claude', this, true)">
+                <svg class="copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+                <svg class="check-icon hidden text-green-500 absolute top-1.5 left-1.5" width="14" height="14"
+                  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"
+                  stroke-linejoin="round">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Homebrew -->
+          <div>
+            <div class="text-[10px] font-bold text-zinc-500 mb-1 tracking-wider uppercase pl-1 mt-1">Homebrew</div>
+            <div class="flex items-center justify-between bg-[#0a0a0a] border border-zinc-800/50 rounded p-2">
+              <code
+                class="font-mono text-[11px] sm:text-xs text-zinc-300 overflow-x-auto no-scrollbar whitespace-nowrap pt-0.5 block leading-relaxed">brew tap HoangTheQuyen/think-better https://github.com/HoangTheQuyen/think-better<br>brew install think-better</code>
+              <button
+                class="ml-3 shrink-0 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 p-1.5 rounded transition-colors relative self-start mt-1"
+                onclick="copyText('brew tap HoangTheQuyen/think-better https://github.com/HoangTheQuyen/think-better\nbrew install think-better', this, true)">
                 <svg class="copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
@@ -459,9 +482,14 @@
           <div class="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center mb-6">
             <span class="text-xl">⚡</span>
           </div>
-          <h3 class="text-lg font-semibold mb-2">Zero Dependencies</h3>
-          <p class="text-zinc-400 text-sm">A single 5MB Go binary. No node_modules, no python environments required.
-            Runs 100% locally.</p>
+          <h3 class="text-lg font-semibold mb-2">
+            <span data-lang="en">Runs Locally</span>
+            <span data-lang="vi">Chạy Cục Bộ</span>
+          </h3>
+          <p class="text-zinc-400 text-sm" data-lang="en">One Go binary installs everything. The skills need only Python 3's
+            standard library: no pip, no node_modules, no API keys.</p>
+          <p class="text-zinc-400 text-sm" data-lang="vi">Một file Go cài mọi thứ. Skill chỉ cần thư viện chuẩn của
+            Python 3: không pip, không node_modules, không API key.</p>
         </div>
 
         <!-- Box 4: Architecture (Wide) -->
@@ -469,15 +497,17 @@
           class="md:col-span-2 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-8 flex flex-col sm:flex-row gap-8 items-center group hover:border-zinc-700 transition-colors">
           <div class="flex-1">
             <h3 class="text-xl font-semibold mb-2">BM25 Search Engine</h3>
-            <p class="text-zinc-400 text-sm mb-4" data-lang="en">Uses lightning-fast keyword matching across embedded CSV databases to
-              find the exact framework for your specific problem type.</p>
-            <p class="text-zinc-400 text-sm mb-4" data-lang="vi">Sử dụng tìm kiếm từ khóa siêu nhanh trong cơ sở dữ liệu CSV nhúng để
-              tìm framework chính xác cho loại vấn đề cụ thể của bạn.</p>
+            <p class="text-zinc-400 text-sm mb-4" data-lang="en">Fast keyword ranking over 323 knowledge records
+              (<code>problem-solving-pro</code> 111 records, <code>make-decision</code> 63 records,
+              <code>code-solving</code> 149 records) finds the framework, technique or known error for your request.</p>
+            <p class="text-zinc-400 text-sm mb-4" data-lang="vi">Xếp hạng từ khóa nhanh trên 323 bản ghi kiến thức
+              (<code>problem-solving-pro</code> 111 bản ghi, <code>make-decision</code> 63 bản ghi,
+              <code>code-solving</code> 149 bản ghi) để tìm framework, kỹ thuật hoặc lỗi đã biết phù hợp với yêu cầu.</p>
             <div class="inline-flex gap-2">
               <span class="px-2 py-1 rounded bg-zinc-800 text-xs font-mono text-zinc-300 border border-zinc-700">Go
                 1.25</span>
-              <span class="px-2 py-1 rounded bg-zinc-800 text-xs font-mono text-zinc-300 border border-zinc-700">Embed
-                API</span>
+              <span class="px-2 py-1 rounded bg-zinc-800 text-xs font-mono text-zinc-300 border border-zinc-700">Python
+                3 stdlib</span>
             </div>
           </div>
           <div
@@ -552,15 +582,15 @@
 
       <!-- Command Grid -->
       <div class="rounded-2xl border border-zinc-800 bg-zinc-900/30 overflow-hidden">
-        <div class="grid grid-cols-1 sm:grid-cols-2">
+        <div class="grid grid-cols-1 lg:grid-cols-3">
           <!-- Problem Solving Commands -->
-          <div class="p-6 sm:p-8 border-b sm:border-b-0 sm:border-r border-zinc-800">
+          <div class="p-6 sm:p-8 border-b lg:border-b-0 lg:border-r border-zinc-800">
             <div class="flex items-center gap-3 mb-4">
               <h4 class="text-sm font-bold text-blue-400 tracking-wider uppercase">
                 <span data-lang="en">Problem Solving</span>
                 <span data-lang="vi">Giải Quyết Vấn Đề</span>
               </h4>
-              <code class="text-[10px] font-mono text-zinc-500 bg-zinc-800/50 px-1.5 py-0.5 rounded">/problem-solving-pro</code>
+              <code class="text-[10px] font-mono text-zinc-500 bg-zinc-800/50 px-1.5 py-0.5 rounded">problem-solving-pro</code>
             </div>
             <div class="space-y-3">
               <div class="flex items-center gap-3">
@@ -591,13 +621,13 @@
           </div>
 
           <!-- Decision Making Commands -->
-          <div class="p-6 sm:p-8">
+          <div class="p-6 sm:p-8 border-b lg:border-b-0 lg:border-r border-zinc-800">
             <div class="flex items-center gap-3 mb-4">
               <h4 class="text-sm font-bold text-purple-400 tracking-wider uppercase">
                 <span data-lang="en">Decision Making</span>
                 <span data-lang="vi">Ra Quyết Định</span>
               </h4>
-              <code class="text-[10px] font-mono text-zinc-500 bg-zinc-800/50 px-1.5 py-0.5 rounded">/make-decision</code>
+              <code class="text-[10px] font-mono text-zinc-500 bg-zinc-800/50 px-1.5 py-0.5 rounded">make-decision</code>
             </div>
             <div class="space-y-3">
               <div class="flex items-center gap-3">
@@ -623,6 +653,79 @@
                   class="font-mono text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-200 w-32 text-center shrink-0">/decide.exec</code>
                 <span class="text-zinc-400 text-sm" data-lang="en">Leadership-level briefing</span>
                 <span class="text-zinc-400 text-sm" data-lang="vi">Báo cáo cấp lãnh đạo</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Coding Commands -->
+          <div class="p-6 sm:p-8">
+            <div class="flex items-center gap-3 mb-4">
+              <h4 class="text-sm font-bold text-emerald-400 tracking-wider uppercase">
+                <span data-lang="en">Coding</span>
+                <span data-lang="vi">Lập Trình</span>
+              </h4>
+              <code class="text-[10px] font-mono text-zinc-500 bg-zinc-800/50 px-1.5 py-0.5 rounded">code-solving</code>
+            </div>
+            <div class="space-y-3">
+              <div class="flex items-center gap-3">
+                <code
+                  class="font-mono text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-200 w-32 text-center shrink-0">/code</code>
+                <span class="text-zinc-400 text-sm" data-lang="en">Any code change, type auto-detected</span>
+                <span class="text-zinc-400 text-sm" data-lang="vi">Mọi thay đổi code, tự nhận loại việc</span>
+              </div>
+              <div class="flex items-center gap-3">
+                <code
+                  class="font-mono text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-200 w-32 text-center shrink-0">/code.deep</code>
+                <span class="text-zinc-400 text-sm" data-lang="en">Pitfalls per step, full review checklist</span>
+                <span class="text-zinc-400 text-sm" data-lang="vi">Lỗi hay gặp từng bước, checklist review đầy đủ</span>
+              </div>
+              <div class="flex items-center gap-3">
+                <code
+                  class="font-mono text-xs bg-zinc-800 border border-emerald-500/30 rounded px-2 py-1 text-emerald-300 w-32 text-center shrink-0">/code.debug</code>
+                <span class="text-zinc-400 text-sm" data-lang="en">Bug: failing test first, then the fix</span>
+                <span class="text-zinc-400 text-sm" data-lang="vi">Bug: test fail trước, rồi mới sửa</span>
+              </div>
+              <div class="flex items-center gap-3">
+                <code
+                  class="font-mono text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-200 w-32 text-center shrink-0">/code.feature</code>
+                <span class="text-zinc-400 text-sm" data-lang="en">Feature in small tested slices</span>
+                <span class="text-zinc-400 text-sm" data-lang="vi">Tính năng theo từng lát nhỏ có test</span>
+              </div>
+              <div class="flex items-center gap-3">
+                <code
+                  class="font-mono text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-200 w-32 text-center shrink-0">/code.refactor</code>
+                <span class="text-zinc-400 text-sm" data-lang="en">Same behavior, better structure</span>
+                <span class="text-zinc-400 text-sm" data-lang="vi">Giữ hành vi, cải thiện cấu trúc</span>
+              </div>
+              <div class="flex items-center gap-3">
+                <code
+                  class="font-mono text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-200 w-32 text-center shrink-0">/code.perf</code>
+                <span class="text-zinc-400 text-sm" data-lang="en">Measure, optimize, measure again</span>
+                <span class="text-zinc-400 text-sm" data-lang="vi">Đo, tối ưu, đo lại</span>
+              </div>
+              <div class="flex items-center gap-3">
+                <code
+                  class="font-mono text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-200 w-32 text-center shrink-0">/code.review</code>
+                <span class="text-zinc-400 text-sm" data-lang="en">Review the diff and its risk areas</span>
+                <span class="text-zinc-400 text-sm" data-lang="vi">Review diff và vùng rủi ro</span>
+              </div>
+              <div class="flex items-center gap-3">
+                <code
+                  class="font-mono text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-200 w-32 text-center shrink-0">/code.test</code>
+                <span class="text-zinc-400 text-sm" data-lang="en">Tests that can actually fail</span>
+                <span class="text-zinc-400 text-sm" data-lang="vi">Test có thể fail thật</span>
+              </div>
+              <div class="flex items-center gap-3">
+                <code
+                  class="font-mono text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-200 w-32 text-center shrink-0">/code.explain</code>
+                <span class="text-zinc-400 text-sm" data-lang="en">How code works, with file:line evidence</span>
+                <span class="text-zinc-400 text-sm" data-lang="vi">Giải thích code kèm file:dòng</span>
+              </div>
+              <div class="flex items-center gap-3">
+                <code
+                  class="font-mono text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-200 w-32 text-center shrink-0">/code.resume</code>
+                <span class="text-zinc-400 text-sm" data-lang="en">Continue a saved workspace</span>
+                <span class="text-zinc-400 text-sm" data-lang="vi">Làm tiếp workspace đã lưu</span>
               </div>
             </div>
           </div>
@@ -685,6 +788,10 @@
                   <code class="text-blue-300 text-xs font-bold block mb-1">make-decision</code>
                   <span class="text-[10px] text-zinc-500 uppercase tracking-widest"><span data-lang="en">Ignored</span><span data-lang="vi" style="display: none;">Bỏ qua</span></span>
                 </div>
+                <div class="flex-1 bg-[#161618] border border-zinc-800 rounded-lg p-3 opacity-50 grayscale">
+                  <code class="text-emerald-300 text-xs font-bold block mb-1">code-solving</code>
+                  <span class="text-[10px] text-zinc-500 uppercase tracking-widest"><span data-lang="en">Ignored</span><span data-lang="vi" style="display: none;">Bỏ qua</span></span>
+                </div>
               </div>
             </div>
           </div>
@@ -700,8 +807,8 @@
             <div class="flex-1">
               <h4 class="text-lg font-semibold text-white mb-2" data-lang="en">Parallel Search Database</h4>
               <h4 class="text-lg font-semibold text-white mb-2" data-lang="vi">Tìm Kiếm Cơ Sở Dữ Liệu</h4>
-              <div class="text-zinc-500 text-xs mb-4" data-lang="en">Scanning 160 embedded best-practice records across 9 domains...</div>
-              <div class="text-zinc-500 text-xs mb-4" data-lang="vi">Quét 160 bản ghi phương pháp luận nhúng qua 9 lĩnh vực...</div>
+              <div class="text-zinc-500 text-xs mb-4" data-lang="en">Searching problem-solving-pro's 111 records across 10 knowledge tables...</div>
+              <div class="text-zinc-500 text-xs mb-4" data-lang="vi">Tìm trong 111 bản ghi của problem-solving-pro qua 10 bảng kiến thức...</div>
               
               <div class="grid grid-cols-2 md:grid-cols-3 gap-3 font-mono text-xs">
                 <div class="bg-amber-500/5 border border-amber-500/20 rounded p-2 text-amber-200/80 flex items-center gap-2">
@@ -860,9 +967,11 @@
               <div><span class="text-zinc-600">├──</span> <span class="text-yellow-300">BIAS-WARNINGS.md</span></div>
               <div><span class="text-zinc-600">└──</span> <span class="text-green-300">DECISION-LOG.md</span></div>
             </div>
-            <div class="mt-3 text-zinc-500 text-[10px]" data-lang="en">Each file has editable templates with checklists & placeholders
+            <div class="mt-3 text-zinc-500 text-[10px]" data-lang="en">Each file has editable templates with checklists &amp; placeholders.
+              /decide saves to decision-plans/, /code to coding-plans/ (resume later with /code.resume).
             </div>
-            <div class="mt-3 text-zinc-500 text-[10px]" data-lang="vi">Mỗi file có template sẵn với checklist & placeholder
+            <div class="mt-3 text-zinc-500 text-[10px]" data-lang="vi">Mỗi file có template sẵn với checklist &amp; placeholder.
+              /decide lưu vào decision-plans/, /code lưu vào coding-plans/ (làm tiếp bằng /code.resume).
             </div>
           </div>
         </div>
@@ -913,12 +1022,20 @@
             class="rounded-lg bg-card border border-border p-4 font-mono text-xs overflow-x-auto text-zinc-300 no-scrollbar whitespace-nowrap">
             <span class="text-zinc-500"># macOS / Linux</span><button
               class="ml-2 px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-[10px] text-zinc-400"
-              onclick="copyText('curl -sSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.sh | bash', this)">Copy</button><br>
-            curl -sSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.sh | bash<br><br>
+              onclick="copyText('curl -fsSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.sh | sh', this)">Copy</button><br>
+            curl -fsSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.sh | sh<br><br>
             <span class="text-zinc-500"># Windows (PowerShell)</span><button
               class="ml-2 px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-[10px] text-zinc-400"
               onclick="copyText('irm https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.ps1 | iex', this)">Copy</button><br>
-            irm https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.ps1 | iex
+            irm https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.ps1 | iex<br><br>
+            <span class="text-zinc-500"># Homebrew</span><br>
+            brew tap HoangTheQuyen/think-better https://github.com/HoangTheQuyen/think-better<br>
+            brew install think-better<br><br>
+            <span class="text-zinc-500"># Scoop</span><br>
+            scoop bucket add think-better https://github.com/HoangTheQuyen/think-better<br>
+            scoop install think-better<br><br>
+            <span class="text-zinc-500"># Go 1.25+</span><br>
+            go install github.com/HoangTheQuyen/think-better/cmd/think-better@latest
           </div>
         </div>
         <!-- Step 2 -->
@@ -933,7 +1050,11 @@
             <span class="text-zinc-500"># Target your AI assistant</span><br>
             think-better init <span class="text-blue-400">--ai claude</span><br>
             think-better init <span class="text-blue-400">--ai copilot</span><br>
-            think-better init <span class="text-blue-400">--ai antigravity</span>
+            think-better init <span class="text-blue-400">--ai antigravity</span><br>
+            think-better init <span class="text-blue-400">--ai opencode</span><br><br>
+            <span class="text-zinc-500" data-lang="en"># Or once for every project</span>
+            <span class="text-zinc-500" data-lang="vi"># Hoặc một lần cho mọi project</span><br>
+            think-better init <span class="text-blue-400">--ai claude --global</span>
           </div>
         </div>
         <!-- Step 3 -->

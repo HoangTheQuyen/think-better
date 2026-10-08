@@ -45,6 +45,18 @@ think-better init --ai claude --global
 think-better init --ai claude --skill code-solving
 ```
 
+#### Keeping skills up to date
+
+After upgrading the `think-better` binary, update every install (this project and `--global`) at once:
+
+```bash
+think-better check            # installed / outdated / modified / incomplete, per location (--json, --strict)
+think-better update --dry-run # show what would change
+think-better update           # apply (limit with --ai, --skill or --global)
+```
+
+Each install records what it wrote in `.think-better.json` (and `.think-better-workflows.json` next to the slash commands). Files you edited are never overwritten silently: `update` (and `init` on an existing install) keeps them and writes the new version next to them as `<file>.new`; `--force` replaces them after saving yours as `<file>.bak`. `uninstall` likewise only deletes files you have not modified.
+
 ### 3. Open Your AI Assistant
 
 - **Claude:** Open Claude Code or VS Code with Claude extension
@@ -93,17 +105,25 @@ python scripts/search.py "relevant keywords" --domain criteria   # Evaluation te
 python scripts/search.py "relevant keywords" --domain analysis   # 10 analysis techniques
 python scripts/search.py "relevant keywords" --domain facilitation # Group decision tips
 
-# Step 3: Create comparison matrix for options
+# Step 3: Create comparison matrix for options; add --scores for totals, winner and sensitivity
 python scripts/search.py --matrix "Option A vs Option B vs Option C" \
-  -c "criterion1,criterion2,criterion3"
+  -c "criterion1:3,criterion2:2,criterion3:1" --scores "Option A:4,3,5;Option B:5,4,3;Option C:3,3,4"
 
-# Step 4: Document the decision
-python scripts/search.py --journal "Decision title" -p "Project Name"
+# Step 4: Document the decision (with your confidence and when to review it)
+python scripts/search.py --journal "Decision title" -p "Project Name" --confidence 70 --review-in 30d
 
-# Step 5: Update with actual outcome (later)
+# Step 5: Update with actual outcome (later); --review --due lists decisions due for review
+python scripts/search.py --journal --review --due
 python scripts/search.py --journal --update "decision-slug" \
   --outcome "What actually happened and what you learned"
 ```
+
+The plan names the options it found in your question, suggests five weighted criteria, and
+warns about the biases that fit the decision type. `--depth quick|standard|deep|executive` changes
+what it contains (executive is a recommendation-first brief). Questions in Vietnamese work too
+("Nên chọn React hay Vue?"). Say "save step-by-step" to get a `decision-plans/<name>/` workspace
+with one file per step and a **Done?** column in `00-OVERVIEW.md`; in a later session,
+`/decide.resume` (or `search.py --status`) shows which steps are done and continues at the next one.
 
 ### Skill 2: problem-solving-pro
 
@@ -140,6 +160,11 @@ The skill will guide you through:
 
 Add `--type` and `--category` when you know them (e.g. `--type Diagnostic --category "Business Performance"`);
 the plan shows which **Type** and **Context** it used.
+Requests can be in English or Vietnamese (accents optional). `/solve.quick`, `/solve`, `/solve.deep` and
+`/solve.exec` give increasingly detailed plans; `/solve.exec` adds an executive summary (SCR), key risks and
+the decision needed. Say "save step-by-step" to get a `solving-plans/<name>/` workspace with one file per
+step; in a later session, `/solve.resume` (or `search.py --status`) shows which steps are done and continues
+at the first open one.
 
 ### Skill 3: code-solving
 
@@ -545,10 +570,10 @@ PostgreSQL (primary + read replica), Redis cache.
 ## 📖 Learning Path
 
 ### Week 1: Get Familiar
-- [ ] Install both skills
-- [ ] Read through examples/ directory (01-05)
+- [ ] Install the skills
+- [ ] Read through the examples/ directory (01-06)
 - [ ] Try one simple decision using make-decision skill
-- [ ] Try one simple debugging problem using problem-solving-pro
+- [ ] Try one simple bug with `/code.debug` (code-solving)
 
 ### Week 2: Build Habit
 - [ ] Make one multi-option decision using full workflow
@@ -593,9 +618,9 @@ python scripts/search.py "list all biases" --domain biases
 
 ### From the Community
 
-- See [examples/](../examples/) for detailed case studies
-- Check templates 06-10 for structure
-- Review README.md for full reference
+- See [examples/](examples/README.md) for detailed case studies
+- See the [Quick Reference](QUICK-REFERENCE.md) for a one-page summary
+- Ask or report problems in [GitHub issues](https://github.com/HoangTheQuyen/think-better/issues)
 
 ---
 

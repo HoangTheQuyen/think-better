@@ -1,56 +1,280 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Make-Decision Advisor - Generates comprehensive decision-making plans,
-comparison matrices, and decision journal entries.
+Make-Decision Advisor - decision plans, weighted comparison matrices and the
+step-by-step workspace.
 
 Usage:
     from advisor import DecisionAdvisor
-    advisor = DecisionAdvisor("choosing between AWS and Azure", search_fn=search)
-    plan = advisor.generate()
-    print(advisor.format_ascii_box(plan))
+    advisor = DecisionAdvisor("React or Vue for our new project?")
+    plan = advisor.generate(depth="standard")
+    print(advisor.format_markdown(plan))
 """
 
 import json
 import re
+import unicodedata
 from datetime import datetime
 from pathlib import Path
-from core import search, search_domain, load_csv, slugify, default_output_dir, save_docs, DATA_DIR
+
+from core import (default_output_dir, find_row, fold, load_csv, match_tokens, query_grams,
+                  rank_by_signals, save_docs, search_domain, slugify)
+import journal
+import workspace
 
 # ============ DEPTH CONFIGURATION ============
+# How much each depth shows; the section layout per depth is in _sections().
 DEPTH_CONFIG = {
-    "quick": {
-        "multiplier": 0.5,
-        "sections": ["decision_type", "framework", "bias_warnings"],
-        "show_alternatives": False,
-    },
-    "standard": {
-        "multiplier": 1.0,
-        "sections": "all",
-        "show_alternatives": False,
-    },
-    "deep": {
-        "multiplier": 1.7,
-        "sections": "all",
-        "show_alternatives": True,
-    },
-    "executive": {
-        "multiplier": 2.5,
-        "sections": "all",
-        "show_alternatives": True,
-    },
+    "quick": {"alternatives": 0, "analysis": 0, "biases": 2, "facilitation": 0, "criteria": 3},
+    "standard": {"alternatives": 2, "analysis": 2, "biases": 3, "facilitation": 2, "criteria": 5},
+    "deep": {"alternatives": 4, "analysis": 3, "biases": 5, "facilitation": 2, "criteria": 5},
+    "executive": {"alternatives": 3, "analysis": 3, "biases": 4, "facilitation": 2, "criteria": 5},
 }
-
 VALID_DEPTHS = list(DEPTH_CONFIG.keys())
+
+DEFAULT_TYPE = "Multi-Option Selection"
+DEFAULT_CRITERIA = "General Decision"
+# Spelled-out options count like this many keyword points for Binary / Multi-Option
+OPTION_WEIGHT = 2
+# On equal scores the more specific situation wins
+TYPE_PRIORITY = ["Time-Pressured Decision", "Group / Stakeholder Decision", "Decision Under Uncertainty",
+                 "Resource Allocation", "Strategic Direction", "Binary Choice", "Multi-Option Selection",
+                 "Operational / Tactical"]
+
+# ============ OPTIONS ============
+# Patterns are written without accents: they run on a folded copy of the text
+# (same length, see _fold_keep) so 'nên chọn' and 'nen chon' both match, and
+# the options are cut from the original text with its accents.
+_SEPARATORS = r"or|vs\.?|versus|hay la|hay|hoac la|hoac|so voi"
+_OPENERS = re.compile(
+    r"\b(?:(?:should|shall|do|can) (?:we|i|you|they)(?: (?:use|go with|choose|pick|select))?"
+    r"|is it better to|would it be better to"
+    r"|whether(?: to| we should| i should)?|torn between|between|decide(?: between)?|deciding(?: between)?"
+    r"|choos(?:e|ing)(?: between)?|pick(?:ing)?(?: between)?|select|compare|comparing"
+    r"|co nen dung|co nen chon|co nen|nen chon|nen dung|nen su dung|nen|chon giua|lua chon giua|phan van giua"
+    r"|phan van|chon|giua|so sanh"
+    r"|quyet dinh)\b", re.I)
+_TRAILING_CONTEXT = re.compile(
+    r"\s+(?:for|because|since|given|so that|after|before|cho|de|vi|sau khi|truoc khi|trong khi|khi|neu)\s+.*$",
+    re.I)
+_TRAILING_FILLER = re.compile(r"\s+(?:the nao|nhu the nao|ra sao|khong|nhi|nhe|then|instead)$", re.I)
+_YES_NO = re.compile(r"^(?P<x>.+?)\s+(?:hay|or|hoac)\s+(?:khong|not|chua|no)$", re.I)
+_VIETNAMESE = re.compile(r"[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]")
+
+
+def is_vietnamese(text: str) -> bool:
+    return bool(_VIETNAMESE.search(str(text).lower()))
+
+
+def _fold_keep(text: str) -> str:
+    """Lowercase accent-folded copy of text with the same length (one character per character)."""
+    out = []
+    for ch in text:
+        base = fold(ch).lower()
+        out.append(base if len(base) == 1 else ch.lower())
+    return "".join(out)
+
+
+def _split(text: str, pattern) -> list:
+    """Split the original text where pattern matches its folded copy."""
+    folded, pieces, start = _fold_keep(text), [], 0
+    for m in pattern.finditer(folded):
+        pieces.append(text[start:m.start()])
+        start = m.end()
+    return pieces + [text[start:]]
+
+
+def _sub_end(text: str, pattern) -> str:
+    """Text with the part matching pattern (anchored at the end, on the folded copy) removed."""
+    m = pattern.search(_fold_keep(text))
+    return text[:m.start()] if m else text
+
+
+def _not_option(text: str) -> str:
+    return "Không (giữ nguyên hiện trạng)" if is_vietnamese(text) else "Not (keep things as they are)"
+
+
+def _strip_opener(text: str, limit: int = None) -> tuple:
+    """(text after the last question opener before limit, the opener) - 'should we', 'nên chọn', 'between'."""
+    folded = _fold_keep(text)
+    last = None
+    for m in _OPENERS.finditer(folded[: len(text) if limit is None else limit]):
+        last = m
+    if not last or not text[last.end():].strip():
+        return text, ""
+    return text[last.end():].strip(), last.group(0).lower()
+
+
+def _shape(word: str) -> str:
+    if re.search(r"\d", word):
+        return "number"
+    if len(word) == 1 and word.isalpha():
+        return "letter"
+    return "word"
+
+
+def _options_in(sentence: str) -> list:
+    s = sentence.strip().rstrip("?!.;:").strip()
+    sep = re.compile(r"\s+(?:%s)\s+" % _SEPARATORS, re.I)
+    # "Which CRM: Salesforce, HubSpot or Pipedrive" - the options follow the colon
+    if ":" in s:
+        head, tail = s.split(":", 1)
+        if (sep.search(_fold_keep(tail)) or "," in tail) and len(head.split()) <= 8:
+            s = tail.strip()
+    # "renew it or not", "có ký hợp đồng hay không"
+    yes_no = _YES_NO.match(_fold_keep(s))
+    if yes_no:
+        x, _ = _strip_opener(s[: yes_no.end("x")])
+        x = _split(x, re.compile(r"\bco\b"))[-1].strip() or x
+        return [x, _not_option(sentence)] if x else []
+
+    first = sep.search(_fold_keep(s))
+    s, opener = _strip_opener(s, first.start() if first else None)
+    extra = []
+    if opener.endswith(("between", "giua")):
+        extra.append("and|va")
+    if opener in ("compare", "comparing", "so sanh"):
+        extra.append("with|voi|and|va")
+    split = re.compile(r"\s+(?:%s)\s+" % "|".join([_SEPARATORS] + extra), re.I)
+    chunks = [c for c in re.split(r"\s*[,;]\s*", s) if c.strip()]
+    pieces = [p.strip() for c in chunks for p in _split(c, split)]
+    pieces = [_split(p, re.compile(r"^(?:or|and|vs\.?|versus|hay|hoac|va)\s+", re.I))[-1].strip() for p in pieces]
+    pieces = [p for p in pieces if p]
+    if len(pieces) < 2:
+        return []
+    if not split.search(_fold_keep(s)) and any(len(p.split()) > 3 for p in pieces):
+        return []  # a comma list in prose ("marketing, sales and R&D"), not options
+    last = _sub_end(_sub_end(pieces[-1], _TRAILING_CONTEXT), _TRAILING_FILLER).strip()
+    pieces[-1] = last or pieces[-1]
+    # "set the price at $29 or $49" -> "$29", "$49"; "đối tác A hay B" -> "A", "B"
+    first_words, last_words = pieces[0].split(), pieces[-1].split()
+    if (len(pieces) == 2 and len(first_words) - len(last_words) >= 3 and len(last_words) <= 2
+            and _shape(first_words[-1]) == _shape(last_words[-1]) != "word"):
+        pieces[0] = " ".join(first_words[-len(last_words):])
+    options, seen = [], set()
+    for p in pieces:
+        p = p.strip(" \"'`")
+        key = fold(p).lower()
+        if p and key not in seen:
+            seen.add(key)
+            options.append(p)
+    if len(options) < 2 or any(len(o.split()) > 8 for o in options):
+        return []
+    return options[:8]
+
+
+def parse_options(text: str) -> list:
+    """The alternatives a request spells out, in order; [] when it names none.
+
+    'React or Vue for our new project?' -> ['React', 'Vue'];
+    'Which CRM: Salesforce, HubSpot or Pipedrive' -> ['Salesforce', 'HubSpot', 'Pipedrive'];
+    'nên chọn React hay Vue' -> ['React', 'Vue']; 'giữa A, B và C' -> ['A', 'B', 'C'].
+    """
+    text = unicodedata.normalize("NFC", str(text or ""))
+    text = re.sub(r"\b(vs|versus)\.", r"\1", text, flags=re.I)
+    for sentence in re.split(r"(?<=[?!])\s+|\.\s+|\n+", text):
+        options = _options_in(sentence)
+        if options:
+            return options
+    return []
+
+
+# ============ SMALL HELPERS ============
+def split_names(cell: str) -> list:
+    return [n.strip() for n in str(cell or "").split(",") if n.strip()]
+
+
+def criteria_items(row: dict, limit: int = 5) -> list:
+    """[{'name', 'weight', 'guide'}] of a criteria template row, heaviest first, weights summing to 100."""
+    names = split_names(row.get("Criteria", ""))
+    weights = []
+    for w in split_names(row.get("Default Weights", "")):
+        try:
+            weights.append(float(w))
+        except ValueError:
+            weights.append(0.0)
+    weights += [0.0] * (len(names) - len(weights))
+    guides = []
+    for part in re.split(r"(?<=\.)\s+(?=[A-Z][\w -]*:)", row.get("Measurement Guidance", "")):
+        if ":" in part:
+            key, text = part.split(":", 1)
+            guides.append((key.strip().lower(), text.strip()))
+    items = []
+    for n, (name, weight) in enumerate(zip(names, weights)):
+        if len(guides) == len(names):  # one guide per criterion, in the same order
+            guide = guides[n][1]
+        else:
+            words = name.lower().split()
+            guide = next((t for k, t in guides if k.split()[0] in words or k in name.lower()), "")
+        items.append({"name": name, "weight": weight, "guide": guide})
+    items = sorted(items, key=lambda x: -x["weight"])[:limit]
+    total = sum(i["weight"] for i in items) or 1
+    for item in items:
+        item["weight"] = round(item["weight"] * 100 / total)
+    drift = 100 - sum(i["weight"] for i in items)
+    if items and drift:
+        items[0]["weight"] += drift
+    return items
+
+
+def _numbered_steps(text: str) -> list:
+    return [s.strip() for s in re.split(r"\s*\d+\.\s+", str(text or "")) if s.strip()]
+
+
+def _first_line(text: str, limit: int = 60) -> str:
+    line = next((ln.strip() for ln in str(text).splitlines() if ln.strip()), "")
+    return line if len(line) <= limit else line[: limit - 1].rstrip() + "…"
+
+
+def _sentences(text: str) -> list:
+    return [s.strip() for s in re.split(r"(?<=[.!?])\s+", str(text or "")) if s.strip()]
+
+
+def _num(value: float) -> str:
+    return f"{value:.2f}".rstrip("0").rstrip(".") if value != int(value) else str(int(value))
+
+
+# ============ REVERSIBILITY ============
+ONE_WAY = ["acquire", "acquisition", "merger", "sign the contract", "contract", "hire", "layoff", "buy a house",
+           "buy a home", "mortgage", "relocate", "emigrate", "quit", "resign", "migrate", "migration", "rewrite",
+           "pivot", "irreversible", "long-term", "restructure", "mua nhà", "nghỉ việc", "ký hợp đồng", "hợp đồng",
+           "sáp nhập", "thâu tóm", "tái cấu trúc", "định cư", "cắt giảm", "du học", "tuyển"]
+TWO_WAY = ["experiment", "pilot", "trial", "a/b", "prototype", "reversible", "try", "sprint", "tool",
+           "feature flag", "test", "thử", "thí điểm", "dùng thử", "thử nghiệm", "tạm thời"]
+
+
+def assess_reversibility(query: str, type_name: str) -> dict:
+    """One-way door (hard to undo) or two-way door, from the request's words and the decision type."""
+    grams, folded = query_grams(query)
+
+    def hits(words):
+        return [w for w in words if tuple(match_tokens(w, folded)) in grams]
+
+    one, two = hits(ONE_WAY), hits(TWO_WAY)
+    score = len(one) - len(two) + {"Strategic Direction": 1, "Operational / Tactical": -1}.get(type_name, 0)
+    if score > 0:
+        return {"door": "one-way", "signals": one,
+                "label": "Likely a one-way door: hard or costly to undo",
+                "advice": "Slow down: run the pre-mortem, test the riskiest assumption first and get the "
+                          "decision owner's sign-off. Agree on kill criteria before committing."}
+    if score < 0:
+        return {"door": "two-way", "signals": two,
+                "label": "Likely a two-way door: cheap to reverse",
+                "advice": "Decide fast with the best information you have, set a review date and "
+                          "iterate. Do not over-analyze."}
+    return {"door": "unclear", "signals": [],
+            "label": "Reversibility unclear",
+            "advice": "Ask: what would it cost to undo this in 6 months? Cheap means decide fast and review; "
+                      "expensive means treat it as a one-way door."}
 
 
 # ============ DECISION ADVISOR ============
 class DecisionAdvisor:
-    """Generates decision plans, journals, and comparison matrices."""
+    """Generates decision plans, comparison matrices and step-by-step workspaces."""
 
     def __init__(self, query: str = "", search_fn=None, decision_type: str = None):
-        self.query = query
-        self.search_fn = search_fn or search
+        self.query = unicodedata.normalize("NFC", str(query or "")).strip()
+        self.search_fn = search_fn
         self.decision_type = decision_type
 
     @staticmethod
@@ -60,853 +284,478 @@ class DecisionAdvisor:
 
     @staticmethod
     def _count_options(query: str) -> int:
-        """Count explicit alternatives: 'A vs B vs C' -> 3, 'should we use A or B' -> 2.
+        """Number of alternatives the request spells out (0 when it names none)."""
+        return len(parse_options(query))
 
-        Returns 0 when the query does not spell out its options.
-        """
-        q = query.strip().lower()
-        parts = re.split(r"\s+(?:vs\.?|versus)\s+", q)
-        if len(parts) >= 2:
-            return len(parts)
-        # "or" is ambiguous in prose; only trust it in a question about choosing.
-        if re.match(r"^(should|which|choose|pick|whether|do we|do i|is it better)\b", q):
-            head, *tail = re.split(r"\s+or\s+", q)
-            if tail:
-                items = [x for x in head.split(",") if x.strip()]
-                return len(tail) + max(1, len(items))
-        return 0
+    # ---- Classification ----
+    def classify(self) -> dict:
+        """{'row', 'source', 'matched'}: explicit --type, else keyword signals plus spelled-out options.
 
-    # ---- Classification (T013) ----
-    def classify_decision_type(self) -> dict:
-        """Classify the decision type: explicit type, then spelled-out options, then search.
+        source is 'explicit', 'keywords' or 'default' (nothing matched: say so and suggest --type).
 
         Raises:
             ValueError: if an explicit decision type is not a known value.
         """
         rows = load_csv("types")
         if self.decision_type:
+            wanted = self.decision_type.strip().lower()
             for row in rows:
-                if row["Decision Type"].lower() == self.decision_type.strip().lower():
-                    return row
+                if row["Decision Type"].lower() == wanted:
+                    return {"row": row, "source": "explicit", "matched": []}
             raise ValueError(f"unknown decision type {self.decision_type!r}; choose one of: "
                              + ", ".join(r["Decision Type"] for r in rows))
 
-        options = self._count_options(self.query)
-        if options:
-            wanted = "Binary Choice" if options == 2 else "Multi-Option Selection"
-            for row in rows:
-                if row["Decision Type"] == wanted:
-                    return row
+        scores = {row["Decision Type"]: [score, row, list(matched)]
+                  for score, row, matched in rank_by_signals(self.query, "types")}
+        options = parse_options(self.query)
+        if len(options) >= 2:
+            name = "Binary Choice" if len(options) == 2 else "Multi-Option Selection"
+            if name in scores:
+                scores[name][0] += OPTION_WEIGHT
+                scores[name][2].append(f"{len(options)} options")
+        order = {name: i for i, name in enumerate(TYPE_PRIORITY)}
+        best = max(scores.values(), key=lambda v: (v[0], -order.get(v[1]["Decision Type"], 99)))
+        if best[0] > 0:
+            return {"row": best[1], "source": "keywords", "matched": best[2]}
+        default = next(r for r in rows if r["Decision Type"] == DEFAULT_TYPE)
+        return {"row": default, "source": "default", "matched": []}
 
-        result = search_domain(self.query, "types", 1)
-        results = result.get("results", [])
-        if results:
-            return results[0]
-        return {
-            "Decision Type": "Multi-Option Selection",
-            "Characteristics": "Multiple options requiring structured evaluation",
-            "Recommended Frameworks": "Weighted Criteria Matrix, Pros-Cons-Fixes Analysis",
-            "Analysis Methods": "Relative Value Scoring, Sensitivity Analysis",
-            "Common Pitfalls": "Choice overload without clear criteria",
-            "Warning Signs": "",
-            "Example Scenarios": "",
-        }
+    def classify_decision_type(self) -> dict:
+        """The decision type row (see classify() for how it was chosen)."""
+        return self.classify()["row"]
 
-    # ---- Plan Generation (T014) ----
+    def choose_criteria(self) -> dict:
+        """{'row', 'source', 'matched'}: the criteria template whose signals the request matches best,
+        else the General Decision template (source 'default')."""
+        ranked = rank_by_signals(self.query, "criteria")
+        score, row, matched = ranked[0]
+        if score > 0:
+            return {"row": row, "source": "keywords", "matched": matched}
+        general = find_row("criteria", DEFAULT_CRITERIA)
+        return {"row": general, "source": "default", "matched": []}
+
+    # ---- Selection by name, search as the fallback ----
+    def _named_rows(self, domain: str, names: list, limit: int, query_fallback: bool = True) -> list:
+        """Rows named in `names` (in order), topped up with search hits for the request."""
+        rows, seen = [], set()
+        for name in names:
+            row = find_row(domain, name)
+            key = next(iter(row.values()), "") if row else ""
+            if row and key not in seen:
+                seen.add(key)
+                rows.append(row)
+        if query_fallback and len(rows) < limit:
+            for row in search_domain(fold(self.query), domain, limit + len(rows)).get("results", []):
+                key = next(iter(row.values()), "")
+                if key not in seen:
+                    seen.add(key)
+                    full = find_row(domain, key) or row
+                    rows.append(full)
+        return rows[:limit]
+
+    # ---- Plan Generation ----
     def generate(self, project_name: str = None, depth: str = "standard") -> dict:
-        """Generate a comprehensive decision-making plan.
+        """Build the decision plan for this request at the given depth (quick/standard/deep/executive)."""
+        if depth not in DEPTH_CONFIG:
+            raise ValueError(f"unknown depth {depth!r}; choose one of: {', '.join(VALID_DEPTHS)}")
+        cfg = DEPTH_CONFIG[depth]
+        found = self.classify()
+        dtype, type_name = found["row"], found["row"]["Decision Type"]
+        crit = self.choose_criteria()
+        options = parse_options(self.query)
 
-        Args:
-            project_name: Optional project name
-            depth: Analysis depth - quick, standard, deep, or executive
-        """
-        depth_cfg = DEPTH_CONFIG.get(depth, DEPTH_CONFIG["standard"])
-        multiplier = depth_cfg["multiplier"]
-        show_alts = depth_cfg.get("show_alternatives", False)
+        frameworks = self._named_rows("frameworks", split_names(dtype.get("Recommended Frameworks")),
+                                      1 + max(cfg["alternatives"], 1))
+        best = frameworks[0] if frameworks else {}
+        analysis = self._named_rows("analysis", split_names(dtype.get("Analysis Methods")), cfg["analysis"])
+        # The type's biases and the domain's, alternating, then whatever the request mentions
+        type_biases, domain_biases = split_names(dtype.get("Key Biases")), split_names(crit["row"].get("Key Biases"))
+        bias_names = []
+        for i in range(max(len(type_biases), len(domain_biases))):
+            bias_names += type_biases[i:i + 1] + domain_biases[i:i + 1]
+        biases = self._named_rows("biases", bias_names, cfg["biases"])
+        show_facilitation = cfg["facilitation"] and (depth != "standard" or type_name.startswith("Group"))
+        facilitation = (self._named_rows("facilitation", split_names(dtype.get("Facilitation")),
+                                         cfg["facilitation"]) if show_facilitation else [])
+        items = criteria_items(crit["row"], cfg["criteria"])
 
-        # Step 1: Classify the decision type
-        dtype = self.classify_decision_type()
-        type_name = dtype.get("Decision Type", "General")
-
-        # Step 2: Search frameworks (depth-aware)
-        max_fw = max(1, int(3 * multiplier))
-        fw_result = search_domain(self.query, "frameworks", max_fw)
-        frameworks = fw_result.get("results", [])
-
-        # Step 3: Search biases
-        max_bias = max(1, int(3 * multiplier))
-        bias_result = search_domain(self.query, "biases", max_bias)
-        biases = bias_result.get("results", [])
-
-        # Step 4: Search analysis techniques
-        max_analysis = max(1, int(3 * multiplier))
-        analysis_result = search_domain(self.query, "analysis", max_analysis)
-        analysis = analysis_result.get("results", [])
-
-        # Step 5: Search criteria templates
-        max_crit = max(1, int(2 * multiplier))
-        criteria_result = search_domain(self.query, "criteria", max_crit)
-        criteria = criteria_result.get("results", [])
-
-        # Step 6: Search facilitation techniques
-        max_facil = max(1, int(2 * multiplier))
-        facil_result = search_domain(self.query, "facilitation", max_facil)
-        facilitation = facil_result.get("results", [])
-
-        # The decision type's recommended framework wins; search ranking is the fallback
-        rec_frameworks = dtype.get("Recommended Frameworks", "")
-        best_framework = self._pick_named("frameworks", "Framework", rec_frameworks, frameworks)
-
-        # Select best analysis based on recommended methods for this type
-        rec_analysis = dtype.get("Analysis Methods", "")
-        best_analysis = self._select_best_match(analysis, rec_analysis)
-
-        alt_count = 4 if show_alts else 2
+        hint = ""
+        if found["source"] == "default":
+            hint = ("No decision type matched clearly. Re-run with `--type` ("
+                    + ", ".join(self.decision_type_names()) + ").")
+        criteria_note = ""
+        if crit["source"] == "default":
+            criteria_note = ("No domain template matched: these general criteria fit most decisions. "
+                             "Replace them with what matters here (at most 5).")
 
         return {
+            "request": self.query,
             "depth": depth,
-            "project_name": project_name or self.query[:60],
+            "project_name": project_name or _first_line(self.query) or "decision",
+            "options": options,
+            "classification_hint": hint,
             "decision_type": {
                 "name": type_name,
+                "source": found["source"],
+                "matched": found["matched"],
                 "characteristics": dtype.get("Characteristics", ""),
                 "recommended_frameworks": dtype.get("Recommended Frameworks", ""),
                 "analysis_methods": dtype.get("Analysis Methods", ""),
+                "key_biases": dtype.get("Key Biases", ""),
                 "common_pitfalls": dtype.get("Common Pitfalls", ""),
                 "warning_signs": dtype.get("Warning Signs", ""),
             },
             "framework": {
-                "name": best_framework.get("Framework", "Weighted Criteria Matrix"),
-                "category": best_framework.get("Category", ""),
-                "description": best_framework.get("Description", ""),
-                "steps": best_framework.get("Steps", ""),
-                "strengths": best_framework.get("Strengths", ""),
-                "limitations": best_framework.get("Limitations", ""),
-                "complexity": best_framework.get("Complexity", "Medium"),
-                "alternatives": self._framework_alternatives(rec_frameworks, frameworks,
-                                                             best_framework, alt_count),
+                "name": best.get("Framework", "Weighted Criteria Matrix"),
+                "category": best.get("Category", ""),
+                "description": best.get("Description", ""),
+                "steps": best.get("Steps", ""),
+                "strengths": best.get("Strengths", ""),
+                "limitations": best.get("Limitations", ""),
+                "complexity": best.get("Complexity", "Medium"),
+                "alternatives": [f.get("Framework", "") for f in frameworks[1:1 + cfg["alternatives"]]],
+                "alternative_details": [{"name": f.get("Framework", ""), "description": f.get("Description", ""),
+                                         "when": f.get("When to Use", "")}
+                                        for f in frameworks[1:1 + cfg["alternatives"]]],
             },
             "criteria": {
-                "domain": criteria[0].get("Domain", "") if criteria else "",
-                "criteria_list": criteria[0].get("Criteria", "") if criteria else "",
-                "weights": criteria[0].get("Default Weights", "") if criteria else "",
-                "measurement": criteria[0].get("Measurement Guidance", "") if criteria else "",
-                "mistakes": criteria[0].get("Common Mistakes", "") if criteria else "",
+                "domain": crit["row"].get("Domain", ""),
+                "source": crit["source"],
+                "matched": crit["matched"],
+                "note": criteria_note,
+                "items": items,
+                "criteria_list": ", ".join(i["name"] for i in items),
+                "weights": ", ".join(str(i["weight"]) for i in items),
+                "measurement": crit["row"].get("Measurement Guidance", ""),
+                "mistakes": crit["row"].get("Common Mistakes", ""),
             },
             "analysis_techniques": [
-                {
-                    "technique": a.get("Technique", ""),
-                    "when": a.get("When to Use", ""),
-                    "output": a.get("Output Format", ""),
-                }
-                for a in analysis[:3]
+                {"technique": a.get("Technique", ""), "when": a.get("When to Use", ""),
+                 "how": a.get("How to Apply", ""), "output": a.get("Output Format", "")}
+                for a in analysis
             ],
             "bias_warnings": [
-                {
-                    "bias": b.get("Bias", ""),
-                    "impact": b.get("Impact on Decisions", ""),
-                    "debiasing": b.get("Debiasing Strategy", ""),
-                    "severity": b.get("Severity", "Medium"),
-                }
-                for b in biases[:3]
+                {"bias": b.get("Bias", ""), "impact": b.get("Impact on Decisions", ""),
+                 "detect": b.get("How to Detect", ""), "debiasing": b.get("Debiasing Strategy", ""),
+                 "severity": b.get("Severity", "Medium")}
+                for b in biases
             ],
             "facilitation": [
-                {
-                    "technique": f.get("Technique", ""),
-                    "when": f.get("When to Use", ""),
-                    "group_size": f.get("Group Size", ""),
-                    "time": f.get("Time Required", ""),
-                }
-                for f in facilitation[:2]
+                {"technique": f.get("Technique", ""), "when": f.get("When to Use", ""),
+                 "group_size": f.get("Group Size", ""), "time": f.get("Time Required", "")}
+                for f in facilitation
             ],
+            "reversibility": assess_reversibility(self.query, type_name),
             "anti_patterns": dtype.get("Common Pitfalls", ""),
         }
 
-    def _pick_named(self, domain: str, name_col: str, names: str, results: list) -> dict:
-        """Return the first row of `domain` named in the comma-separated `names`.
+    # ---- Section builders (one layout per depth) ----
+    @staticmethod
+    def _header(plan: dict) -> list:
+        dt = plan["decision_type"]
+        lines = []
+        request = [ln for ln in plan.get("request", "").splitlines() if ln.strip()]
+        if len(request) == 1:
+            lines.append(f"**Request:** {request[0]}")
+        elif request:
+            lines += ["**Request:**"] + [f"> {ln}" for ln in request]
+        why = {"explicit": "set with --type", "default": "no clear match"}.get(
+            dt.get("source"), "matched: " + ", ".join(dt.get("matched", [])))
+        lines.append(f"**Decision type:** {dt['name']} ({why})")
+        if plan.get("classification_hint"):
+            lines.append(f"> {plan['classification_hint']}")
+        options = plan.get("options") or []
+        if options:
+            lines.append("**Options:** " + " | ".join(options))
+        else:
+            lines.append("**Options:** not spelled out yet. List 2-5 real alternatives (include "
+                         "\"do nothing\" or \"wait\") before scoring.")
+        return lines
 
-        Matches ignore case and parentheticals, and accept a prefix
-        ("Pros-Cons-Fixes" matches "Pros-Cons-Fixes Analysis"). Falls back to
-        the best keyword match among `results`.
-        """
-        def norm(text):
-            return re.sub(r"\(.*?\)", "", str(text)).strip().lower()
+    @staticmethod
+    def _criteria_table(plan: dict, guide: bool = True) -> list:
+        items = plan["criteria"]["items"]
+        if guide:
+            lines = ["| Criterion | Weight | What a 5 looks like |", "|---|---|---|"]
+            lines += [f"| {i['name']} | {i['weight']} | {i['guide']} |" for i in items]
+        else:
+            lines = ["| Criterion | Weight |", "|---|---|"]
+            lines += [f"| {i['name']} | {i['weight']} |" for i in items]
+        return lines
 
-        rows = load_csv(domain)
-        for name in str(names).split(","):
-            wanted = norm(name)
-            if len(wanted) < 4:
-                continue
-            for row in rows:
-                have = norm(row.get(name_col, ""))
-                if not have:
-                    continue
-                if have == wanted or have.startswith(wanted) or wanted.startswith(have):
-                    return row
-        return self._select_best_match(results, names)
+    @staticmethod
+    def _matrix_hint(plan: dict) -> list:
+        spec = ",".join(f"{i['name']}:{i['weight']}" for i in plan["criteria"]["items"])
+        names = plan.get("options") or ["A", "B"]
+        n = len(plan["criteria"]["items"])
+        example = ";".join(f"{o}:{','.join(['?'] * n)}" for o in names[:3])
+        return ["Score every option 1-5 on every criterion, then let the script total them, name the winner "
+                "and find the smallest weight change that flips it:",
+                f"`search.py --stdin --matrix -c \"{spec}\" --scores \"{example}\"` "
+                "(the options go on stdin, as with --plan)."]
 
-    def _framework_alternatives(self, recommended: str, results: list, best: dict, limit: int) -> list:
-        """Other frameworks the type recommends first, then other search hits."""
-        names = []
-        for name in str(recommended).split(","):
-            row = self._pick_named("frameworks", "Framework", name, [])
-            if row:
-                names.append(row.get("Framework", ""))
-        names += [f.get("Framework", "") for f in results]
-        alts = []
-        for name in names:
-            if name and name != best.get("Framework") and name not in alts:
-                alts.append(name)
-        return alts[:limit]
+    def _sections(self, plan: dict) -> tuple:
+        """(title, [(heading, lines)]) for the plan's depth."""
+        depth = plan.get("depth", "standard")
+        project = plan.get("project_name", "Decision")
+        dt, fw, crit = plan["decision_type"], plan["framework"], plan["criteria"]
+        rev = plan["reversibility"]
+        steps = _numbered_steps(fw.get("steps"))
+        biases, analysis, facil = plan["bias_warnings"], plan["analysis_techniques"], plan["facilitation"]
+        head = self._header(plan)
 
-    def _select_best_match(self, results: list, priority_str: str) -> dict:
-        """Select the best match from results based on priority keywords."""
-        if not results:
-            return {}
-        if not priority_str:
-            return results[0]
+        if depth == "quick":
+            return f"Quick Decision: {project}", [
+                ("", head),
+                (f"Do This Now: {fw['name']}", [f"{i}. {s}" for i, s in enumerate(steps[:5], 1)]),
+                ("Score Each Option On", [f"- **{i['name']}** (weight {i['weight']}): {i['guide']}"
+                                          for i in crit["items"]]),
+                ("Watch For", [f"- **{b['bias']}**: {b['debiasing']}" for b in biases]),
+                ("Reversibility", [f"**{rev['label']}.** {rev['advice']}",
+                                   "If this is a one-way door, re-run with `--depth deep`."]),
+            ]
 
-        priority_lower = priority_str.lower()
-        for r in results:
-            name = list(r.values())[0] if r else ""
-            if name.lower() in priority_lower or any(
-                word in priority_lower for word in name.lower().split() if len(word) > 3
-            ):
-                return r
-        return results[0]
+        criteria_lines = [f"> {crit['note']}"] if crit.get("note") else []
+        criteria_heading = f"Evaluation Criteria ({crit['domain']})"
+        bias_lines = []
+        for b in biases:
+            bias_lines.append(f"- **{b['bias']}** [{b['severity']}]: {b['impact']}")
+            if depth == "deep" and b.get("detect"):
+                bias_lines.append(f"  - *Detect:* {b['detect']}")
+            bias_lines.append(f"  - *Remedy:* {b['debiasing']}")
+        facil_lines = []
+        for f in facil:
+            facil_lines.append(f"- **{f['technique']}** ({f['group_size']} people, {f['time']}): {f['when']}")
+        checklist = [f"- [ ] {c}" for c in (
+            "Problem clearly defined and bounded", "Options exhaustively listed (MECE)",
+            "Criteria and weights agreed BEFORE scoring options", "Key assumptions identified and tested",
+            "Sensitivity checked: what weight change flips the winner?", "Bias check completed",
+            "Stakeholders aligned on criteria and process", "Decision documented (create a journal entry)")]
 
-    # ---- ASCII Box Formatter (T015) ----
-    def format_ascii_box(self, plan: dict) -> str:
-        """Format the decision plan as an ASCII box."""
-        W = 90
-        sep = "+" + "=" * (W - 1) + "+"
-        thin_sep = "+" + "-" * (W - 1) + "+"
+        if depth == "executive":
+            pitfalls = _sentences(plan.get("anti_patterns"))[:2]
+            risks = ["| Risk | Why it matters | Mitigation |", "|---|---|---|"]
+            for p in pitfalls:
+                name, _, why = p.partition("—")
+                why = why.strip() or f"A common pitfall in {dt['name']} decisions."
+                risks.append(f"| {name.strip(' .')} | {why} | Name an owner and an early warning signal |")
+            for b in [b for b in biases if b["severity"] == "High"][:2] or biases[:1]:
+                risks.append(f"| {b['bias']} | {b['impact']} | {b['debiasing']} |")
+            options = plan.get("options") or []
+            return f"Executive Decision Brief: {project}", [
+                ("", head),
+                ("Recommendation", [
+                    "Lead with the answer. Fill this in once the options are scored:",
+                    "- **Recommendation:** _one sentence naming the option_",
+                    "- **Why:** _three reasons, each tied to a criterion below_",
+                    "- **Confidence:** _% and what would raise it_",
+                    "- **Ask:** _the approval, budget or decision needed from the reader_"]),
+                ("Decision Needed", [
+                    f"- **Decision:** {_first_line(plan.get('request', ''), 140)}",
+                    "- **Options:** " + (" | ".join(options) if options else "_to be listed (include do nothing)_"),
+                    "- **Decision owner:** _name_  |  **Needed by:** _date_",
+                    f"- **Decision type:** {dt['name']}",
+                    f"- **Reversibility:** {rev['label']}"]),
+                ("Key Risks", risks),
+                ("Reversibility", [f"**{rev['label']}.** {rev['advice']}",
+                                   "- **Cost to undo in 6 months:** _estimate_",
+                                   "- **Kill criteria:** _the signals that would make us reverse course_"]),
+                ("Criteria and Weights", self._criteria_table(plan, guide=False) + criteria_lines),
+                ("What Would Change the Call", [
+                    "- **Flip point:** the smallest weight change that flips the winner (`--matrix ... --scores`)",
+                    "- **Critical assumptions:** _the two assumptions that, if false, reverse the recommendation_",
+                    "- **Information that would help most:** _and what it costs to get it_"]),
+                (f"Approach: {fw['name']}", [f"{i}. {s}" for i, s in enumerate(steps, 1)]
+                 + ([f"Alternatives: {', '.join(fw['alternatives'])}"] if fw.get("alternatives") else [])),
+                ("Bias Safeguards", [f"- **{b['bias']}**: {b['debiasing']}" for b in biases]),
+                ("Analysis to Commission", [f"- **{a['technique']}**: {a['when']}" for a in analysis]),
+                ("Facilitation", facil_lines),
+            ]
 
-        def pad(text: str) -> str:
-            return f"|  {text}".ljust(W) + "|"
+        # standard and deep
+        fw_lines = [f"**{fw['name']}** ({fw['complexity']} complexity): {fw['description']}"]
+        fw_lines += [f"{i}. {s}" for i, s in enumerate(steps, 1)]
+        if depth == "deep":
+            if fw.get("strengths"):
+                fw_lines.append(f"- **Strengths:** {fw['strengths']}")
+            if fw.get("limitations"):
+                fw_lines.append(f"- **Limitations:** {fw['limitations']}")
+            for alt in fw.get("alternative_details", []):
+                fw_lines.append(f"- *Alternative:* **{alt['name']}**: {alt['when']}")
+        elif fw.get("alternatives"):
+            fw_lines.append(f"- **Alternatives:** {', '.join(fw['alternatives'])}")
 
-        def blank():
-            return "|" + " " * W + "|"
+        criteria_lines = criteria_lines + self._criteria_table(plan)
+        if crit.get("mistakes"):
+            criteria_lines.append(f"\n**Common mistakes:** {crit['mistakes']}")
+        analysis_lines = []
+        for a in analysis:
+            analysis_lines.append(f"- **{a['technique']}**: {a['when']}")
+            if depth == "deep" and a.get("how"):
+                analysis_lines.append(f"  - *How:* {a['how']}")
 
-        def wrap(text: str, prefix: str = "  ", width: int = W - 4) -> list:
-            if not text:
-                return []
-            words = text.split()
-            lines = []
-            current = prefix
-            for word in words:
-                if len(current) + len(word) + 1 <= width:
-                    current += (" " if current != prefix else "") + word
-                else:
-                    if current != prefix:
-                        lines.append(current)
-                    current = prefix + word
-            if current != prefix:
-                lines.append(current)
-            return lines
-
-        out = []
-        project = plan.get("project_name", "DECISION")
-        dt = plan.get("decision_type", {})
-        fw = plan.get("framework", {})
-        crit = plan.get("criteria", {})
-        techniques = plan.get("analysis_techniques", [])
-        biases = plan.get("bias_warnings", [])
-        facil = plan.get("facilitation", [])
-        anti = plan.get("anti_patterns", "")
-
-        # Header
-        out.append(sep)
-        out.append(pad(f"DECISION-MAKING PLAN: {project}"))
-        out.append(sep)
-        out.append(blank())
-
-        # Decision Type
-        out.append(pad(f"DECISION TYPE: {dt.get('name', '')}"))
-        if dt.get("characteristics"):
-            for line in wrap(dt["characteristics"], "     "):
-                out.append(pad(line))
-        if dt.get("warning_signs"):
-            for line in wrap(f"Watch for: {dt['warning_signs']}", "     "):
-                out.append(pad(line))
-        out.append(blank())
-
-        # Framework
-        out.append(thin_sep)
-        out.append(pad(f"RECOMMENDED FRAMEWORK: {fw.get('name', '')} ({fw.get('complexity', '')} complexity)"))
-        if fw.get("description"):
-            for line in wrap(fw["description"], "     "):
-                out.append(pad(line))
-        if fw.get("steps"):
-            out.append(pad("   Steps:"))
-            for line in wrap(fw["steps"], "     "):
-                out.append(pad(line))
-        if fw.get("alternatives"):
-            alts = [a for a in fw["alternatives"] if a]
-            if alts:
-                out.append(pad(f"   Alternatives: {', '.join(alts)}"))
-        out.append(blank())
-
-        # Criteria
-        if crit.get("criteria_list"):
-            out.append(thin_sep)
-            out.append(pad(f"EVALUATION CRITERIA ({crit.get('domain', 'General')})"))
-            criteria_items = [c.strip() for c in crit["criteria_list"].split(",")]
-            weight_items = [w.strip() for w in crit.get("weights", "").split(",")]
-            for i, c in enumerate(criteria_items):
-                w = weight_items[i] if i < len(weight_items) else "?"
-                out.append(pad(f"   - {c} (weight: {w})"))
-            if crit.get("measurement"):
-                out.append(pad("   Scoring Guide:"))
-                for line in wrap(crit["measurement"], "     "):
-                    out.append(pad(line))
-            out.append(blank())
-
-        # Analysis
-        if techniques:
-            out.append(thin_sep)
-            out.append(pad("ANALYSIS TECHNIQUES"))
-            for i, t in enumerate(techniques, 1):
-                out.append(pad(f"   {i}. {t.get('technique', '')}"))
-                if t.get("when"):
-                    for line in wrap(t["when"], "      "):
-                        out.append(pad(line))
-            out.append(blank())
-
-        # Bias Warnings
-        if biases:
-            out.append(thin_sep)
-            out.append(pad("BIAS WARNINGS"))
-            for b in biases:
-                out.append(pad(f"   ! {b.get('bias', '')} [{b.get('severity', '')}]"))
-                if b.get("impact"):
-                    for line in wrap(b["impact"], "     "):
-                        out.append(pad(line))
-                if b.get("debiasing"):
-                    for line in wrap(f"Remedy: {b['debiasing']}", "     "):
-                        out.append(pad(line))
-            out.append(blank())
-
-        # Facilitation
-        if facil:
-            out.append(thin_sep)
-            out.append(pad("GROUP FACILITATION"))
-            for f in facil:
-                out.append(pad(f"   {f.get('technique', '')} ({f.get('group_size', '')} people, {f.get('time', '')})"))
-                if f.get("when"):
-                    for line in wrap(f["when"], "     "):
-                        out.append(pad(line))
-            out.append(blank())
-
-        # Anti-patterns
-        if anti:
-            out.append(thin_sep)
-            out.append(pad("ANTI-PATTERNS TO AVOID"))
-            for line in wrap(anti, "   x "):
-                out.append(pad(line))
-            out.append(blank())
-
-        # Checklist
-        out.append(thin_sep)
-        out.append(pad("DECISION CHECKLIST"))
-        checklist = [
-            "Problem clearly defined and bounded",
-            "Options exhaustively listed (MECE)",
-            "Criteria defined BEFORE evaluating options",
-            "Key assumptions identified and tested",
-            "Sensitivity analysis on critical assumptions",
-            "Bias check completed (review warnings above)",
-            "Stakeholders aligned on criteria and process",
-            "Decision documented (create a journal entry)",
+        sections = [
+            ("", head),
+            ("Decision Type", [f"- **Type:** {dt['name']}", f"- **Characteristics:** {dt['characteristics']}"]
+             + ([f"- **Watch for:** {dt['warning_signs']}"] if dt.get("warning_signs") else [])),
+            ("Recommended Framework", fw_lines),
+            (criteria_heading, criteria_lines),
+            ("Analysis Techniques", analysis_lines),
+            ("Bias Warnings", bias_lines),
+            ("Group Facilitation", facil_lines),
+            ("Score the Options", self._matrix_hint(plan)),
         ]
-        for item in checklist:
-            out.append(pad(f"   [ ] {item}"))
-        out.append(blank())
+        if depth == "deep":
+            subject = " vs ".join(plan["options"]) if plan.get("options") else "this decision"
+            sections += [
+                ("Reversibility", [f"**{rev['label']}.** {rev['advice']}"]),
+                ("Pre-Mortem", [
+                    f"Imagine it is 12 months later and {subject} turned out badly.",
+                    "1. Write down the three most likely reasons it failed.",
+                    "2. For each, name the early warning signal you would see first.",
+                    "3. Turn the signals into kill criteria: the point at which you stop or reverse."]),
+                ("Sensitivity", [
+                    "- Which single criterion weight, if changed, flips the winner? (`--matrix ... --scores` reports it)",
+                    "- Which score are you least sure of? Re-score it at its plausible worst and best.",
+                    "- If the winner flips under a small change, gather information on that criterion first."]),
+                ("Information to Gather", [f"- **{i['name']}**: what evidence would justify a 5 ({i['guide']})?"
+                                           for i in crit["items"]]),
+            ]
+        sections += [
+            ("Anti-Patterns to Avoid", [plan.get("anti_patterns", "")] if plan.get("anti_patterns") else []),
+            ("Decision Checklist", checklist),
+        ]
+        title = "Deep Decision Analysis" if depth == "deep" else "Decision-Making Plan"
+        return f"{title}: {project}", sections
 
-        out.append(sep)
-        return "\n".join(out)
-
-    # ---- Markdown Formatter (T016) ----
+    # ---- Formatters ----
     def format_markdown(self, plan: dict) -> str:
-        """Format the decision plan as Markdown."""
-        out = []
-        project = plan.get("project_name", "DECISION")
-        dt = plan.get("decision_type", {})
-        fw = plan.get("framework", {})
-        crit = plan.get("criteria", {})
-        techniques = plan.get("analysis_techniques", [])
-        biases = plan.get("bias_warnings", [])
-        facil = plan.get("facilitation", [])
-        anti = plan.get("anti_patterns", "")
-
-        out.append(f"# Decision-Making Plan: {project}")
-        out.append("")
-
-        out.append("## Decision Type")
-        out.append(f"- **Type:** {dt.get('name', '')}")
-        out.append(f"- **Characteristics:** {dt.get('characteristics', '')}")
-        if dt.get("warning_signs"):
-            out.append(f"- **Watch for:** {dt['warning_signs']}")
-        out.append("")
-
-        out.append("## Recommended Framework")
-        out.append(f"- **Framework:** {fw.get('name', '')} ({fw.get('complexity', '')} complexity)")
-        out.append(f"- **Description:** {fw.get('description', '')}")
-        if fw.get("steps"):
-            out.append(f"- **Steps:** {fw['steps']}")
-        if fw.get("strengths"):
-            out.append(f"- **Strengths:** {fw['strengths']}")
-        if fw.get("limitations"):
-            out.append(f"- **Limitations:** {fw['limitations']}")
-        if fw.get("alternatives"):
-            alts = [a for a in fw["alternatives"] if a]
-            if alts:
-                out.append(f"- **Alternatives:** {', '.join(alts)}")
-        out.append("")
-
-        if crit.get("criteria_list"):
-            out.append(f"## Evaluation Criteria ({crit.get('domain', 'General')})")
-            criteria_items = [c.strip() for c in crit["criteria_list"].split(",")]
-            weight_items = [w.strip() for w in crit.get("weights", "").split(",")]
-            for i, c in enumerate(criteria_items):
-                w = weight_items[i] if i < len(weight_items) else "?"
-                out.append(f"- **{c}** (weight: {w})")
-            if crit.get("measurement"):
-                out.append(f"\n**Scoring Guide:** {crit['measurement']}")
+        """The plan as Markdown; what it contains depends on plan['depth']."""
+        title, sections = self._sections(plan)
+        out = [f"# {title}", ""]
+        for heading, lines in sections:
+            if not lines:
+                continue
+            if heading:
+                out.append(f"## {heading}")
+            out += lines
             out.append("")
-
-        if techniques:
-            out.append("## Analysis Techniques")
-            for t in techniques:
-                out.append(f"- **{t.get('technique', '')}**: {t.get('when', '')}")
-            out.append("")
-
-        if biases:
-            out.append("## Bias Warnings")
-            for b in biases:
-                out.append(f"- **{b.get('bias', '')}** [{b.get('severity', '')}]: {b.get('impact', '')}")
-                out.append(f"  - *Remedy:* {b.get('debiasing', '')}")
-            out.append("")
-
-        if facil:
-            out.append("## Group Facilitation")
-            for f in facil:
-                out.append(f"- **{f.get('technique', '')}** ({f.get('group_size', '')} people, {f.get('time', '')})")
-                out.append(f"  - {f.get('when', '')}")
-            out.append("")
-
-        if anti:
-            out.append("## Anti-Patterns to Avoid")
-            out.append(f"{anti}")
-            out.append("")
-
-        out.append("## Decision Checklist")
-        checklist = [
-            "Problem clearly defined and bounded",
-            "Options exhaustively listed (MECE)",
-            "Criteria defined BEFORE evaluating options",
-            "Key assumptions identified and tested",
-            "Sensitivity analysis on critical assumptions",
-            "Bias check completed",
-            "Stakeholders aligned on criteria and process",
-            "Decision documented (create a journal entry)",
-        ]
-        for item in checklist:
-            out.append(f"- [ ] {item}")
-        out.append("")
-
         return "\n".join(out)
 
-    # ---- Persist Plan (T019) ----
+    def format_ascii_box(self, plan: dict) -> str:
+        """The plan in a terminal box (same content as Markdown, without the markup)."""
+        width = 90
+        title, sections = self._sections(plan)
+        out = ["+" + "=" * (width - 1) + "+"]
+
+        def add(text: str = "", indent: str = "  "):
+            if not text:
+                out.append("|" + " " * width + "|")
+                return
+            words, line = text.split(), indent
+            for word in words:
+                if len(line) + len(word) + 1 > width - 2 and line.strip():
+                    out.append(f"|{line}".ljust(width + 1) + "|")
+                    line = indent + "   "
+                line += ("" if line.endswith(" ") else " ") + word
+            out.append(f"|{line}".ljust(width + 1) + "|")
+
+        add(title.upper())
+        out.append("+" + "=" * (width - 1) + "+")
+        for heading, lines in sections:
+            if not lines:
+                continue
+            if heading:
+                out.append("+" + "-" * (width - 1) + "+")
+                add(heading.upper())
+            for line in lines:
+                plain = re.sub(r"\*\*|`|(?<![\w*])[*_](?=\S)|(?<=\S)[*_](?![\w*])", "", line).replace("\n", " ")
+                add(plain, "    " if heading else "  ")
+            add()
+        out.append("+" + "=" * (width - 1) + "+")
+        return "\n".join(out)
+
+    # ---- Persisted plans ----
+    @staticmethod
+    def _plan_dir(plan: dict, output_dir: str = None) -> Path:
+        base = Path(output_dir) if output_dir else default_output_dir()
+        plan_dir = base / workspace.PLANS_DIR / slugify(plan.get("project_name", "decision"))
+        plan_dir.mkdir(parents=True, exist_ok=True)
+        return plan_dir
+
     def persist_plan(self, plan: dict, output_dir: str = None, force: bool = False) -> tuple:
         """Save the plan as PLAN.md; returns (path, written). An existing PLAN.md is kept unless force."""
-        project = plan.get("project_name", "default")
-        slug = slugify(project)
-
-        base = Path(output_dir) if output_dir else default_output_dir()
-        plan_dir = base / "decision-plans" / slug
-        plan_dir.mkdir(parents=True, exist_ok=True)
-
-        plan_path = plan_dir / "PLAN.md"
+        plan_dir = self._plan_dir(plan, output_dir)
         content = self.format_markdown(plan)
         content += f"\n---\n*Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}*\n"
-
         written, _ = save_docs(plan_dir, {"PLAN.md": content}, force)
-        return str(plan_path), bool(written)
-
-    # ---- Decision Journal (T023, T025, T027) ----
-    def create_journal(self, decision_statement: str, project_name: str = None) -> str:
-        """Create a decision journal entry as a markdown file in .decisions/."""
-        decisions_dir = default_output_dir() / ".decisions"
-        decisions_dir.mkdir(parents=True, exist_ok=True)
-
-        date_str = datetime.now().strftime("%Y-%m-%d")
-        slug = slugify(decision_statement)
-        filename = f"{date_str}-{slug}.md"
-
-        filepath = decisions_dir / filename
-        # Handle duplicate filenames
-        if filepath.exists():
-            ts = datetime.now().strftime("%H%M%S")
-            filename = f"{date_str}-{slug}-{ts}.md"
-            filepath = decisions_dir / filename
-            import sys
-            print(f"Warning: similar journal exists, using {filename}", file=sys.stderr)
-
-        # Generate plan context for the journal
-        self.query = decision_statement
-        dtype = self.classify_decision_type()
-
-        content = f"""# Decision Journal: {decision_statement}
-
-## Metadata
-- **Date:** {date_str}
-- **Project:** {project_name or 'N/A'}
-- **Decision Type:** {dtype.get('Decision Type', 'General')}
-- **Status:** Created
-
-## Hypothesis (Day One Answer)
-<!-- What is your initial best guess before deep analysis? -->
-
-
-## Options
-<!-- List all options being considered -->
-1. 
-2. 
-3. 
-
-## Evaluation Criteria
-<!-- What criteria will you use to evaluate options? -->
-- 
-
-## Expected Outcomes
-<!-- What do you expect will happen if you choose your preferred option? -->
-
-
-## Confidence Level
-<!-- High / Medium / Low — and why -->
-Medium
-
-## Framework Applied
-<!-- Which decision framework did you use? -->
-
-
-## Analysis Summary
-<!-- Key findings from your analysis -->
-
-
-## Rationale
-<!-- Why did you choose this option? -->
-
-
-## Actual Outcome
-<!-- Fill in later: What actually happened? -->
-
-
-## Reflection
-<!-- Fill in later: How did the prediction compare to reality? What would you do differently? -->
-
-"""
-        with open(filepath, "w", encoding="utf-8") as f:
-            f.write(content)
-
-        return str(filepath)
-
-    def review_journals(self) -> str:
-        """Review all decision journal entries in .decisions/."""
-        decisions_dir = default_output_dir() / ".decisions"
-        if not decisions_dir.exists():
-            return "No decision journal entries found. Create one with --journal."
-
-        entries = sorted(decisions_dir.glob("*.md"), reverse=True)
-        if not entries:
-            return "No decision journal entries found. Create one with --journal."
-
-        out = [f"=== DECISION JOURNAL: {len(entries)} entries ===", ""]
-
-        for i, entry in enumerate(entries, 1):
-            meta = self._parse_journal_meta(entry)
-            status = meta.get("status", "Created")
-            confidence = meta.get("confidence", "?")
-            decision = meta.get("decision", entry.stem)
-            date = meta.get("date", "")
-            out.append(f"[{i}] {date} | {decision} | Confidence: {confidence} | Status: {status}")
-            out.append(f"    File: {entry.name}")
-
-        return "\n".join(out)
-
-    def _parse_journal_meta(self, filepath: Path) -> dict:
-        """Parse metadata from a journal markdown file."""
-        meta = {"decision": "", "date": "", "confidence": "?", "status": "Created"}
-        try:
-            with open(filepath, "r", encoding="utf-8") as f:
-                content = f.read()
-
-            # Parse title
-            title_match = re.search(r'^# Decision Journal:\s*(.+)', content, re.MULTILINE)
-            if title_match:
-                meta["decision"] = title_match.group(1).strip()
-
-            # Parse date
-            date_match = re.search(r'\*\*Date:\*\*\s*(.+)', content)
-            if date_match:
-                meta["date"] = date_match.group(1).strip()
-
-            # Parse confidence
-            conf_match = re.search(r'## Confidence Level\n.*?\n(\w+)', content, re.DOTALL)
-            if conf_match:
-                meta["confidence"] = conf_match.group(1).strip()
-
-            # Parse status
-            status_match = re.search(r'\*\*Status:\*\*\s*(.+)', content)
-            if status_match:
-                meta["status"] = status_match.group(1).strip()
-
-            # Check if outcome is filled
-            outcome_match = re.search(r'## Actual Outcome\n(.+?)(?=\n##|\Z)', content, re.DOTALL)
-            if outcome_match and outcome_match.group(1).strip() and not outcome_match.group(1).strip().startswith('<!--'):
-                meta["status"] = "Reviewed"
-
-        except Exception:
-            pass
-        return meta
-
-    def update_journal(self, journal_id: str, outcome: str) -> str:
-        """Update a journal entry with actual outcome and generate reflection prompt."""
-        decisions_dir = default_output_dir() / ".decisions"
-        if not decisions_dir.exists():
-            return "Error: No .decisions/ directory found."
-
-        # Find the journal file
-        matches = list(decisions_dir.glob(f"*{journal_id}*"))
-        if not matches:
-            return f"Error: No journal found matching '{journal_id}'"
-        if len(matches) > 1:
-            files = "\n".join(f"  - {m.name}" for m in matches)
-            return f"Multiple matches found. Be more specific:\n{files}"
-
-        filepath = matches[0]
-
-        with open(filepath, "r", encoding="utf-8") as f:
-            content = f.read()
-
-        # Update status
-        content = re.sub(
-            r'(\*\*Status:\*\*)\s*\w+',
-            r'\1 Reviewed',
-            content
-        )
-
-        # Update actual outcome
-        content = re.sub(
-            r'(## Actual Outcome\n).*?(?=\n## )',
-            f'\\1{outcome}\n\n',
-            content,
-            flags=re.DOTALL,
-        )
-
-        # Generate reflection prompt
-        meta = self._parse_journal_meta(filepath)
-        reflection_prompt = (
-            f"\n## Reflection\n"
-            f"<!-- Compare your prediction vs reality -->\n"
-            f"**What happened:** {outcome}\n"
-            f"**Original confidence:** {meta.get('confidence', '?')}\n"
-            f"\n"
-            f"Questions to consider:\n"
-            f"- Was your hypothesis correct? Why or why not?\n"
-            f"- What signals did you miss?\n"
-            f"- Would a different framework have led to a better decision?\n"
-            f"- What will you do differently next time?\n"
-        )
-
-        # Replace reflection section
-        content = re.sub(
-            r'(## Reflection\n).*',
-            reflection_prompt.lstrip("\\n"),
-            content,
-            flags=re.DOTALL,
-        )
-
-        with open(filepath, "w", encoding="utf-8") as f:
-            f.write(content)
-
-        return f"Updated: {filepath}\n\n{reflection_prompt}"
-
-    # ---- Comparison Matrix (T029) ----
-    def generate_matrix(self, description: str, custom_criteria: str = None) -> str:
-        """Generate a comparison matrix from options description."""
-        # Parse options from description
-        options = self._parse_options(description)
-        if len(options) < 2:
-            options = [f"Option A", f"Option B"]
-
-        # Get criteria
-        if custom_criteria:
-            criteria_items = [c.strip() for c in custom_criteria.split(",")]
-            weights = [str(100 // len(criteria_items))] * len(criteria_items)
-            # Adjust last weight to sum to 100
-            remainder = 100 - (100 // len(criteria_items)) * len(criteria_items)
-            weights[-1] = str(int(weights[-1]) + remainder)
-            measurement = ""
-        else:
-            # Auto-suggest from criteria templates
-            crit_result = search_domain(description, "criteria", 1)
-            crit_results = crit_result.get("results", [])
-            if crit_results:
-                template = crit_results[0]
-                criteria_items = [c.strip() for c in template.get("Criteria", "").split(",")]
-                weights = [w.strip() for w in template.get("Default Weights", "").split(",")]
-                measurement = template.get("Measurement Guidance", "")
-            else:
-                criteria_items = ["Quality", "Cost", "Feasibility", "Strategic Fit", "Risk"]
-                weights = ["25", "20", "20", "20", "15"]
-                measurement = ""
-
-        # Build matrix output
-        out = []
-        out.append("=== COMPARISON MATRIX ===")
-        out.append(f"Decision: {description}")
-        out.append("")
-
-        # Header row
-        header = "              "
-        for i, c in enumerate(criteria_items):
-            w = weights[i] if i < len(weights) else "?"
-            col = f"| {c} (w:{w}) "
-            header += col.ljust(22)
-        header += "| TOTAL"
-        out.append(header)
-        out.append("-" * len(header))
-
-        # Option rows
-        for opt in options:
-            row = f"{opt[:14]}".ljust(14)
-            for _ in criteria_items:
-                row += f"|     ? / 5         "
-            row += "|   ?"
-            out.append(row)
-
-        out.append("")
-        out.append("Scoring Guide:")
-        if measurement:
-            # Split measurement into per-criterion guidance
-            for line in measurement.split(". "):
-                line = line.strip()
-                if line:
-                    out.append(f"  {line}.")
-        else:
-            for c in criteria_items:
-                out.append(f"  {c}: 5=excellent, 4=good, 3=adequate, 2=poor, 1=unacceptable")
-
-        out.append("")
-        out.append("Instructions: Fill in scores (1-5) for each cell, then calculate weighted totals.")
-        out.append(f"Formula: Total = sum(score_i * weight_i / 100) for each option")
-
-        return "\n".join(out)
-
-    def _parse_options(self, description: str) -> list:
-        """Extract options from a description like 'Compare X vs Y vs Z for CRM' or 'A or B'."""
-        # Try "vs" separator
-        if " vs " in description.lower():
-            parts = re.split(r'\s+vs\.?\s+', description, flags=re.IGNORECASE)
-            # Clean up first part (remove "Compare" etc.)
-            parts[0] = re.sub(r'^(?:compare|choose|pick|select|evaluate)\s+', '', parts[0], flags=re.IGNORECASE).strip()
-            # Clean up last part (remove trailing "for X" context)
-            parts[-1] = re.sub(r'\s+(?:for|as|in|to)\s+.+$', '', parts[-1], flags=re.IGNORECASE).strip()
-            return [p.strip() for p in parts if p.strip()]
-
-        # Try "or" separator
-        if " or " in description.lower():
-            parts = re.split(r'\s+or\s+', description, flags=re.IGNORECASE)
-            parts[0] = re.sub(r'^(?:compare|choose|pick|select|evaluate)\s+', '', parts[0], flags=re.IGNORECASE).strip()
-            parts[-1] = re.sub(r'\s+(?:for|as|in|to)\s+.+$', '', parts[-1], flags=re.IGNORECASE).strip()
-            return [p.strip() for p in parts if p.strip()]
-
-        # Try comma-separated
-        if "," in description:
-            parts = description.split(",")
-            parts[0] = re.sub(r'^(?:compare|choose|pick|select|evaluate)\s+', '', parts[0], flags=re.IGNORECASE).strip()
-            return [p.strip() for p in parts if p.strip()]
-
-        return []
-
-
-    def persist_step_by_step(self, plan: dict, output_dir: str = None, force: bool = False) -> tuple:
-        """Save the plan as one markdown file per step; returns (dir, written, kept).
-
-        Files that already exist hold the user's notes and are kept unless force is set.
-        """
-        project = plan.get("project_name", "default")
-        slug = slugify(project)
-
-        base = Path(output_dir) if output_dir else default_output_dir()
-        plan_dir = base / "decision-plans" / slug
-        plan_dir.mkdir(parents=True, exist_ok=True)
-
-        depth = plan.get("depth", "standard")
-        dt = plan.get("decision_type", {})
-        fw = plan.get("framework", {})
-        crit = plan.get("criteria", {})
-        techniques = plan.get("analysis_techniques", [])
-        biases = plan.get("bias_warnings", [])
-        facil = plan.get("facilitation", [])
-        anti = plan.get("anti_patterns", "")
-        ts = datetime.now().strftime('%Y-%m-%d %H:%M')
-
+        return str(plan_dir / "PLAN.md"), bool(written)
+
+    def step_docs(self, plan: dict) -> dict:
+        """{file name: content} of the step-by-step workspace."""
+        project = plan.get("project_name", "Decision")
+        dt, fw, crit = plan["decision_type"], plan["framework"], plan["criteria"]
+        rev = plan["reversibility"]
+        options = plan.get("options") or []
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M")
+        request_quote = "\n".join(f"> {ln}" if ln.strip() else ">" for ln in plan.get("request", "").splitlines())
         docs = {}
 
-        # 00-OVERVIEW.md
-        overview = f"""# Decision-Making Plan: {project}
+        rows = "\n".join(f"| {s['number']}. {s['label']} | [{s['file']}](./{s['file']}) | {workspace.UNTICKED} |"
+                         for s in workspace.STEPS)
+        docs[workspace.OVERVIEW] = f"""# Decision Workspace: {project}
 
-**Depth:** {depth} | **Generated:** {ts}
+**Request:** {_first_line(plan.get('request', ''), 200)}
+**Decision type:** {dt['name']}  |  **Criteria:** {crit['domain']}  |  **Depth:** {plan.get('depth', 'standard')}
+**Options:** {' | '.join(options) if options else '_not listed yet_'}
+**Created:** {ts}
 
-## Decision Type
-- **Type:** {dt.get('name', '')}
-- **Characteristics:** {dt.get('characteristics', '')}
+Work the steps in order. When a step is done, tick it (`search.py --done <step> -p {slugify(project)}`)
+or write ☑ in its row; `search.py --status -p {slugify(project)}` shows where you are.
 
-## Files in This Plan
-- [01-DECISION-TYPE.md](./01-DECISION-TYPE.md) — Problem classification
-- [02-FRAMEWORK.md](./02-FRAMEWORK.md) — Recommended framework
-- [03-CRITERIA.md](./03-CRITERIA.md) — Evaluation criteria
-- [04-ANALYSIS.md](./04-ANALYSIS.md) — Analysis techniques
-- [05-OPTIONS.md](./05-OPTIONS.md) — Options evaluation (template)
-- [06-DECISION.md](./06-DECISION.md) — Final decision
-- [BIAS-WARNINGS.md](./BIAS-WARNINGS.md) — Bias alerts
-- [DECISION-LOG.md](./DECISION-LOG.md) — Decision journal
+| Step | File | Done? |
+|---|---|---|
+{rows}
+
+Also here: [BIAS-WARNINGS.md](./BIAS-WARNINGS.md) (biases to check) and
+[DECISION-LOG.md](./DECISION-LOG.md) (decisions and revisits).
 """
-        docs["00-OVERVIEW.md"] = overview
 
-        # 01-DECISION-TYPE.md
-        type_doc = f"""# Step 1: Classify the Decision
+        docs["01-DECISION-TYPE.md"] = f"""# Step 1: Classify the Decision
 
-## Decision Type: {dt.get('name', '')}
-**Characteristics:** {dt.get('characteristics', '')}
-**Recommended Frameworks:** {dt.get('recommended_frameworks', '')}
-**Analysis Methods:** {dt.get('analysis_methods', '')}
+## The Request
+{request_quote}
+
+## Decision Type: {dt['name']}
+**Characteristics:** {dt['characteristics']}
+**Recommended Frameworks:** {dt['recommended_frameworks']}
+**Analysis Methods:** {dt['analysis_methods']}
+**Reversibility:** {rev['label']}. {rev['advice']}
 
 ## Warning Signs
-{dt.get('warning_signs', 'N/A')}
+{dt.get('warning_signs') or 'N/A'}
 
 ## Common Pitfalls
-{dt.get('common_pitfalls', 'N/A')}
+{dt.get('common_pitfalls') or 'N/A'}
 
 ## Your Decision Statement
-<!-- Write a clear, specific decision statement -->
+<!-- One sentence: what exactly are you deciding? -->
 
+- **Decision owner:**
+- **Decide by:**
+- **Out of scope:**
 """
-        docs["01-DECISION-TYPE.md"] = type_doc
 
-        # 02-FRAMEWORK.md
-        alts = [a for a in fw.get('alternatives', []) if a]
-        alts_str = ', '.join(alts) if alts else 'N/A'
-        framework_doc = f"""# Step 2: Apply Framework
+        steps = "\n".join(f"{i}. {s}" for i, s in enumerate(_numbered_steps(fw.get("steps")), 1))
+        alts = ", ".join(a for a in fw.get("alternatives", []) if a) or "N/A"
+        docs["02-FRAMEWORK.md"] = f"""# Step 2: Apply the Framework
 
-## Recommended: {fw.get('name', '')} ({fw.get('complexity', '')} complexity)
+## Recommended: {fw['name']} ({fw['complexity']} complexity)
 **Category:** {fw.get('category', '')}
 **Description:** {fw.get('description', '')}
 
 ### Steps
-{fw.get('steps', '')}
+{steps}
 
 ### Strengths
 {fw.get('strengths', '')}
@@ -915,107 +764,404 @@ Medium
 {fw.get('limitations', '')}
 
 ### Alternative Frameworks
-{alts_str}
+{alts}
+
+## Notes While Applying It
+<!-- Where you followed the steps, where you deviated and why -->
 """
-        docs["02-FRAMEWORK.md"] = framework_doc
 
-        # 03-CRITERIA.md
-        criteria_doc = f"""# Step 3: Define Evaluation Criteria
+        crit_rows = "\n".join(f"| {i['name']} | {i['weight']} | {i['guide']} |" for i in crit["items"])
+        note = f"\n> {crit['note']}\n" if crit.get("note") else ""
+        docs["03-CRITERIA.md"] = f"""# Step 3: Define Evaluation Criteria
 
-## Suggested Criteria ({crit.get('domain', 'General')})
+Agree on the criteria and weights BEFORE scoring any option (at most 5; weights sum to 100).
+Suggested template: **{crit['domain']}**.
+{note}
+## Your Criteria
+| Criterion | Weight (%) | What a 5 looks like |
+|---|---|---|
+{crit_rows}
+
+## Common Mistakes
+{crit.get('mistakes') or 'N/A'}
 """
-        if crit.get("criteria_list"):
-            criteria_items = [c.strip() for c in crit["criteria_list"].split(",")]
-            weight_items = [w.strip() for w in crit.get("weights", "").split(",")]
-            for i, c in enumerate(criteria_items):
-                w = weight_items[i] if i < len(weight_items) else "?"
-                criteria_doc += f"- **{c}** (weight: {w})\n"
-            if crit.get("measurement"):
-                criteria_doc += f"\n## Scoring Guide\n{crit['measurement']}\n"
-        criteria_doc += """\n## Your Criteria\n| Criterion | Weight (%) | Description | Score Guide |\n|-----------|-----------|-------------|-------------|\n| | | | |\n"""
-        docs["03-CRITERIA.md"] = criteria_doc
 
-        # 04-ANALYSIS.md
-        analysis_doc = "# Step 4: Analysis Techniques\n\n"
-        for i, t in enumerate(techniques, 1):
-            analysis_doc += f"## {i}. {t.get('technique', '')}\n"
-            analysis_doc += f"**When to use:** {t.get('when', '')}\n"
-            analysis_doc += f"**Output:** {t.get('output', '')}\n\n"
-        docs["04-ANALYSIS.md"] = analysis_doc
+        analysis = "\n\n".join(f"## {i}. {a['technique']}\n**When to use:** {a['when']}\n**How:** {a['how']}\n"
+                               f"**Output:** {a['output']}" for i, a in enumerate(plan["analysis_techniques"], 1))
+        docs["04-ANALYSIS.md"] = f"""# Step 4: Analyze
 
-        # 05-OPTIONS.md
-        options_doc = """# Step 5: Evaluate Options
+{analysis or 'Pick one technique: Sensitivity Analysis, Pre-Mortem Analysis or Opportunity Cost Assessment.'}
+
+## Key Assumptions
+| Assumption | Evidence so far | How to test it | Result |
+|---|---|---|---|
+| | | | |
+"""
+
+        names = options or ["Option A", "Option B", "Option C"]
+        option_rows = "\n".join(f"| {o} | | | | |" for o in names)
+        head = " | ".join(names)
+        matrix_rows = "\n".join(f"| {i['name']} | {i['weight']} | " + " | ".join(" " for _ in names) + " |"
+                                for i in crit["items"])
+        spec = ",".join(f"{i['name']}:{i['weight']}" for i in crit["items"])
+        docs["05-OPTIONS.md"] = f"""# Step 5: Evaluate the Options
 
 ## Options
 | Option | Description | Pros | Cons | Score |
-|--------|-------------|------|------|-------|
-| Option A | | | | |
-| Option B | | | | |
-| Option C | | | | |
+|---|---|---|---|---|
+{option_rows}
 
 ## Weighted Scoring Matrix
-<!-- Fill in based on your criteria from 03-CRITERIA.md -->
-| Criterion | Weight | Option A | Option B | Option C |
-|-----------|--------|----------|----------|----------|
-| | | | | |
-| **TOTAL** | 100% | | | |
-"""
-        docs["05-OPTIONS.md"] = options_doc
+Score each option 1-5 per criterion (see 03-CRITERIA.md for what a 5 looks like).
+| Criterion | Weight | {head} |
+|---|---|{'---|' * len(names)}
+{matrix_rows}
+| **Weighted total** | 100 | {' | '.join(' ' for _ in names)} |
 
-        # 06-DECISION.md
-        decision_doc = """# Step 6: Final Decision
+Totals, winner and the smallest weight change that flips it:
+`search.py --matrix "{' vs '.join(names).replace('"', "'")}" -c "{spec}" --scores "<option>:<scores>;..." -f markdown`
+"""
+
+        docs["06-DECISION.md"] = f"""# Step 6: Decide
 
 ## Decision
-<!-- State your decision clearly -->
+<!-- State the decision in one sentence -->
 
 
 ## Rationale
-<!-- Why this option over others? -->
+<!-- Why this option over the others? Tie each reason to a criterion -->
 
-
-## Key Arguments
-1. **Argument 1:**
-   - Evidence:
-2. **Argument 2:**
-   - Evidence:
-
-## Risks and Mitigations
-| Risk | Impact | Mitigation |
-|------|--------|------------|
+## Pre-Mortem
+It is 12 months from now and this decision failed. What went wrong?
+| Failure story | Early warning signal | Mitigation |
+|---|---|---|
 | | | |
 
-## Next Steps
-| Action | Owner | Deadline | Status |
-|--------|-------|----------|--------|
+## Kill Criteria
+<!-- Signals that mean stop, reverse or revisit, decided now while you are calm -->
+- Revisit if:
+- Reverse if:
+- Review date:
+
+## Risks and Mitigations
+| Risk | Impact | Mitigation | Owner |
+|---|---|---|---|
 | | | | |
 
-## Confidence Level
-<!-- High / Medium / Low — and why -->
+## Next Actions
+| Action | Owner | Deadline | Status |
+|---|---|---|---|
+| | | | |
 
+## Confidence
+<!-- __% that this works out, and why. Log it: search.py --journal "<decision>" --confidence <n> -->
 """
-        docs["06-DECISION.md"] = decision_doc
 
-        # BIAS-WARNINGS.md
-        bias_doc = "# Bias Warnings\n\nThese biases may affect your decision.\n\n"
-        for i, b in enumerate(biases, 1):
-            bias_doc += f"## {i}. {b.get('bias', 'Unknown')} [{b.get('severity', '')}]\n"
-            bias_doc += f"**Impact:** {b.get('impact', '')}\n"
-            bias_doc += f"**Remedy:** {b.get('debiasing', '')}\n\n"
-        if anti:
-            bias_doc += f"## Anti-Patterns\n{anti}\n"
+        bias_doc = "# Bias Warnings\n\nCheck each one before deciding.\n\n"
+        for i, b in enumerate(plan["bias_warnings"], 1):
+            bias_doc += (f"## {i}. {b['bias']} [{b['severity']}]\n**Impact:** {b['impact']}\n"
+                         f"**Detect:** {b['detect']}\n**Remedy:** {b['debiasing']}\n- [ ] Checked\n\n")
+        if plan.get("anti_patterns"):
+            bias_doc += f"## Anti-Patterns\n{plan['anti_patterns']}\n"
         docs["BIAS-WARNINGS.md"] = bias_doc
 
-        # DECISION-LOG.md
-        log = f"""# Decision Log: {project}
+        docs["DECISION-LOG.md"] = f"""# Decision Log: {project}
 
 | # | Date | Decision | Rationale | Confidence | Status |
-|---|------|----------|-----------|------------|--------|
+|---|---|---|---|---|---|
 | 1 | {ts[:10]} | | | | Open |
 """
-        docs["DECISION-LOG.md"] = log
+        return docs
 
+    def persist_step_by_step(self, plan: dict, output_dir: str = None, force: bool = False) -> tuple:
+        """Save one markdown file per step; returns (dir, written, kept).
+
+        Files that already exist hold the user's notes and are kept unless force is set.
+        """
+        plan_dir = self._plan_dir(plan, output_dir)
+        docs = self.step_docs(plan)
         written, kept = save_docs(plan_dir, docs, force)
+        workspace.record_state(plan_dir, plan, {name: docs[name] for name in written})
         return str(plan_dir), written, kept
+
+    # ---- Comparison Matrix ----
+    def generate_matrix(self, description: str, custom_criteria: str = None, scores: str = None,
+                        output_format: str = "ascii") -> str:
+        """Comparison matrix text (see build_matrix)."""
+        return format_matrix(build_matrix(description, custom_criteria, scores), output_format)
+
+    def _parse_options(self, description: str) -> list:
+        return parse_options(description)
+
+    # ---- Decision Journal ----
+    def create_journal(self, decision_statement: str, project_name: str = None, output_dir: str = None,
+                       options: list = None, framework: str = None, confidence: int = None,
+                       review_days: int = journal.DEFAULT_REVIEW_DAYS) -> str:
+        """Journal entry for a decision, with its type, framework, options and criteria filled in."""
+        self.query = unicodedata.normalize("NFC", str(decision_statement or "")).strip()
+        plan = self.generate(project_name)
+        return journal.create_journal(
+            decision_statement, project_name, output_dir,
+            decision_type=plan["decision_type"]["name"], framework=framework or plan["framework"]["name"],
+            options=options or plan["options"], criteria=plan["criteria"]["items"],
+            confidence=confidence, review_days=review_days)
+
+    @staticmethod
+    def review_journals(output_dir: str = None, due: bool = False) -> str:
+        return journal.review_journals(output_dir, due)
+
+    @staticmethod
+    def update_journal(journal_id: str, outcome: str, output_dir: str = None) -> str:
+        return journal.update_journal(journal_id, outcome, output_dir)
+
+
+# ============ WEIGHTED SCORING MATRIX ============
+def parse_criteria(spec: str) -> list:
+    """'Cost:3,Speed:2,Risk:1' or 'Cost,Speed' -> [{'name', 'weight'}]; empty items are dropped.
+
+    Raises:
+        ValueError: duplicate names, bad or negative weights, or weights on only some criteria.
+    """
+    items, seen = [], set()
+    for part in re.split(r"[,;\n]", str(spec or "")):
+        part = part.strip()
+        if not part:
+            continue
+        m = re.match(r"^(?P<name>.*?)\s*[:=]\s*(?P<w>-?\d+(?:\.\d+)?)\s*%?$", part)
+        name, weight = (m.group("name").strip(), float(m.group("w"))) if m else (part, None)
+        if not name:
+            raise ValueError(f"criterion without a name in {part!r}")
+        if weight is not None and weight < 0:
+            raise ValueError(f"weight of {name!r} must not be negative")
+        key = fold(name).lower()
+        if key in seen:
+            raise ValueError(f"criterion {name!r} is listed twice")
+        seen.add(key)
+        items.append({"name": name, "weight": weight})
+    if not items:
+        raise ValueError("no criteria given; use -c \"Cost:3,Speed:2,Risk:1\"")
+    given = [i["weight"] is not None for i in items]
+    if any(given) and not all(given):
+        raise ValueError("give a weight to every criterion or to none (e.g. \"Cost:3,Speed:2\")")
+    if not any(given):
+        for i in items:
+            i["weight"] = 1.0
+    if sum(i["weight"] for i in items) <= 0:
+        raise ValueError("at least one weight must be above 0")
+    return items
+
+
+def parse_scores(spec: str, criteria_count: int) -> list:
+    """'React:4,3,5;Vue:5,4,3' -> [('React', [4, 3, 5]), ('Vue', [5, 4, 3])].
+
+    Raises:
+        ValueError: a score list of the wrong length, a missing name or a non-number.
+    """
+    result = []
+    for part in re.split(r"[;\n]", str(spec or "")):
+        part = part.strip()
+        if not part:
+            continue
+        if ":" not in part:
+            raise ValueError(f"scores must look like \"Option:4,3,5\", got {part!r}")
+        name, values = part.rsplit(":", 1)
+        name = name.strip()
+        try:
+            numbers = [float(v) for v in re.split(r"[,\s]+", values.strip()) if v]
+        except ValueError:
+            raise ValueError(f"scores of {name!r} must be numbers, got {values.strip()!r}") from None
+        if len(numbers) != criteria_count:
+            raise ValueError(f"{name!r} has {len(numbers)} scores but there are {criteria_count} criteria")
+        if any(n < 0 for n in numbers):
+            raise ValueError(f"scores of {name!r} must not be negative")
+        result.append((name, numbers))
+    return result
+
+
+# A flip within this many points of one criterion's share of the total weight makes a winner fragile
+FRAGILE_SHARE = 20
+
+
+def weighted_total(scores: list, weights: list) -> float:
+    total = sum(weights)
+    return sum(s * w for s, w in zip(scores, weights)) / total if total else 0.0
+
+
+def sensitivity(options: list, criteria: list) -> list:
+    """For each criterion, the smallest change of its weight alone that lets another option catch the winner.
+
+    options: [{'name', 'scores'}] (all scored); criteria: [{'name', 'weight'}].
+    Returns [{'criterion', 'weight', 'new_weight', 'change', 'new_winner'}] sorted by |change|;
+    'change' is None when no change of that weight alone flips the winner.
+    """
+    weights = [c["weight"] for c in criteria]
+    totals = [weighted_total(o["scores"], weights) for o in options]
+    win = max(range(len(options)), key=lambda i: totals[i])
+    a = options[win]["scores"]
+    rows = []
+    for k, c in enumerate(criteria):
+        best = None
+        for j, other in enumerate(options):
+            if j == win:
+                continue
+            b = other["scores"]
+            lead = sum(w * (x - y) for w, x, y in zip(weights, a, b))  # > 0: winner ahead
+            gap = a[k] - b[k]
+            if gap == 0:
+                continue
+            delta = -lead / gap  # weight change at which the two tie
+            if (delta > 0 and gap < 0) or (delta < 0 and gap > 0 and weights[k] + delta > 0):
+                if best is None or abs(delta) < abs(best[0]):
+                    best = (delta, other["name"])
+        total = sum(weights)
+        rows.append({"criterion": c["name"], "weight": c["weight"],
+                     "change": best[0] if best else None,
+                     "new_weight": c["weight"] + best[0] if best else None,
+                     "new_winner": best[1] if best else None,
+                     "share": c["weight"] / total * 100,
+                     "new_share": (c["weight"] + best[0]) / (total + best[0]) * 100 if best else None})
+    return sorted(rows, key=lambda r: (r["change"] is None, abs(r["change"] or 0)))
+
+
+def build_matrix(description: str, custom_criteria: str = None, scores: str = None) -> dict:
+    """Options x criteria matrix; with scores, weighted totals, the winner and its sensitivity.
+
+    Raises:
+        ValueError: bad criteria or scores, or scores for an option that is not in the description.
+    """
+    options = parse_options(description)
+    if custom_criteria is not None and str(custom_criteria).strip():
+        criteria = parse_criteria(custom_criteria)
+        source = "custom"
+        guide = ""
+    else:
+        found = DecisionAdvisor(description).choose_criteria()
+        criteria = [{"name": i["name"], "weight": float(i["weight"]), "guide": i["guide"]}
+                    for i in criteria_items(found["row"])]
+        source = found["row"].get("Domain", "")
+        guide = found["row"].get("Measurement Guidance", "")
+    weights = [c["weight"] for c in criteria]
+    total_weight = sum(weights)
+    for c in criteria:
+        c["share"] = round(c["weight"] * 100 / total_weight)
+
+    scored = parse_scores(scores, len(criteria)) if scores else []
+    if scored and not options:
+        options = [name for name, _ in scored]
+    if len(options) < 2 and not scored:
+        options = ["Option A", "Option B"]
+    by_key = {fold(o).lower(): o for o in options}
+    score_map = {}
+    for name, values in scored:
+        key = fold(name).lower()
+        if key not in by_key:
+            raise ValueError(f"scores given for {name!r}, which is not one of the options: "
+                             + ", ".join(options))
+        score_map[by_key[key]] = values
+
+    rows = [{"name": o, "scores": score_map.get(o),
+             "total": weighted_total(score_map[o], weights) if o in score_map else None} for o in options]
+    result = {"description": description, "criteria_source": source, "criteria": criteria,
+              "options": rows, "scoring_guide": guide, "winner": None, "runner_up": None,
+              "tie": [], "sensitivity": [], "unscored": [r["name"] for r in rows if r["scores"] is None]}
+    ranked = sorted([r for r in rows if r["total"] is not None], key=lambda r: -r["total"])
+    if len(ranked) >= 2:
+        top = ranked[0]["total"]
+        tied = [r["name"] for r in ranked if abs(r["total"] - top) < 1e-9]
+        if len(tied) > 1:
+            result["tie"] = tied
+        else:
+            result["winner"], result["runner_up"] = ranked[0]["name"], ranked[1]["name"]
+            result["margin"] = ranked[0]["total"] - ranked[1]["total"]
+            result["sensitivity"] = sensitivity([r for r in rows if r["scores"] is not None], criteria)
+    return result
+
+
+def _table(header: list, rows: list, markdown: bool) -> list:
+    if markdown:
+        return (["| " + " | ".join(header) + " |", "|" + "|".join("---" for _ in header) + "|"]
+                + ["| " + " | ".join(r) + " |" for r in rows])
+    widths = [max(len(str(x)) for x in col) for col in zip(header, *rows)]
+
+    def line(cells):
+        return " | ".join(str(c).ljust(w) for c, w in zip(cells, widths)).rstrip()
+
+    return [line(header), "-+-".join("-" * w for w in widths)] + [line(r) for r in rows]
+
+
+def format_matrix(m: dict, output_format: str = "ascii") -> str:
+    """The matrix as a Markdown or aligned plain-text table, with totals and sensitivity when scored."""
+    md = output_format == "markdown"
+    bold = (lambda s: f"**{s}**") if md else (lambda s: s)
+    criteria, options = m["criteria"], m["options"]
+    out = [("## Comparison Matrix" if md else "=== COMPARISON MATRIX ==="), ""]
+    if m.get("description"):
+        out += [f"{bold('Decision:')} {_first_line(m['description'], 200)}"]
+    if m.get("criteria_source") != "custom":
+        out += [f"{bold('Criteria:')} {m['criteria_source']} template (adjust with -c \"Name:weight,...\")"]
+    out.append("")
+    header = ["Option"] + [f"{c['name']} (w {_num(c['weight'])}, {c['share']}%)" for c in criteria] + ["Weighted"]
+    rows = []
+    for o in options:
+        cells = [_num(s) for s in o["scores"]] if o["scores"] else ["?"] * len(criteria)
+        total = f"{o['total']:.2f}" if o["total"] is not None else "?"
+        name = o["name"]
+        if m.get("winner") == name:
+            name, total = bold(name), bold(total)
+        rows.append([name] + cells + [total])
+    out += _table(header, rows, md)
+    out.append("")
+
+    if m.get("winner"):
+        out.append(f"{bold('Winner:')} {m['winner']} ahead of {m['runner_up']} by {m['margin']:.2f} "
+                   "(weighted average of the scores).")
+        flips = [s for s in m["sensitivity"] if s["change"] is not None]
+        out.append("")
+        out.append("### Sensitivity" if md else "Sensitivity:")
+        if flips:
+            s = flips[0]
+            verb = "rises" if s["change"] > 0 else "drops"
+            out.append(f"Smallest change that flips the winner: if the weight of {s['criterion']} {verb} from "
+                       f"{_num(s['weight'])} to {_num(round(s['new_weight'], 2))} "
+                       f"({'+' if s['change'] > 0 else ''}{_num(round(s['change'], 2))}; its share of the total "
+                       f"goes from {s['share']:.0f}% to {s['new_share']:.0f}%), "
+                       f"{s['new_winner']} ties with {m['winner']}; beyond that it wins.")
+            out.append("")
+            srows = []
+            for row in m["sensitivity"]:
+                if row["change"] is None:
+                    srows.append([row["criterion"], _num(row["weight"]), "no single change flips it", "-"])
+                else:
+                    srows.append([row["criterion"], _num(row["weight"]),
+                                  f"{_num(round(row['new_weight'], 2))} ({'+' if row['change'] > 0 else ''}"
+                                  f"{_num(round(row['change'], 2))})", row["new_winner"]])
+            out += _table(["Criterion", "Weight", "Flips at weight", "New winner"], srows, md)
+            out.append("")
+            shift = abs(s["new_share"] - s["share"])
+            if shift <= FRAGILE_SHARE:
+                out.append(f"Fragile: a shift of {shift:.0f} points in one criterion's share of the weight flips "
+                           f"the result. Firm up the weight and scores of {s['criterion']} before deciding.")
+            else:
+                out.append(f"Robust: flipping the result takes a shift of {shift:.0f} points in a criterion's "
+                           "share of the weight.")
+        else:
+            out.append(f"No change to a single weight flips the winner: {m['winner']} stays ahead whichever "
+                       "one weight you raise or lower. Only the scores themselves can change this result.")
+    elif m.get("tie"):
+        out.append(f"{bold('Tie:')} {', '.join(m['tie'])} have the same weighted score. Revisit the weights "
+                   "or add the criterion that really separates them.")
+    else:
+        out.append("Scoring: give each option 1-5 per criterion (5 = best), then re-run with")
+        example = ";".join(f"{o['name']}:{','.join(['?'] * len(criteria))}" for o in options[:3])
+        out.append(f"  --scores \"{example}\"")
+        out.append("to get weighted totals, the winner and the smallest weight change that flips it.")
+    if m.get("unscored") and (m.get("winner") or m.get("tie")):
+        out.append("")
+        out.append(f"Not scored (left out of the ranking): {', '.join(m['unscored'])}.")
+    if m.get("scoring_guide"):
+        out += ["", bold("Scoring guide:")]
+        out += [f"- {s}" for s in _sentences(m["scoring_guide"])]
+    return "\n".join(out).rstrip() + "\n"
 
 
 # ============ NEXT-STEP SUGGESTIONS ============
@@ -1034,9 +1180,9 @@ NEXT_STEPS = {
 🎯 **Next Steps:**
 | Command | Description |
 |---------|-------------|
-| `/decide.deep` | Deeper comparison with more criteria & frameworks |
+| `/decide.deep` | Deeper comparison: pre-mortem, sensitivity, information to gather |
 | `/decide.exec` | Executive briefing for leadership |
-| `/solve` | Analyze the underlying problem first |
+| Add "save step-by-step" | Workspace with one file per step; continue later with `/decide.resume` |
 """,
     "deep": """
 ---
@@ -1044,8 +1190,8 @@ NEXT_STEPS = {
 | Command | Description |
 |---------|-------------|
 | `/decide.exec` | Executive summary for stakeholders |
-| `/solve.deep` | Deep analysis of risks for chosen option |
-| Add "save step-by-step" | Create markdown workspace for decision process |
+| `/solve.deep` | Deep analysis of risks for the chosen option |
+| Add "save step-by-step" | Workspace with one file per step; continue later with `/decide.resume` |
 """,
     "executive": """
 ---
@@ -1053,8 +1199,8 @@ NEXT_STEPS = {
 | Command | Description |
 |---------|-------------|
 | `/solve.exec` | Executive problem analysis for related issues |
-| Add "save step-by-step" | Create full decision workspace |
-| `/decide` | Standard-depth analysis for different perspective |
+| Add "save step-by-step" | Full decision workspace; continue later with `/decide.resume` |
+| `/decide` | Standard-depth analysis for a different perspective |
 """,
 }
 
@@ -1064,49 +1210,46 @@ def generate_decision_plan(query: str, project_name: str = None, output_format: 
                            persist: bool = False, output_dir: str = None,
                            depth: str = "standard", step_docs: bool = False,
                            decision_type: str = None, force: bool = False) -> str:
-    """Generate a comprehensive decision-making plan.
+    """Generate a decision plan as text ('ascii', 'markdown') or 'json'.
 
-    Args:
-        query: Decision description
-        project_name: Optional project name
-        output_format: 'ascii' or 'markdown'
-        persist: Whether to save to file
-        output_dir: Output directory for persistence
-        depth: Analysis depth - quick, standard, deep, or executive
-        step_docs: If True with persist, create separate markdown files per step
-        decision_type: Decision type override (see --type)
-        force: Replace files that already exist (default: keep them)
-
-    Returns:
-        Formatted decision plan
+    persist saves it under decision-plans/<project>/ (PLAN.md, or one file per step
+    with step_docs); existing files are kept unless force. Text output ends with
+    the Next Steps table, once.
     """
+    if not str(query or "").strip():
+        raise ValueError("describe the decision (the request is empty)")
     advisor = DecisionAdvisor(query, decision_type=decision_type)
     plan = advisor.generate(project_name, depth=depth)
 
-    if output_format == "markdown":
-        result = advisor.format_markdown(plan)
-    else:
-        result = advisor.format_ascii_box(plan)
-
+    saved = {}
     if persist:
         if step_docs:
             plan_dir, files, kept = advisor.persist_step_by_step(plan, output_dir, force)
-            result += f"\n\nStep-by-step plan saved to: {plan_dir}/"
-            result += f"\n  Files created: {len(files)}"
-            for f_name in files:
-                result += f"\n    {f_name}"
-            if kept:
-                result += f"\n  Kept {len(kept)} existing files with your notes (add --force to replace them):"
-                for f_name in kept:
-                    result += f"\n    {f_name}"
+            saved = {"dir": plan_dir, "written": files, "kept": kept}
         else:
             path, written = advisor.persist_plan(plan, output_dir, force)
-            if written:
-                result += f"\n\nPlan saved to: {path}"
-            else:
-                result += f"\n\nKept the existing plan at {path} (add --force to replace it)."
+            saved = {"path": path, "written": written}
 
-    # Append next-step suggestions
-    result += NEXT_STEPS.get(depth, NEXT_STEPS["standard"])
+    if output_format == "json":
+        if saved:
+            plan["saved"] = saved
+        return json.dumps(plan, indent=2, ensure_ascii=False)
 
-    return result
+    result = advisor.format_markdown(plan) if output_format == "markdown" else advisor.format_ascii_box(plan)
+    if saved.get("dir"):
+        result += f"\n\nStep-by-step plan saved to: {saved['dir']}/"
+        result += f"\n  Files created: {len(saved['written'])}"
+        for name in saved["written"]:
+            result += f"\n    {name}"
+        if saved["kept"]:
+            result += f"\n  Kept {len(saved['kept'])} existing files with your notes (add --force to replace them):"
+            for name in saved["kept"]:
+                result += f"\n    {name}"
+        result += (f"\n  Progress: search.py --status -p {Path(saved['dir']).name}"
+                   f"  |  tick a step: search.py --done <step> -p {Path(saved['dir']).name}")
+    elif saved:
+        if saved["written"]:
+            result += f"\n\nPlan saved to: {saved['path']}"
+        else:
+            result += f"\n\nKept the existing plan at {saved['path']} (add --force to replace it)."
+    return result + NEXT_STEPS.get(depth, NEXT_STEPS["standard"])

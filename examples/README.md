@@ -1,6 +1,6 @@
 # Decision-Making Use Cases & Lessons Learned
 
-Real-world examples demonstrating how to use the `think-better` CLI tool and bundled skills for structured decision-making and problem-solving.
+Worked examples of the bundled skills: decisions (`/decide`), problems (`/solve`) and code changes (`/code`).
 
 ## 📚 Available Use Cases
 
@@ -10,12 +10,8 @@ Real-world examples demonstrating how to use the `think-better` CLI tool and bun
 | [02](02-cloud-migration.md) | **Cloud Provider Selection** | make-decision | Multi-Option | Use weighted criteria + sensitivity analysis |
 | [03](03-hiring-decision.md) | **Senior Engineer Hiring** | make-decision | Multi-Option | Define criteria before seeing candidates to avoid bias |
 | [04](04-budget-allocation.md) | **Resource Allocation** | make-decision | Resource Allocation | Iterative allocation reduces planning risk |
-| [05](05-debugging-race-condition.md) | **API Race Condition** | problem-solving-pro | Debugging | Structured hypothesis testing finds root cause faster |
-| [06](06-template.md) | **[Template for new use case]** | - | - | - |
-| [07](07-template.md) | **[Template for new use case]** | - | - | - |
-| [08](08-template.md) | **[Template for new use case]** | - | - | - |
-| [09](09-template.md) | **[Template for new use case]** | - | - | - |
-| [10](10-template.md) | **[Template for new use case]** | - | - | - |
+| [05](05-debugging-race-condition.md) | **API Race Condition** | problem-solving-pro | Root Cause Analysis | Structured hypothesis testing finds root cause faster |
+| [06](06-code-debug-typeerror.md) | **TypeError After a Deploy** | code-solving | Debug | A failing test first; known-error causes are hypotheses to rule out |
 
 ## 📖 How to Use These Examples
 
@@ -41,10 +37,15 @@ Real-world examples demonstrating how to use the `think-better` CLI tool and bun
 - Examples: [04 - Budget Allocation](04-budget-allocation.md)
 - Key: Allocate in rounds, reassess after each round
 
-### Problem Solving (debugging, root cause analysis)
+### Problem Solving (root cause analysis)
 - Use: **Hypothesis-Driven Investigation**
 - Examples: [05 - Race Condition](05-debugging-race-condition.md)
 - Key: Rank hypotheses by likelihood, test highest-probability first
+
+### Code Changes (bugs, features, refactors, reviews)
+- Use: **`/code` and its 7 gated steps**
+- Examples: [06 - TypeError After a Deploy](06-code-debug-typeerror.md)
+- Key: No fix without a test that failed first; no "done" without the checks' output
 
 ## 🧠 Common Cognitive Biases to Watch
 
@@ -81,7 +82,9 @@ python scripts/search.py --journal --update "decision-slug" --outcome "What actu
 
 ## 🤝 Contributing Your Own Use Case
 
-Have a great example? Follow the template in [06-template.md](06-template.md) and submit a PR!
+Have a great example? Copy the shape of an existing one and submit a PR: a short context
+(situation, constraints, stakes), the exact commands or slash commands used, what the skill
+answered, the outcome, and two or three lessons. Keep it to one or two screens.
 
 **What makes a good use case:**
 - ✅ Real scenario (anonymized if needed)
