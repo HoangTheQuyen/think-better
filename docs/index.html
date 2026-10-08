@@ -84,10 +84,6 @@
     }
     .skip-link:focus { top: 12px; }
 
-    /* Language: English is shown by default (and without JavaScript). */
-    html:not([data-ui-lang="vi"]) [data-lang="vi"] { display: none !important; }
-    html[data-ui-lang="vi"] [data-lang="en"] { display: none !important; }
-
     .container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 0 16px; }
     @media (min-width: 640px) { .container { padding: 0 24px; } }
 
@@ -118,13 +114,6 @@
     .nav-desktop a:hover, .nav-mobile a:hover { color: var(--text); }
 
     .header-actions { display: flex; align-items: center; gap: 10px; }
-
-    .lang-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
-    .lang-btn {
-      font: 500 12px var(--sans); color: var(--muted); background: transparent; border: 0;
-      padding: 5px 11px; cursor: pointer;
-    }
-    .lang-btn[aria-pressed="true"] { background: rgba(255, 255, 255, 0.1); color: var(--text); }
 
     .btn {
       display: inline-flex; align-items: center; justify-content: center; gap: 8px;
@@ -185,11 +174,11 @@
     .install-box {
       max-width: 620px; margin: 0 auto; text-align: left;
       background: var(--bg-code); border: 1px solid var(--border); border-radius: 12px; padding: 12px;
-      display: grid; gap: 10px;
+      display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px;
     }
     .install-label { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); margin: 0 0 4px 4px; }
     .cmd {
-      display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; min-width: 0;
       background: #060608; border: 1px solid rgba(39, 39, 42, .7); border-radius: 8px; padding: 8px 10px;
     }
     .cmd code { min-width: 0; font-size: 12px; color: #d4d4d8; white-space: pre; overflow-x: auto; line-height: 1.7; }
@@ -309,20 +298,16 @@
       <a class="brand" href="#top"><img src="favicon.png" alt="" width="24" height="24"> Think Better</a>
 
       <nav class="nav-desktop" aria-label="Main">
-        <a href="#why"><span data-lang="en">Why</span><span data-lang="vi">Vì sao</span></a>
-        <a href="#commands"><span data-lang="en">Commands</span><span data-lang="vi">Lệnh</span></a>
-        <a href="#demo"><span data-lang="en">Demo</span><span data-lang="vi">Ví dụ</span></a>
-        <a href="#install"><span data-lang="en">Install</span><span data-lang="vi">Cài đặt</span></a>
-        <a href="#docs"><span data-lang="en">Documentation</span><span data-lang="vi">Tài liệu</span></a>
+        <a href="#why">Why</a>
+        <a href="#commands">Commands</a>
+        <a href="#demo">Demo</a>
+        <a href="#install">Install</a>
+        <a href="#docs">Documentation</a>
       </nav>
 
       <div class="header-actions">
-        <div class="lang-toggle" role="group" aria-label="Language / Ngôn ngữ">
-          <button type="button" class="lang-btn" data-set-lang="en" aria-pressed="true">EN</button>
-          <button type="button" class="lang-btn" data-set-lang="vi" aria-pressed="false" lang="vi">VI</button>
-        </div>
         <a class="btn btn-primary btn-star" href="https://github.com/HoangTheQuyen/think-better">
-          <span data-lang="en">Star on GitHub</span><span data-lang="vi">Star trên GitHub</span>
+          Star on GitHub
         </a>
         <details class="nav-mobile">
           <summary aria-label="Menu">
@@ -330,12 +315,12 @@
               stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
           </summary>
           <nav class="menu-panel" aria-label="Main (mobile)">
-            <a href="#why"><span data-lang="en">Why not just prompt?</span><span data-lang="vi">Vì sao không chỉ viết prompt?</span></a>
-            <a href="#commands"><span data-lang="en">Commands</span><span data-lang="vi">Lệnh</span></a>
-            <a href="#demo"><span data-lang="en">Demo</span><span data-lang="vi">Ví dụ</span></a>
-            <a href="#flow"><span data-lang="en">How it works</span><span data-lang="vi">Cách hoạt động</span></a>
-            <a href="#install"><span data-lang="en">Install</span><span data-lang="vi">Cài đặt</span></a>
-            <a href="#docs"><span data-lang="en">Documentation</span><span data-lang="vi">Tài liệu</span></a>
+            <a href="#why">Why not just prompt?</a>
+            <a href="#commands">Commands</a>
+            <a href="#demo">Demo</a>
+            <a href="#flow">How it works</a>
+            <a href="#install">Install</a>
+            <a href="#docs">Documentation</a>
             <a href="https://github.com/HoangTheQuyen/think-better">GitHub</a>
           </nav>
         </details>
@@ -351,21 +336,14 @@
           For Claude Code, GitHub Copilot, Antigravity &amp; OpenCode</div>
 
         <h1 class="fade-up d1">
-          <span data-lang="en">Make your AI <span class="accent">think</span> before it answers.</span>
-          <span data-lang="vi">Để AI <span class="accent">suy nghĩ</span> trước khi trả lời.</span>
+          Make your AI <span class="accent">think</span> before it answers.
         </h1>
 
-        <p class="lead fade-up d2" data-lang="en">
+        <p class="lead fade-up d2">
           Structured thinking for your AI coding assistant: <strong>decide</strong> with frameworks,
           <strong>solve</strong> with root causes, <strong>code</strong> with evidence.
           One open-source CLI installs three skills and their slash commands:
           <strong>/decide</strong>, <strong>/solve</strong> and <strong>/code</strong>.
-        </p>
-        <p class="lead fade-up d2" data-lang="vi">
-          Tư duy có cấu trúc cho trợ lý AI lập trình: <strong>quyết định</strong> bằng framework,
-          <strong>giải quyết vấn đề</strong> tận gốc, <strong>sửa code</strong> có bằng chứng.
-          Một CLI mã nguồn mở cài ba skill cùng các lệnh slash:
-          <strong>/decide</strong>, <strong>/solve</strong> và <strong>/code</strong>.
         </p>
 
         <div class="install-box fade-up d3">
@@ -397,18 +375,18 @@ brew install think-better</code>
 
         <div class="hero-links">
           <a class="btn btn-primary" href="https://github.com/HoangTheQuyen/think-better/blob/main/USER-GUIDE.md">
-            <span data-lang="en">Read the User Guide</span><span data-lang="vi">Đọc hướng dẫn sử dụng</span>
+            Read the User Guide
           </a>
           <a class="btn btn-ghost" href="https://github.com/HoangTheQuyen/think-better/tree/main/examples">
-            <span data-lang="en">See examples</span><span data-lang="vi">Xem ví dụ</span>
+            See examples
           </a>
         </div>
 
         <p class="stats">
-          <span><strong>3</strong> <span data-lang="en">skills</span><span data-lang="vi">skill</span></span>
-          <span><strong>323</strong> <span data-lang="en">knowledge records</span><span data-lang="vi">bản ghi kiến thức</span></span>
-          <span><strong>20</strong> <span data-lang="en">slash commands</span><span data-lang="vi">lệnh slash</span></span>
-          <span><strong>4</strong> <span data-lang="en">AI tools</span><span data-lang="vi">công cụ AI</span></span>
+          <span><strong>3</strong> skills</span>
+          <span><strong>323</strong> knowledge records</span>
+          <span><strong>20</strong> slash commands</span>
+          <span><strong>4</strong> AI tools</span>
         </p>
       </div>
     </section>
@@ -418,72 +396,54 @@ brew install think-better</code>
       <div class="container">
         <div class="section-head">
           <h2>
-            <span data-lang="en">Why not just <span class="accent">prompt?</span></span>
-            <span data-lang="vi">Sao không chỉ <span class="accent">viết prompt?</span></span>
+            Why not just <span class="accent">prompt?</span>
           </h2>
-          <p data-lang="en">Ask any AI "should we use Postgres or MongoDB?" and you get a tidy pros-and-cons list.
+          <p>Ask any AI "should we use Postgres or MongoDB?" and you get a tidy pros-and-cons list.
             The skills add what a prompt alone does not.</p>
-          <p data-lang="vi">Hỏi AI bất kỳ "nên dùng Postgres hay MongoDB?" và bạn nhận được danh sách ưu/nhược điểm gọn gàng.
-            Các skill bổ sung những gì một prompt đơn thuần không có.</p>
         </div>
 
         <div class="grid grid-2">
           <div class="card">
             <span class="icon" aria-hidden="true">🧭</span>
-            <h3><span data-lang="en">Structured steps</span><span data-lang="vi">Quy trình có cấu trúc</span></h3>
-            <p data-lang="en">Every request runs through a fixed method: 7 steps for problems and code, a decision plan
+            <h3>Structured steps</h3>
+            <p>Every request runs through a fixed method: 7 steps for problems and code, a decision plan
               for choices. The AI does not jump from symptom to fix.</p>
-            <p data-lang="vi">Mọi yêu cầu đi qua một phương pháp cố định: 7 bước cho vấn đề và code, kế hoạch quyết
-              định cho lựa chọn. AI không nhảy thẳng từ triệu chứng sang cách sửa.</p>
           </div>
           <div class="card">
             <span class="icon" aria-hidden="true">🚦</span>
-            <h3><span data-lang="en">Gates</span><span data-lang="vi">Cổng kiểm tra</span></h3>
-            <p data-lang="en"><code>/code</code> does not move on without evidence: a failing test before the fix,
+            <h3>Gates</h3>
+            <p><code>/code</code> does not move on without evidence: a failing test before the fix,
               your project's own test, lint and build output after it.</p>
-            <p data-lang="vi"><code>/code</code> chỉ qua bước khi có bằng chứng: test fail trước khi sửa, kết quả
-              test, lint, build của chính project sau khi sửa.</p>
           </div>
           <div class="card">
             <span class="icon" aria-hidden="true">📚</span>
-            <h3><span data-lang="en">A knowledge base</span><span data-lang="vi">Knowledge base</span></h3>
-            <p data-lang="en">323 knowledge records searched locally with BM25:
+            <h3>A knowledge base</h3>
+            <p>323 knowledge records searched locally with BM25:
               <code>make-decision</code> · 63 records, <code>problem-solving-pro</code> · 111 records,
               <code>code-solving</code> · 149 records. Frameworks, cognitive biases with remedies, criteria
               templates and 44 common error messages go into the answer.</p>
-            <p data-lang="vi">323 bản ghi kiến thức được tìm ngay trên máy bằng BM25:
-              <code>make-decision</code> · 63 bản ghi, <code>problem-solving-pro</code> · 111 bản ghi,
-              <code>code-solving</code> · 149 bản ghi. Framework, thiên kiến nhận thức kèm cách khắc phục, mẫu
-              tiêu chí và 44 thông báo lỗi hay gặp được đưa vào câu trả lời.</p>
           </div>
           <div class="card">
             <span class="icon" aria-hidden="true">💾</span>
-            <h3><span data-lang="en">Saved, resumable workspaces</span><span data-lang="vi">Workspace lưu lại, làm tiếp được</span></h3>
-            <p data-lang="en">Say "save step-by-step" and the work is written to Markdown files in your project.
+            <h3>Saved, resumable workspaces</h3>
+            <p>Say "save step-by-step" and the work is written to Markdown files in your project.
               <code>/solve.resume</code>, <code>/decide.resume</code> or <code>/code.resume</code> continues at the
               first open step in a later session.</p>
-            <p data-lang="vi">Nói "lưu từng bước" và công việc được ghi thành file Markdown trong project.
-              <code>/solve.resume</code>, <code>/decide.resume</code> hoặc <code>/code.resume</code> làm tiếp từ bước
-              còn dang dở ở phiên sau.</p>
           </div>
         </div>
 
         <div class="grid grid-2" style="margin-top:16px">
           <div class="card">
             <span class="icon" aria-hidden="true">🔒</span>
-            <h3><span data-lang="en">Runs locally</span><span data-lang="vi">Chạy trên máy bạn</span></h3>
-            <p data-lang="en">One Go binary copies Markdown, CSV and Python files into your project. The scripts need
+            <h3>Runs locally</h3>
+            <p>One Go binary copies Markdown, CSV and Python files into your project. The scripts need
               only Python 3's standard library: no network calls, no accounts, no API keys.</p>
-            <p data-lang="vi">Một file Go chép các file Markdown, CSV và Python vào project. Script chỉ cần thư viện
-              chuẩn của Python 3: không gọi mạng, không tài khoản, không API key.</p>
           </div>
           <div class="card">
-            <span class="icon" aria-hidden="true">🇻🇳</span>
-            <h3><span data-lang="en">English and Vietnamese</span><span data-lang="vi">Tiếng Anh và tiếng Việt</span></h3>
-            <p data-lang="en">Requests work in both languages, Vietnamese with or without accents
-              ("Nên chọn React hay Vue?"). The AI answers in your language.</p>
-            <p data-lang="vi">Yêu cầu bằng cả hai ngôn ngữ, tiếng Việt có dấu hay không dấu đều được
-              ("Nen chon React hay Vue?"). AI trả lời bằng ngôn ngữ của bạn.</p>
+            <span class="icon" aria-hidden="true">🔄</span>
+            <h3>Safe updates</h3>
+            <p><code>think-better update</code> refreshes every install. Files you edited are kept, and the
+              new version is saved next to them as <code>.new</code>.</p>
           </div>
         </div>
       </div>
@@ -494,51 +454,49 @@ brew install think-better</code>
       <div class="container">
         <div class="section-head center">
           <h2>
-            <span data-lang="en">20 slash commands. <span class="accent-purple">Or just ask.</span></span>
-            <span data-lang="vi">20 lệnh slash. <span class="accent-purple">Hoặc cứ hỏi.</span></span>
+            20 slash commands. <span class="accent-purple">Or just ask.</span>
           </h2>
-          <p data-lang="en">Type a command for a fixed depth, or describe the problem in your own words: every
+          <p>Type a command for a fixed depth, or describe the problem in your own words: every
             supported AI tool loads the skills by itself.</p>
-          <p data-lang="vi">Gõ lệnh để chọn độ sâu, hoặc mô tả vấn đề bằng lời của bạn: mọi công cụ AI được hỗ trợ đều tự nạp skill.</p>
         </div>
 
         <div class="grid grid-3">
           <div class="card cmd-group">
-            <h3 class="c-purple"><span data-lang="en">Decide</span><span data-lang="vi">Ra quyết định</span></h3>
+            <h3 class="c-purple">Decide</h3>
             <code class="skill-name">make-decision</code>
             <ul class="cmd-list">
-              <li><code>/decide.quick</code><span data-lang="en">Fast scan</span><span data-lang="vi">Quét nhanh</span></li>
-              <li><code>/decide</code><span data-lang="en">The default plan</span><span data-lang="vi">Kế hoạch mặc định</span></li>
-              <li><code>/decide.deep</code><span data-lang="en">Pre-mortem, sensitivity</span><span data-lang="vi">Pre-mortem, độ nhạy</span></li>
-              <li><code>/decide.exec</code><span data-lang="en">Brief for leadership</span><span data-lang="vi">Tóm tắt cho lãnh đạo</span></li>
-              <li><code>/decide.resume</code><span data-lang="en">Continue a saved decision</span><span data-lang="vi">Làm tiếp quyết định đã lưu</span></li>
+              <li><code>/decide.quick</code>Fast scan</li>
+              <li><code>/decide</code>The default plan</li>
+              <li><code>/decide.deep</code>Pre-mortem, sensitivity</li>
+              <li><code>/decide.exec</code>Brief for leadership</li>
+              <li><code>/decide.resume</code>Continue a saved decision</li>
             </ul>
           </div>
           <div class="card cmd-group">
-            <h3 class="c-blue"><span data-lang="en">Solve</span><span data-lang="vi">Giải quyết vấn đề</span></h3>
+            <h3 class="c-blue">Solve</h3>
             <code class="skill-name">problem-solving-pro</code>
             <ul class="cmd-list">
-              <li><code>/solve.quick</code><span data-lang="en">Short scan</span><span data-lang="vi">Quét nhanh</span></li>
-              <li><code>/solve</code><span data-lang="en">The 7-step plan</span><span data-lang="vi">Kế hoạch 7 bước</span></li>
-              <li><code>/solve.deep</code><span data-lang="en">Alternatives, more models</span><span data-lang="vi">Phương án thay thế, thêm mô hình</span></li>
-              <li><code>/solve.exec</code><span data-lang="en">Executive summary, risks</span><span data-lang="vi">Tóm tắt điều hành, rủi ro</span></li>
-              <li><code>/solve.resume</code><span data-lang="en">Continue a saved problem</span><span data-lang="vi">Làm tiếp vấn đề đã lưu</span></li>
+              <li><code>/solve.quick</code>Short scan</li>
+              <li><code>/solve</code>The 7-step plan</li>
+              <li><code>/solve.deep</code>Alternatives, more models</li>
+              <li><code>/solve.exec</code>Executive summary, risks</li>
+              <li><code>/solve.resume</code>Continue a saved problem</li>
             </ul>
           </div>
           <div class="card cmd-group">
-            <h3 class="c-green"><span data-lang="en">Code</span><span data-lang="vi">Lập trình</span></h3>
+            <h3 class="c-green">Code</h3>
             <code class="skill-name">code-solving</code>
             <ul class="cmd-list">
-              <li><code>/code</code><span data-lang="en">Any change, type detected</span><span data-lang="vi">Mọi thay đổi, tự nhận loại việc</span></li>
-              <li><code>/code.deep</code><span data-lang="en">Full review checklist</span><span data-lang="vi">Checklist review đầy đủ</span></li>
-              <li><code>/code.debug</code><span data-lang="en">Failing test first</span><span data-lang="vi">Test fail trước, rồi sửa</span></li>
-              <li><code>/code.feature</code><span data-lang="en">Small tested slices</span><span data-lang="vi">Từng lát nhỏ có test</span></li>
-              <li><code>/code.refactor</code><span data-lang="en">Same behavior</span><span data-lang="vi">Giữ nguyên hành vi</span></li>
-              <li><code>/code.perf</code><span data-lang="en">Measure, optimize, measure</span><span data-lang="vi">Đo, tối ưu, đo lại</span></li>
-              <li><code>/code.review</code><span data-lang="en">Diff and risk areas</span><span data-lang="vi">Diff và vùng rủi ro</span></li>
-              <li><code>/code.test</code><span data-lang="en">Tests that can fail</span><span data-lang="vi">Test có thể fail thật</span></li>
-              <li><code>/code.explain</code><span data-lang="en">With file:line evidence</span><span data-lang="vi">Kèm bằng chứng file:dòng</span></li>
-              <li><code>/code.resume</code><span data-lang="en">Continue a saved change</span><span data-lang="vi">Làm tiếp workspace đã lưu</span></li>
+              <li><code>/code</code>Any change, type detected</li>
+              <li><code>/code.deep</code>Full review checklist</li>
+              <li><code>/code.debug</code>Failing test first</li>
+              <li><code>/code.feature</code>Small tested slices</li>
+              <li><code>/code.refactor</code>Same behavior</li>
+              <li><code>/code.perf</code>Measure, optimize, measure</li>
+              <li><code>/code.review</code>Diff and risk areas</li>
+              <li><code>/code.test</code>Tests that can fail</li>
+              <li><code>/code.explain</code>With file:line evidence</li>
+              <li><code>/code.resume</code>Continue a saved change</li>
             </ul>
           </div>
         </div>
@@ -547,16 +505,16 @@ brew install think-better</code>
           <table>
             <thead>
               <tr>
-                <th><span data-lang="en">AI tool</span><span data-lang="vi">Công cụ AI</span></th>
-                <th><span data-lang="en">Just describe the problem</span><span data-lang="vi">Mô tả vấn đề bằng lời</span></th>
-                <th><span data-lang="en">Slash commands</span><span data-lang="vi">Lệnh slash</span></th>
+                <th>AI tool</th>
+                <th>Just describe the problem</th>
+                <th>Slash commands</th>
               </tr>
             </thead>
             <tbody>
-              <tr><td>Claude Code</td><td><span data-lang="en">Yes, picked by trigger phrases</span><span data-lang="vi">Có, chọn theo cụm từ kích hoạt</span></td><td><code>.claude/commands/</code></td></tr>
-              <tr><td>OpenCode</td><td><span data-lang="en">Yes, via OpenCode's skill tool</span><span data-lang="vi">Có, qua skill tool của OpenCode</span></td><td><code>.opencode/commands/</code></td></tr>
-              <tr><td>Antigravity</td><td><span data-lang="en">Yes</span><span data-lang="vi">Có</span></td><td><code>.agents/workflows/</code></td></tr>
-              <tr><td>GitHub Copilot</td><td><span data-lang="en">Yes, in agent mode (skills in <code>.github/skills/</code>)</span><span data-lang="vi">Có, ở chế độ agent (skill trong <code>.github/skills/</code>)</span></td><td><span data-lang="en">Prompt files in</span><span data-lang="vi">Prompt file trong</span> <code>.github/prompts/</code> <span data-lang="en">(agent mode)</span><span data-lang="vi">(chế độ agent)</span></td></tr>
+              <tr><td>Claude Code</td><td>Yes, picked by trigger phrases</td><td><code>.claude/commands/</code></td></tr>
+              <tr><td>OpenCode</td><td>Yes, via OpenCode's skill tool</td><td><code>.opencode/commands/</code></td></tr>
+              <tr><td>Antigravity</td><td>Yes</td><td><code>.agents/workflows/</code></td></tr>
+              <tr><td>GitHub Copilot</td><td>Yes, in agent mode (skills in <code>.github/skills/</code>)</td><td>Prompt files in <code>.github/prompts/</code> (agent mode)</td></tr>
             </tbody>
           </table>
         </div>
@@ -567,11 +525,9 @@ brew install think-better</code>
     <section id="demo">
       <div class="container">
         <div class="section-head">
-          <h2><span data-lang="en">What you actually get</span><span data-lang="vi">Kết quả thực tế</span></h2>
-          <p data-lang="en">Real output of the skill scripts for these requests, shortened. Your AI reads the plan and
+          <h2>What you actually get</h2>
+          <p>Real output of the skill scripts for these requests, shortened. Your AI reads the plan and
             works through it with you.</p>
-          <p data-lang="vi">Output thật của script cho các yêu cầu này, đã rút gọn. AI đọc kế hoạch và cùng bạn làm
-            theo từng bước.</p>
         </div>
 
         <div class="grid grid-2">
@@ -622,10 +578,8 @@ TypeError: Cannot read properties of undefined (reading 'id')
 <span class="k">Steps:</span> Define (failing test) → Decompose → Prioritize → Plan → Execute → Verify → Communicate
 <span class="g">Project checks:</span> npm run test · npm run lint · npm run build</pre>
         </div>
-        <p class="demo-note" data-lang="en">The <code>/code</code> context comes from your own files and git history; the plan
+        <p class="demo-note">The <code>/code</code> context comes from your own files and git history; the plan
           above is for a small Node project.</p>
-        <p class="demo-note" data-lang="vi">Phần context của <code>/code</code> lấy từ chính file và lịch sử git của bạn;
-          kế hoạch trên là cho một project Node nhỏ.</p>
       </div>
     </section>
 
@@ -633,49 +587,42 @@ TypeError: Cannot read properties of undefined (reading 'id')
     <section id="flow">
       <div class="container">
         <div class="section-head center">
-          <h2><span data-lang="en">How it works</span><span data-lang="vi">Cách hoạt động</span></h2>
-          <p data-lang="en">From your request to a structured plan, on your machine.</p>
-          <p data-lang="vi">Từ yêu cầu của bạn đến một kế hoạch có cấu trúc, ngay trên máy bạn.</p>
+          <h2>How it works</h2>
+          <p>From your request to a structured plan, on your machine.</p>
         </div>
         <ol class="flow">
           <li class="card">
-            <h3><span data-lang="en">You ask</span><span data-lang="vi">Bạn hỏi</span></h3>
-            <p data-lang="en">A slash command like <code>/solve.deep</code>, or plain words where your AI tool loads skills.</p>
-            <p data-lang="vi">Một lệnh slash như <code>/solve.deep</code>, hoặc lời bình thường nếu công cụ AI tự nạp skill.</p>
+            <h3>You ask</h3>
+            <p>A slash command like <code>/solve.deep</code>, or plain words where your AI tool loads skills.</p>
           </li>
           <li class="card">
-            <h3><span data-lang="en">The skill runs</span><span data-lang="vi">Skill chạy</span></h3>
-            <p data-lang="en">The AI runs the skill's Python script with your request on stdin. No network, no API keys.</p>
-            <p data-lang="vi">AI chạy script Python của skill, yêu cầu được truyền qua stdin. Không mạng, không API key.</p>
+            <h3>The skill runs</h3>
+            <p>The AI runs the skill's Python script with your request on stdin. No network, no API keys.</p>
           </li>
           <li class="card">
-            <h3><span data-lang="en">Search and classify</span><span data-lang="vi">Tìm và phân loại</span></h3>
-            <p data-lang="en">BM25 search over the knowledge base; the request is classified (decision type, problem
+            <h3>Search and classify</h3>
+            <p>BM25 search over the knowledge base; the request is classified (decision type, problem
               type, coding task); <code>/code</code> also reads your project.</p>
-            <p data-lang="vi">Tìm BM25 trong knowledge base; phân loại yêu cầu (loại quyết định, loại vấn đề, loại
-              việc code); <code>/code</code> còn đọc project của bạn.</p>
           </li>
           <li class="card">
-            <h3><span data-lang="en">A plan with next steps</span><span data-lang="vi">Kế hoạch và bước tiếp theo</span></h3>
-            <p data-lang="en">Framework, steps and gates, bias warnings, a checklist and the next commands; saved as a
+            <h3>A plan with next steps</h3>
+            <p>Framework, steps and gates, bias warnings, a checklist and the next commands; saved as a
               workspace if you ask.</p>
-            <p data-lang="vi">Framework, các bước và cổng kiểm tra, cảnh báo thiên kiến, checklist và lệnh tiếp theo;
-              lưu thành workspace nếu bạn muốn.</p>
           </li>
         </ol>
 
         <div class="grid grid-2" style="margin-top:16px">
           <div class="card">
-            <h3><span data-lang="en">Four depth levels</span><span data-lang="vi">Bốn mức độ sâu</span></h3>
+            <h3>Four depth levels</h3>
             <ul class="depth">
-              <li><strong>Quick</strong><span data-lang="en">The essentials on one screen</span><span data-lang="vi">Những điểm chính trong một màn hình</span></li>
-              <li><strong>Standard</strong><span data-lang="en">The full plan (default)</span><span data-lang="vi">Kế hoạch đầy đủ (mặc định)</span></li>
-              <li><strong>Deep</strong><span data-lang="en">Alternatives, pre-mortem, pitfalls</span><span data-lang="vi">Phương án thay thế, pre-mortem, lỗi hay gặp</span></li>
-              <li><strong>Executive</strong><span data-lang="en">Recommendation first, risks, decision needed</span><span data-lang="vi">Khuyến nghị trước, rủi ro, quyết định cần đưa ra</span></li>
+              <li><strong>Quick</strong>The essentials on one screen</li>
+              <li><strong>Standard</strong>The full plan (default)</li>
+              <li><strong>Deep</strong>Alternatives, pre-mortem, pitfalls</li>
+              <li><strong>Executive</strong>Recommendation first, risks, decision needed</li>
             </ul>
           </div>
           <div class="card">
-            <h3><span data-lang="en">Step-by-step workspace</span><span data-lang="vi">Workspace từng bước</span></h3>
+            <h3>Step-by-step workspace</h3>
             <pre class="tree mono">solving-plans/revenue-drop/
 ├── 00-OVERVIEW.md
 ├── 01-PROBLEM-DEFINITION.md
@@ -687,10 +634,8 @@ TypeError: Cannot read properties of undefined (reading 'id')
 ├── 07-RECOMMENDATION.md
 ├── BIAS-WARNINGS.md
 └── DECISION-LOG.md</pre>
-            <p data-lang="en" style="margin-top:12px"><code>/decide</code> saves to <code>decision-plans/</code>,
+            <p style="margin-top:12px"><code>/decide</code> saves to <code>decision-plans/</code>,
               <code>/code</code> to <code>coding-plans/</code>.</p>
-            <p data-lang="vi" style="margin-top:12px"><code>/decide</code> lưu vào <code>decision-plans/</code>,
-              <code>/code</code> lưu vào <code>coding-plans/</code>.</p>
           </div>
         </div>
       </div>
@@ -700,12 +645,12 @@ TypeError: Cannot read properties of undefined (reading 'id')
     <section id="install">
       <div class="container">
         <div class="section-head">
-          <h2><span data-lang="en">Install in a minute</span><span data-lang="vi">Cài đặt trong một phút</span></h2>
+          <h2>Install in a minute</h2>
         </div>
         <div class="grid grid-3">
           <div class="card">
-            <p class="step-label"><span data-lang="en">STEP 1</span><span data-lang="vi">BƯỚC 1</span></p>
-            <h3><span data-lang="en">Install the CLI</span><span data-lang="vi">Cài CLI</span></h3>
+            <p class="step-label">STEP 1</p>
+            <h3>Install the CLI</h3>
 <pre class="code-block"><span class="k"># macOS / Linux</span>
 curl -fsSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.sh | sh
 <span class="k"># Windows (PowerShell)</span>
@@ -720,8 +665,8 @@ scoop install think-better
 go install github.com/HoangTheQuyen/think-better/cmd/think-better@latest</pre>
           </div>
           <div class="card">
-            <p class="step-label"><span data-lang="en">STEP 2</span><span data-lang="vi">BƯỚC 2</span></p>
-            <h3><span data-lang="en">Add the skills to your project</span><span data-lang="vi">Thêm skill vào project</span></h3>
+            <p class="step-label">STEP 2</p>
+            <h3>Add the skills to your project</h3>
 <pre class="code-block"><span class="k"># in your project root</span>
 think-better init --ai claude
 think-better init --ai copilot
@@ -735,15 +680,14 @@ think-better update
 think-better diff</pre>
           </div>
           <div class="card">
-            <p class="step-label"><span data-lang="en">STEP 3</span><span data-lang="vi">BƯỚC 3</span></p>
-            <h3><span data-lang="en">Ask</span><span data-lang="vi">Hỏi</span></h3>
+            <p class="step-label">STEP 3</p>
+            <h3>Ask</h3>
 <pre class="code-block">/decide Postgres vs MongoDB vs DynamoDB
 /solve Signups dropped 15% after
        the pricing change
 /code.debug &lt;paste the error&gt;
-/decide.deep Nên dùng AWS hay GCP?</pre>
-            <p style="margin-top:12px" data-lang="en">The skills need Python 3. <code>think-better check</code> verifies it.</p>
-            <p style="margin-top:12px" data-lang="vi">Skill cần Python 3. Kiểm tra bằng <code>think-better check</code>.</p>
+/decide.deep Should we use AWS or GCP?</pre>
+            <p style="margin-top:12px">The skills need Python 3. <code>think-better check</code> verifies it.</p>
           </div>
         </div>
       </div>
@@ -753,45 +697,38 @@ think-better diff</pre>
     <section id="docs">
       <div class="container">
         <div class="section-head">
-          <h2><span data-lang="en">Documentation</span><span data-lang="vi">Tài liệu</span></h2>
-          <p data-lang="en">Everything lives in the GitHub repository.</p>
-          <p data-lang="vi">Toàn bộ tài liệu nằm trong repository trên GitHub.</p>
+          <h2>Documentation</h2>
+          <p>Everything lives in the GitHub repository.</p>
         </div>
         <div class="grid grid-3">
           <a class="card" href="https://github.com/HoangTheQuyen/think-better/blob/main/USER-GUIDE.md">
             <h3>User Guide</h3>
-            <p data-lang="en">Every skill, command and script option; troubleshooting and FAQ.</p>
-            <p data-lang="vi">Mọi skill, lệnh và tùy chọn script; xử lý sự cố và câu hỏi thường gặp.</p>
+            <p>Every skill, command and script option; troubleshooting and FAQ.</p>
             <span class="more">USER-GUIDE.md →</span>
           </a>
           <a class="card" href="https://github.com/HoangTheQuyen/think-better/blob/main/QUICK-REFERENCE.md">
             <h3>Quick Reference</h3>
-            <p data-lang="en">A one-page cheat sheet of commands and workflows.</p>
-            <p data-lang="vi">Tóm tắt một trang các lệnh và quy trình.</p>
+            <p>A one-page cheat sheet of commands and workflows.</p>
             <span class="more">QUICK-REFERENCE.md →</span>
           </a>
           <a class="card" href="https://github.com/HoangTheQuyen/think-better/tree/main/examples">
-            <h3><span data-lang="en">Examples</span><span data-lang="vi">Ví dụ</span></h3>
-            <p data-lang="en">Worked decisions, a hiring choice, resource allocation and two debugging sessions.</p>
-            <p data-lang="vi">Ví dụ thực tế: ra quyết định, tuyển dụng, phân bổ nguồn lực và hai lần debug.</p>
+            <h3>Examples</h3>
+            <p>Worked decisions, a hiring choice, resource allocation and two debugging sessions.</p>
             <span class="more">examples/ →</span>
           </a>
           <a class="card" href="https://github.com/HoangTheQuyen/think-better/blob/main/CHANGELOG.md">
             <h3>Changelog</h3>
-            <p data-lang="en">What changed in each release.</p>
-            <p data-lang="vi">Thay đổi trong từng phiên bản.</p>
+            <p>What changed in each release.</p>
             <span class="more">CHANGELOG.md →</span>
           </a>
           <a class="card" href="https://github.com/HoangTheQuyen/think-better/blob/main/CONTRIBUTING.md">
-            <h3><span data-lang="en">Contributing</span><span data-lang="vi">Đóng góp</span></h3>
-            <p data-lang="en">Add a skill, knowledge records, a slash command or an AI tool.</p>
-            <p data-lang="vi">Thêm skill, bản ghi kiến thức, lệnh slash hoặc công cụ AI.</p>
+            <h3>Contributing</h3>
+            <p>Add a skill, knowledge records, a slash command or an AI tool.</p>
             <span class="more">CONTRIBUTING.md →</span>
           </a>
           <a class="card" href="https://github.com/HoangTheQuyen/think-better/discussions">
             <h3>Discussions</h3>
-            <p data-lang="en">Questions, ideas and what you would like next.</p>
-            <p data-lang="vi">Câu hỏi, ý tưởng và điều bạn muốn có tiếp theo.</p>
+            <p>Questions, ideas and what you would like next.</p>
             <span class="more">GitHub Discussions →</span>
           </a>
         </div>
@@ -804,8 +741,8 @@ think-better diff</pre>
       <nav class="footer-links" aria-label="Footer">
         <a href="https://github.com/HoangTheQuyen/think-better">GitHub</a>
         <a href="https://github.com/HoangTheQuyen/think-better/blob/main/USER-GUIDE.md">User Guide</a>
-        <a href="https://github.com/HoangTheQuyen/think-better/blob/main/CONTRIBUTING.md"><span data-lang="en">Contributing</span><span data-lang="vi">Đóng góp</span></a>
-        <a href="https://github.com/HoangTheQuyen/think-better/issues"><span data-lang="en">Report an issue</span><span data-lang="vi">Báo lỗi</span></a>
+        <a href="https://github.com/HoangTheQuyen/think-better/blob/main/CONTRIBUTING.md">Contributing</a>
+        <a href="https://github.com/HoangTheQuyen/think-better/issues">Report an issue</a>
       </nav>
       <p>MIT License &copy; 2026 HoangTheQuyen</p>
     </div>
@@ -813,37 +750,7 @@ think-better diff</pre>
 
   <script>
     (function () {
-      var root = document.documentElement;
       document.body.classList.remove('no-js');
-
-      // Storage can be blocked (private mode, strict settings): never let that break the page.
-      function readLang() {
-        try { return window.localStorage.getItem('tb-lang'); } catch (e) { return null; }
-      }
-      function saveLang(lang) {
-        try { window.localStorage.setItem('tb-lang', lang); } catch (e) { /* ignore */ }
-      }
-
-      function setLang(lang, persist) {
-        if (lang !== 'vi') lang = 'en';
-        root.setAttribute('data-ui-lang', lang);
-        root.lang = lang;
-        var buttons = document.querySelectorAll('.lang-btn');
-        for (var i = 0; i < buttons.length; i++) {
-          buttons[i].setAttribute('aria-pressed', String(buttons[i].getAttribute('data-set-lang') === lang));
-        }
-        if (persist) saveLang(lang);
-      }
-
-      var browserLang = (navigator.language || '').toLowerCase();
-      setLang(readLang() || (browserLang.indexOf('vi') === 0 ? 'vi' : 'en'), false);
-
-      var langButtons = document.querySelectorAll('.lang-btn');
-      for (var i = 0; i < langButtons.length; i++) {
-        langButtons[i].addEventListener('click', function () {
-          setLang(this.getAttribute('data-set-lang'), true);
-        });
-      }
 
       // Close the mobile menu after following a link.
       var menu = document.querySelector('.nav-mobile');
@@ -862,7 +769,7 @@ think-better diff</pre>
           var b = this;
           navigator.clipboard.writeText(b.getAttribute('data-copy')).then(function () {
             var label = b.textContent;
-            b.textContent = root.getAttribute('data-ui-lang') === 'vi' ? 'Đã chép' : 'Copied';
+            b.textContent = 'Copied';
             b.classList.add('copied');
             setTimeout(function () { b.textContent = label; b.classList.remove('copied'); }, 1800);
           }, function () { /* ignore: the text stays selectable */ });
