@@ -154,8 +154,8 @@ func TestOpenCodeCommands(t *testing.T) {
 	if got := opencode.WorkflowFileName("code.debug.md"); got != "code.debug.md" {
 		t.Errorf("WorkflowFileName = %q, want code.debug.md", got)
 	}
-	src := "---\ndescription: Fix a bug.\n---\n// turbo\n```\npython3 .agents/skills/code-solving/scripts/search.py --stdin <<'TASK'\n$ARGUMENTS\nTASK\n```\n"
-	want := "---\ndescription: Fix a bug.\n---\n```\npython3 .opencode/skills/code-solving/scripts/search.py --stdin <<'TASK'\n$ARGUMENTS\nTASK\n```\n"
+	src := "---\ndescription: Fix a bug.\n---\n// turbo\n```\npython3 .agents/skills/code-solving/scripts/search.py --stdin <<'THINK_BETTER_EOF_7f3a'\n$ARGUMENTS\nTHINK_BETTER_EOF_7f3a\n```\n"
+	want := "---\ndescription: Fix a bug.\n---\n```\npython3 .opencode/skills/code-solving/scripts/search.py --stdin <<'THINK_BETTER_EOF_7f3a'\n$ARGUMENTS\nTHINK_BETTER_EOF_7f3a\n```\n"
 	if got := opencode.AdaptWorkflow(src); got != want {
 		t.Errorf("opencode AdaptWorkflow =\n%s\nwant:\n%s", got, want)
 	}
@@ -170,8 +170,8 @@ func TestAdaptWorkflowCopilotPrompt(t *testing.T) {
 		t.Errorf("claude WorkflowFileName = %q, want unchanged", got)
 	}
 
-	src := "---\ndescription: Fix a bug.\n---\n// turbo\n```\npython3 .agents/skills/code-solving/scripts/search.py --stdin --plan <<'TASK'\n$ARGUMENTS\nTASK\n```\n"
-	want := "---\nagent: agent\nargument-hint: Describe the task\ndescription: Fix a bug.\n---\n```\npython3 .github/prompts/code-solving/scripts/search.py --stdin --plan <<'TASK'\n${input:task}\nTASK\n```\n"
+	src := "---\ndescription: Fix a bug.\n---\n// turbo\n```\npython3 .agents/skills/code-solving/scripts/search.py --stdin --plan <<'THINK_BETTER_EOF_7f3a'\n$ARGUMENTS\nTHINK_BETTER_EOF_7f3a\n```\n"
+	want := "---\nagent: agent\nargument-hint: Describe the task\ndescription: Fix a bug.\n---\n```\npython3 .github/prompts/code-solving/scripts/search.py --stdin --plan <<'THINK_BETTER_EOF_7f3a'\n${input:task}\nTHINK_BETTER_EOF_7f3a\n```\n"
 	if got := copilot.AdaptWorkflow(src); got != want {
 		t.Errorf("copilot AdaptWorkflow =\n%s\nwant:\n%s", got, want)
 	}
