@@ -1,9 +1,9 @@
 ---
-description: Work on any coding task step by step with evidence gates. Use when user asks to
-  fix, build, change, refactor, optimize, migrate or review code.
+description: Add or improve tests by naming the behaviors to protect, proving each test can fail and measuring
+  coverage. Use when user asks to write tests or raise coverage ("viết test").
 ---
 
-## Coding Task (Standard Depth)
+## Tests
 
 1. Read the skill instructions:
 // turbo
@@ -13,27 +13,26 @@ cat .agents/skills/code-solving/SKILL.md
 
 2. Generate the plan:
    Run from the project root (use `python` if `python3` is missing).
-   Pick the task type yourself when you can: add `--type <type>` (debug, feature, refactor,
-   performance, flaky-test, incident, migration, review, test, explain, security, quick-fix);
-   otherwise it is auto-detected.
    Keep the request between the two `TASK` lines exactly as given: it is read from stdin, so
    quotes, backticks and `$` in it are safe. Never move it onto the command line or into quotes
    (PowerShell: see "Passing the user's text" in SKILL.md).
+   Files and functions named in the request are located under "Context from the project".
 // turbo
 ```
-python3 .agents/skills/code-solving/scripts/search.py --stdin --plan -f markdown <<'TASK'
+python3 .agents/skills/code-solving/scripts/search.py --stdin --plan --type test -f markdown <<'TASK'
 $ARGUMENTS
 TASK
 ```
 
 3. Work the steps in order. Before moving on, produce each step's **Gate** evidence for real
-   (run the repro, the tests, the checks) and show it briefly. Never claim a gate you did not run.
+   (run the tests, show one failing against deliberately broken code, show coverage before and
+   after). Never claim a gate you did not run.
 
 4. If user mentions "save", "persist", "step-by-step", "workspace":
    Replace `<project-name>` with a short name for this work; files are saved in the project.
 // turbo
 ```
-python3 .agents/skills/code-solving/scripts/search.py --stdin --plan --persist --step-docs -p "<project-name>" -f markdown <<'TASK'
+python3 .agents/skills/code-solving/scripts/search.py --stdin --plan --type test --persist --step-docs -p "<project-name>" -f markdown <<'TASK'
 $ARGUMENTS
 TASK
 ```
@@ -45,7 +44,7 @@ TASK
 🎯 **Next Steps:**
 | Command | Description |
 |---------|-------------|
-| `/code.deep` | Deeper plan: pitfalls per step, full review checklist |
-| `/decide` | Choose between designs; record an ADR |
+| `/code.refactor` | Make hard-to-test code testable first |
+| `/code.review` | Review the new tests |
 | Add "save step-by-step" | Create a workspace file per step |
 ```

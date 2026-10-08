@@ -153,6 +153,9 @@ Prioritize, Plan, Execute, Verify, Communicate — and requires real evidence at
 - Refactoring without changing behavior (`/code.refactor`)
 - Slow code and memory leaks (`/code.perf`)
 - Code review with concrete failure scenarios (`/code.review`)
+- Writing tests that can actually fail, with coverage before and after (`/code.test`)
+- Understanding unfamiliar code with file:line evidence, without changing it (`/code.explain`)
+- Security fixes and few-line changes (`/code`, auto-detected, or `--type security|quick-fix`)
 - Flaky tests, production incidents and migrations (`/code`, auto-detected, or `--type flaky-test|incident|migration`)
 
 **How it works:**
@@ -179,6 +182,11 @@ are dropped), where the functions and classes you name are defined, the latest c
 files, and your working tree. `/code.review` adds the diff (uncommitted changes, else your
 branch against the default branch; `--diff <base>` to pick one) and the risk areas it touches,
 which go first in the review checklist. Paste the full error and stack trace into the request.
+
+When the request contains a common error message (44 are known, from `Cannot read properties of
+undefined` to `nil pointer dereference` and `CrashLoopBackOff`), the plan adds a **Known error**
+section: what it means, the likely causes (which become the hypotheses in the saved log), what to
+check first and the root-cause fix.
 
 The skill finds your project's own commands (npm/pnpm/yarn, Make, Go, Cargo, pytest with
 uv/Poetry/PDM, Maven/Gradle, …), the command to run a single test, and the check steps your

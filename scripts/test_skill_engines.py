@@ -397,11 +397,22 @@ class CodeSolvingTests(unittest.TestCase):
             ("nút lưu không hoạt động", "debug"),
             ("implement pagination for /api/orders", "feature"),
             ("write a CLI command to export reports as CSV", "feature"),
-            ("write unit tests for the parser", "feature"),
-            ("add tests for UserService", "feature"),
+            ("write unit tests for the parser", "test"),
+            ("add tests for UserService", "test"),
             ("support uploading avatars to S3", "feature"),
             ("thêm tính năng xuất file Excel", "feature"),
-            ("viết test cho module thanh toán", "feature"),
+            ("viết test cho module thanh toán", "test"),
+            ("increase test coverage for the payments module", "test"),
+            ("how does the auth middleware work", "explain"),
+            ("explain what OrderService.getTotal does", "explain"),
+            ("giải thích code này làm gì", "explain"),
+            ("SQL injection in the search endpoint", "security"),
+            ("Dependabot alert: CVE-2024-1234 in lodash", "security"),
+            ("our API key was leaked in a commit", "security"),
+            ("lỗ hổng XSS ở trang profile", "security"),
+            ("fix typo in README", "quick-fix"),
+            ("change the button text from Submit to Save", "quick-fix"),
+            ("sửa chính tả ở trang chủ", "quick-fix"),
             ("this function is 400 lines, split it up", "refactor"),
             ("extract the payment logic into its own module", "refactor"),
             ("clean up duplicate code in the controllers", "refactor"),
@@ -431,6 +442,56 @@ class CodeSolvingTests(unittest.TestCase):
                 self.assertEqual(row["Type"], expected)
                 self.assertEqual(source, "auto")
 
+    def test_known_errors_are_recognized(self):
+        cases = {
+            "TypeError: Cannot read properties of undefined (reading 'map')": "TypeError: Cannot read properties of undefined/null",
+            "panic: assignment to entry in nil map": "panic: assignment to entry in nil map",
+            "ModuleNotFoundError: No module named 'requests'": "ModuleNotFoundError / ImportError",
+            "fatal error: all goroutines are asleep - deadlock!": "fatal error: all goroutines are asleep - deadlock!",
+            "ERROR: duplicate key value violates unique constraint \"users_email_key\"": "Unique constraint violation (duplicate key)",
+            "pod is in CrashLoopBackOff": "Kubernetes CrashLoopBackOff",
+        }
+        for text, expected in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(self.core.match_errors(text)[0]["Error"], expected)
+        self.assertEqual(self.core.match_errors("add a settings page"), [])
+        for row in self.core.load_csv("errors"):
+            with self.subTest(error=row["Error"]):
+                for col in ("Meaning", "Likely Causes", "First Checks", "Fix"):
+                    self.assertTrue(row[col].strip(), col)
+
+    def test_known_error_feeds_the_plan_and_hypothesis_log(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            plan = self.engine.generate("panic: assignment to entry in nil map in worker", project_dir=tmp)
+            self.assertEqual(plan["task"]["type"], "debug")
+            text = self.advisor.format_markdown(plan)
+            self.assertIn("### Known error: panic: assignment to entry in nil map (Go)", text)
+            plan_dir, _, _ = self.advisor.persist_step_by_step(plan, tmp)
+            log = (Path(plan_dir) / "04-LOG.md").read_text(encoding="utf-8")
+            self.assertIn("| 1 | var m map[K]V or a struct field map never initialized with make |", log)
+
+    def test_quick_fix_plan_is_light(self):
+        plan = self.engine.generate("fix typo in README", depth="standard")
+        self.assertEqual(plan["task"]["type"], "quick-fix")
+        self.assertEqual([s["name"] for s in plan["steps"]], ["Define", "Execute", "Verify", "Communicate"])
+        self.assertIn("Small change", self.advisor.format_markdown(plan))
+        deep = self.engine.generate("fix typo in README", depth="deep")
+        self.assertEqual(len(deep["steps"]), 7)
+        self.assertEqual(plan["artifact"]["name"], "Commit Message")
+
+    def test_new_types_have_their_own_hand_off(self):
+        expected = {"test": "Pull Request Description", "explain": "Code Explanation",
+                    "security": "Security Fix Note", "quick-fix": "Commit Message"}
+        with tempfile.TemporaryDirectory() as tmp:
+            for task_type, artifact in expected.items():
+                with self.subTest(type=task_type):
+                    plan = self.engine.generate("x", task_type=task_type, project_dir=tmp, context=False)
+                    self.assertEqual(plan["artifact"]["name"], artifact)
+                    self.assertTrue(plan["artifact"]["structure"])
+            plan = self.engine.generate("x", task_type="explain", project_name="ex", context=False)
+            _, files, _ = self.advisor.persist_step_by_step(plan, tmp)
+            self.assertIn("06-EXPLANATION.md", files)
+
     def test_unmatched_query_says_so(self):
         row, source = self.core.classify_task("zzz qqq")
         self.assertEqual(source, "default")
@@ -447,7 +508,7 @@ class CodeSolvingTests(unittest.TestCase):
 
     def test_every_step_has_guidance_and_gate(self):
         for task_type in self.core.task_type_names():
-            plan = self.engine.generate("x", task_type=task_type)
+            plan = self.engine.generate("x", task_type=task_type, depth="deep")
             with self.subTest(type=task_type):
                 self.assertEqual([s["name"] for s in plan["steps"]],
                                  ["Define", "Decompose", "Prioritize", "Plan", "Execute", "Verify", "Communicate"])
