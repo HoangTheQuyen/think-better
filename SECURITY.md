@@ -13,7 +13,7 @@ If you discover a security vulnerability in **think-better**, please report it r
 ### How to Report
 
 1. **DO NOT** open a public GitHub issue for security vulnerabilities.
-2. Email your findings to: **hoangthequyen@gmail.com**
+2. Email your findings to: **hoangthequyen01@gmail.com**
 3. Include:
    - Description of the vulnerability
    - Steps to reproduce
@@ -42,7 +42,7 @@ This policy applies to:
 
 Every release asset is built by the [Release workflow](.github/workflows/release.yml)
 on GitHub Actions, after the full CI suite passed on the same commit.
-Starting with the first release after v1.3.0, each release has:
+Starting with v1.4.0, each release has:
 
 - `checksums.txt`: SHA-256 of every asset (`install.sh` and `install.ps1` check it automatically).
 - A [build provenance attestation](https://docs.github.com/actions/security-for-github-actions/using-artifact-attestations)

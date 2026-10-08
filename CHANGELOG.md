@@ -6,12 +6,15 @@ and the project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-08
+
 ### Changed
 
 - README rewritten around install, a 30-second example per skill and accurate counts
   (323 knowledge records, 20 slash commands, 4 AI tools); website updated for `/code`,
   OpenCode, Homebrew and Scoop.
 - Examples: the five placeholder templates are replaced by a worked `/code.debug` example.
+- Security and conduct reports go to hoangthequyen01@gmail.com.
 
 ### Added
 
@@ -158,7 +161,8 @@ and the project follows [Semantic Versioning](https://semver.org/).
   bases, plan generation, comparison matrix and decision journal.
 - One-line install scripts for macOS, Linux and Windows and cross-platform release binaries.
 
-[Unreleased]: https://github.com/HoangTheQuyen/think-better/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/HoangTheQuyen/think-better/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/HoangTheQuyen/think-better/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/HoangTheQuyen/think-better/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/HoangTheQuyen/think-better/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/HoangTheQuyen/think-better/compare/v1.1.0...v1.1.1
