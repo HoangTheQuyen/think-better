@@ -13,6 +13,7 @@ against the content it was generated with, recorded in .workspace.json.
 import hashlib
 import json
 import re
+import unicodedata
 from datetime import datetime
 from pathlib import Path
 
@@ -92,7 +93,7 @@ def pick_workspace(base: Path, text: str = "", name: str = ""):
     if not spaces:
         return None
     if name:
-        return next((d for d in spaces if d.name == name), None)
+        return next((d for d in spaces if name in (d.name, _slug(d.name))), None)
     words = set(re.findall(r"\w{3,}", text.lower()))
     if words:
         def score(d):
@@ -258,3 +259,74 @@ def format_status(status: dict, steps: dict = None, others: list = (), command: 
     if others:
         out += ["", "Other workspaces: " + ", ".join(f"`{o}`" for o in others)]
     return "\n".join(out) + "\n"
+
+
+def _saved_identity(plan_dir: Path) -> tuple:
+    """(request, problem type) of the plan saved in plan_dir; empty strings when there is none."""
+    state, overview = _state(plan_dir), _read_overview(plan_dir)
+    return (state.get("request") or overview.get("request", ""),
+            state.get("type") or overview.get("type", ""))
+
+
+# ============ SAVING INTO AN EXISTING FOLDER ============
+def _same_text(saved: str, new: str) -> bool:
+    """Whether a saved request is the new one (the overview may hold only its start, ending in '…')."""
+    def norm(text):
+        return " ".join(unicodedata.normalize("NFC", str(text)).split())
+    saved, new = norm(saved), norm(new)
+    if saved.endswith("…"):
+        return new.startswith(saved.rstrip("…").rstrip())
+    return saved == new
+
+
+def prepare_folder(plan_dir: Path, request: str, type_name: str, new_files=(), force: bool = False) -> list:
+    """Check that plan_dir may take this plan before anything is written; returns the files removed.
+
+    A folder that already holds a plan for another request or type is
+    refused unless force is set, so two plans never mix in one workspace
+    (the overview and .workspace.json would disagree). With force, the old
+    plan's generated files that were never edited and that the new plan
+    does not write are removed, and progress tracking starts over.
+
+    Raises:
+        ValueError: the folder holds a different plan and force is not set.
+    """
+    plan_dir = Path(plan_dir)
+    saved_request, saved_type = _saved_identity(plan_dir)
+    if not saved_request and not saved_type:
+        return []
+    same_request = not saved_request or _same_text(saved_request, request)
+    same_type = not saved_type or saved_type.lower() == str(type_name).lower()
+    if same_request and same_type:
+        return []
+    if not force:
+        what = f"{saved_type}: " if saved_type else ""
+        shown = " ".join(str(saved_request).split())
+        shown = shown if len(shown) <= 80 else shown[:79].rstrip() + "…"
+        raise ValueError(f"workspace '{plan_dir.name}' already holds another plan ({what}\"{shown}\"); "
+                         f"pick another name with -p, or add --force to replace that plan")
+    removed = []
+    state = _state(plan_dir)
+    for name, original in state.get("files", {}).items():
+        path = plan_dir / name
+        if name in new_files or not path.is_file():
+            continue
+        try:
+            untouched = digest(path.read_text(encoding="utf-8")) == original
+        except (OSError, UnicodeDecodeError):
+            untouched = False
+        if untouched:
+            path.unlink()
+            removed.append(name)
+    try:
+        (plan_dir / STATE_FILE).unlink()
+    except OSError:
+        pass
+    return removed
+
+
+def _slug(text: str) -> str:
+    """The folder name a project name gets today (accents folded), for folders saved before that."""
+    text = unicodedata.normalize("NFKD", str(text).replace("đ", "d").replace("Đ", "D"))
+    text = "".join(c for c in text if not unicodedata.combining(c)).lower()
+    return re.sub(r"[\s_-]+", "-", re.sub(r"[^\w\s-]", " ", text)).strip("-")[:50].strip("-")

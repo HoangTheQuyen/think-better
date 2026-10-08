@@ -712,20 +712,96 @@ class CodeSolvingTests(unittest.TestCase):
 
 
 class SharedHelperTests(unittest.TestCase):
-    """The skills each ship their own copy of the text helpers; they must behave the same."""
+    """The skills each ship their own copy of the text helpers (they are installed independently);
+    the copies must be the same code, not merely agree on a few samples."""
 
-    def test_tokenize_and_slugify_agree_across_skills(self):
-        samples = ["Revenue dropped 20% despite growth", "CI is red on DB migrations",
-                   "nên chọn AWS hay GCP", "Refactoring the checkout's pricing rules"]
-        cores = {name: load_skill(name)[0] for name in ("problem-solving-pro", "make-decision", "code-solving")}
-        reference = cores["problem-solving-pro"]
-        for name, core in cores.items():
-            for text in samples:
-                with self.subTest(skill=name, text=text):
-                    self.assertEqual(core.tokenize(text), reference.tokenize(text))
-            for bad in ("../../x", "a/b", ".."):
-                self.assertNotIn("/", core.slugify(bad))
-                self.assertNotEqual(core.slugify(bad), "..")
+    SHARED = ("stem", "tokenize", "fold", "has_accents", "match_tokens", "query_grams", "phrase_tokens",
+              "display_width", "pad_display", "wrap_display", "slugify", "default_output_dir", "save_docs",
+              "read_stdin_query", "matched_phrases")
+    CONSTANTS = ("STOPWORDS", "_SUFFIXES")
+
+    @staticmethod
+    def definitions(skill):
+        """{name: ast.dump of its top-level definition} in a skill's core.py."""
+        import ast
+        tree = ast.parse((SKILLS / skill / "scripts" / "core.py").read_text(encoding="utf-8"))
+        found = {}
+        for node in tree.body:
+            if isinstance(node, ast.FunctionDef):
+                found[node.name] = ast.dump(node)
+            elif isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name):
+                found[node.targets[0].id] = ast.dump(node)
+        return found
+
+    def test_shared_helpers_have_identical_source(self):
+        skills = ("problem-solving-pro", "make-decision", "code-solving")
+        defs = {skill: self.definitions(skill) for skill in skills}
+        for name in self.SHARED + self.CONSTANTS:
+            for skill in skills:
+                with self.subTest(helper=name, skill=skill):
+                    self.assertIn(name, defs[skill])
+                    self.assertEqual(defs[skill][name], defs[skills[0]][name],
+                                     f"{name} in {skill} differs from {skills[0]}")
+
+    def test_slugify_cannot_escape_and_never_is_empty(self):
+        for name in ("problem-solving-pro", "make-decision", "code-solving"):
+            core = load_skill(name)[0]
+            for bad in ("../../x", "a/b", "..", "", "!!!"):
+                with self.subTest(skill=name, text=bad):
+                    slug = core.slugify(bad)
+                    self.assertNotIn("/", slug)
+                    self.assertNotEqual(slug, "..")
+                    self.assertTrue(slug)
+
+
+class BoxWidthTests(unittest.TestCase):
+    """ASCII boxes and tables line up in terminal columns, whatever the Unicode form of the text."""
+
+    TEXT = "Có nên mở rộng sang Nhật Bản 🎯 hay giữ thị trường 中文 hiện tại không?"
+
+    def box_widths(self, skill, text, *args):
+        import unicodedata
+        core = load_skill(skill)[0]
+        env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", PYTHONIOENCODING="utf-8")
+        with tempfile.TemporaryDirectory() as tmp:
+            r = subprocess.run([sys.executable, str(SKILLS / skill / "scripts/search.py"), "--stdin"] + list(args),
+                               input=unicodedata.normalize("NFD", text).encode("utf-8"), cwd=tmp, env=env,
+                               capture_output=True)
+        self.assertEqual(r.returncode, 0, r.stderr.decode("utf-8", "replace"))
+        lines = r.stdout.decode("utf-8").splitlines()
+        borders = [i for i, line in enumerate(lines) if line.startswith("+=")]
+        box = lines[borders[0]:borders[-1] + 1]
+        self.assertGreater(len(box), 10)
+        return box, {core.display_width(line) for line in box}
+
+    def test_plan_boxes_have_a_straight_right_border(self):
+        for skill in ("problem-solving-pro", "make-decision"):
+            for depth in ("quick", "standard"):
+                with self.subTest(skill=skill, depth=depth):
+                    out, widths = self.box_widths(skill, self.TEXT, "--plan", "--depth", depth)
+                    self.assertEqual(len(widths), 1, widths)
+
+    def test_display_width(self):
+        import unicodedata
+        for skill in ("problem-solving-pro", "make-decision", "code-solving"):
+            core = load_skill(skill)[0]
+            with self.subTest(skill=skill):
+                self.assertEqual(core.display_width(unicodedata.normalize("NFD", "Giảm")), 4)
+                self.assertEqual(core.display_width("中文🎯"), 6)
+                self.assertEqual(core.display_width(core.pad_display(unicodedata.normalize("NFD", "lỗi"), 6)), 6)
+                lines = core.wrap_display("một hai ba bốn năm sáu bảy tám chín mười " * 3, 20, "  ", "    ")
+                self.assertTrue(all(core.display_width(line) <= 20 for line in lines))
+                self.assertTrue(lines[0].startswith("  m") and lines[1].startswith("    "))
+
+    def test_matrix_columns_line_up(self):
+        _, advisor = load_skill("make-decision")
+        text = advisor.format_matrix(advisor.build_matrix("Nhật Bản hay 中文市场", "Chi phí:2,Rủi ro:1",
+                                                          "Nhật Bản:4,3;中文市场:3,5"))
+        core = load_skill("make-decision")[0]
+        table = [line for line in text.split("Winner")[0].splitlines() if " | " in line]
+        positions = {tuple(core.display_width(line[:i]) for i, ch in enumerate(line) if ch == "|")
+                     for line in table}
+        self.assertEqual(len(positions), 1, table)
 
 
 class OutputLocationTests(unittest.TestCase):
@@ -1418,7 +1494,7 @@ class MakeDecisionUpgradeTests(unittest.TestCase):
             self.assertEqual(code, 0, err)
             self.assertIn("**Winner:** Vue", out)
             code, out, err = self.cli(["--matrix", "A vs B", "-c", "X:1,Y:1", "--scores", "A:1"], tmp)
-            self.assertEqual(code, 1)
+            self.assertEqual(code, 2)
             self.assertIn("1 scores but there are 2 criteria", err)
             self.assertEqual(out, "")
 
@@ -1459,11 +1535,11 @@ class MakeDecisionUpgradeTests(unittest.TestCase):
 
             self.cli(["--journal", "React again"], tmp)
             code, out, err = self.cli(["--journal", "--update", "react", "--outcome", "x"], tmp)
-            self.assertEqual(code, 1)
+            self.assertEqual(code, 2)
             self.assertIn("2 journal entries match", err)
             self.assertEqual(out, "")
             code, out, err = self.cli(["--journal", "--update", "zzz", "--outcome", "x"], tmp)
-            self.assertEqual(code, 1)
+            self.assertEqual(code, 2)
             self.assertIn("no journal entry matches", err)
 
             other = Path(tmp) / "elsewhere"
@@ -1513,7 +1589,7 @@ class MakeDecisionUpgradeTests(unittest.TestCase):
             code, out, err = self.cli(["--undone", "1", "-p", "cloud"], tmp)
             self.assertIn("### Next: 1. Classify the decision", out)
             code, out, err = self.cli(["--done", "9", "-p", "cloud"], tmp)
-            self.assertEqual(code, 1)
+            self.assertEqual(code, 2)
             self.assertIn("unknown step", err)
             code, out, err = self.cli(["--status", "-p", "nope"], tmp)
             self.assertEqual(code, 1)
@@ -1536,7 +1612,7 @@ class MakeDecisionUpgradeTests(unittest.TestCase):
             code, out, err = self.cli(["--stdin", "--plan", "--json", "--persist", "-p", "j"], tmp, "React or Vue")
             self.assertTrue(json.loads(out)["saved"]["written"])
             code, out, err = self.cli(["   ", "--plan"], tmp)
-            self.assertEqual(code, 1)
+            self.assertEqual(code, 2)
             self.assertIn("describe the decision", err)
             for depth in self.advisor.VALID_DEPTHS:
                 code, out, err = self.cli(["--stdin", "--plan", "-f", "markdown", "--depth", depth], tmp, "A or B")
@@ -1564,6 +1640,357 @@ class MakeDecisionUpgradeTests(unittest.TestCase):
                     self.assertEqual(len({core.stem(w) for w in words}), 1, [core.stem(w) for w in words])
             self.assertEqual(core.stem("city"), cores["make-decision"].stem("city"))
             self.assertNotEqual(core.stem("party"), core.stem("par"))
+
+
+class ClassificationRegressionTests(unittest.TestCase):
+    """Requests an audit found misclassified: keywords must match as whole phrases, each once,
+    with or without Vietnamese accents."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.cs, _ = load_skill("code-solving")
+        cls.ps, _ = load_skill("problem-solving-pro")
+        cls.md_core, cls.md = load_skill("make-decision")
+
+    def test_code_task_types(self):
+        traceback = ("Traceback (most recent call last):\n"
+                     "  File \"app/main.py\", line 12, in <module>\n    run()\n"
+                     "  File \"app/services/users.py\", line 40, in run\n    return user.name\n"
+                     "AttributeError: 'NoneType' object has no attribute 'name'")
+        cases = [
+            ("Add a logout button", "feature"),
+            ("Add pagination to the orders list", "feature"),
+            ("Add rate limiting to the public API", "feature"),
+            ("chuyen tu MySQL sang PostgreSQL", "migration"),
+            (traceback, "debug"),
+            ("Traceback (most recent call last):\n  File \"app/views.py\", line 88, in get_profile\n"
+             "    uid = request.session['user_id']\nKeyError: 'user_id'", "debug"),
+            ("The /search endpoint takes 4 seconds at p95, need it under 300ms", "performance"),
+            ("How is the JWT validated in this service?", "explain"),
+            ("Production API is returning 502s for all users since the 14:00 deploy", "incident"),
+            # Vietnamese typed without accents
+            ("sua loi dang nhap", "debug"),
+            ("toi uu truy van", "performance"),
+            ("nang cap React 17 len 18", "migration"),
+            ("lo hong bao mat", "security"),
+            ("doi mau nut", "quick-fix"),
+            ("loi dang nhap khong hoat dong sau khi doi mat khau", "debug"),
+            # one-syllable Vietnamese keywords without accents need Vietnamese around them
+            ("Migrate our SAP ERP to Odoo", "migration"),
+        ]
+        for query, expected in cases:
+            with self.subTest(query=query[:60]):
+                row, source = self.cs.classify_task(query)
+                self.assertEqual((row["Type"], source), (expected, "auto"))
+
+    def test_code_keywords_count_once_and_whole(self):
+        scores = self.cs.task_scores("test test test test the login bug")
+        self.assertEqual(scores["test"][0], 0)  # 'test' alone is not a keyword, however often it appears
+        self.assertNotIn("one line", self.cs.task_scores("error on line 5")["quick-fix"][1])
+        self.assertNotIn("on-call", self.cs.task_scores("Traceback (most recent call last):")["incident"][1])
+
+    def test_problem_keywords_keep_short_and_stop_words(self):
+        cases = [
+            ("Too many meetings are killing our productivity", "Diagnostic", "Organizational Change"),
+            ("Our US market share is falling", "Diagnostic", "Business Performance"),
+            ("Kinh tế khó khăn, cửa hàng vắng khách", "Diagnostic", "Business Performance"),
+            ("Our checkout conversion is 1.2% while the industry benchmark is 3%", "Diagnostic",
+             "Business Performance"),
+        ]
+        for query, ptype, category in cases:
+            with self.subTest(query=query):
+                self.assertEqual(self.ps.classify_problem_type(query).get("Problem Type"), ptype)
+                self.assertEqual(self.ps.classify_category(query), category)
+        self.assertNotEqual(self.ps.classify_problem_type("Too many meetings").get("Problem Type"), "Prediction")
+        self.assertNotEqual(self.ps.classify_category("Kinh tế khó khăn"), "Policy / Public Sector")
+
+    def test_decision_options_and_types(self):
+        parse = self.md.parse_options
+        self.assertEqual(parse("Which CRM: Salesforce, HubSpot and Pipedrive"), ["Salesforce", "HubSpot", "Pipedrive"])
+        self.assertEqual(parse("Chọn giữa ba nhà cung cấp phần mềm kế toán: MISA, Fast và Bravo"),
+                         ["MISA", "Fast", "Bravo"])
+        self.assertEqual(parse("Which cloud should we use?\n1. AWS\n2. GCP\n3. Azure"), ["AWS", "GCP", "Azure"])
+        self.assertEqual(parse("Pick one:\n- MacBook Pro\n- ThinkPad X1\n* Dell XPS"),
+                         ["MacBook Pro", "ThinkPad X1", "Dell XPS"])
+        self.assertEqual(parse("Context:\n- revenue down 20% in Q3\n- churn up\nShould we cut prices or invest "
+                               "in marketing?"), ["cut prices", "invest in marketing"])
+        self.assertEqual(parse("We need marketing, sales and R&D to align"), [])
+        cases = [
+            ("Chọn giữa ba nhà cung cấp phần mềm kế toán: MISA, Fast và Bravo", "Multi-Option Selection"),
+            ("We're not sure the market will recover; should we hire 10 more salespeople?",
+             "Decision Under Uncertainty"),
+            ("Should we move our daily standup from 9am to 10am?", "Operational / Tactical"),
+            ("Should we change our on-call rotation from weekly to bi-weekly?", "Operational / Tactical"),
+            ("Should we use Postgres or MySQL now", "Binary Choice"),
+        ]
+        for query, expected in cases:
+            with self.subTest(query=query):
+                self.assertEqual(self.md.DecisionAdvisor(query).classify()["row"]["Decision Type"], expected)
+        m = self.md.build_matrix("1. AWS\n2. GCP\n3. Azure", "Cost,Speed")
+        self.assertEqual([o["name"] for o in m["options"]], ["AWS", "GCP", "Azure"])
+
+    def test_matrix_scores_must_be_on_the_1_to_5_scale(self):
+        for scores in ("A:9,3;B:4,4", "A:0,3;B:4,4", "A:-1,3;B:4,4"):
+            with self.subTest(scores=scores), self.assertRaises(ValueError) as e:
+                self.md.build_matrix("A vs B", "X,Y", scores)
+            self.assertIn("from 1 to 5", str(e.exception))
+        self.assertEqual(self.md.build_matrix("A vs B", "X,Y", "A:1,5;B:2.5,3")["winner"], "A")
+
+    def test_search_domains_match_whole_words(self):
+        self.assertNotEqual(self.cs.detect_domain("catalog page is slow"), "debugging")
+        self.assertGreater(self.cs.search("catalog page is slow")["count"], 0)
+        self.assertEqual(self.cs.search("TypeError: Cannot read properties of undefined")["domain"], "errors")
+        self.assertEqual(self.cs.detect_domain("read the logs"), "debugging")
+        self.assertNotEqual(self.ps.detect_domain("our latest prototype got bad reviews"), "problem-types")
+        self.assertEqual(self.ps.detect_domain("what type of problem is this"), "problem-types")
+        self.assertEqual(self.md_core.auto_detect_domains("steam bias"), ["biases"])
+        self.assertIn("facilitation", self.md_core.auto_detect_domains("our team workshop"))
+
+
+class WorkspaceReuseTests(unittest.TestCase):
+    """A saved workspace holds one plan: saving another request or type into it is refused
+    unless --force, and names typed with or without accents (NFC or NFD) find the same folder."""
+
+    SKILLS_AND_DIRS = (("problem-solving-pro", "solving-plans"), ("make-decision", "decision-plans"),
+                       ("code-solving", "coding-plans"))
+
+    def run_cli(self, skill, cwd, args, stdin):
+        env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", PYTHONIOENCODING="utf-8")
+        extra = ["--no-context"] if skill == "code-solving" else []
+        r = subprocess.run([sys.executable, str(SKILLS / skill / "scripts/search.py"), "--stdin"] + args + extra,
+                           input=stdin.encode("utf-8"), cwd=cwd, env=env, capture_output=True)
+        return r.returncode, r.stdout.decode("utf-8"), r.stderr.decode("utf-8")
+
+    def test_saving_another_plan_into_a_workspace_is_refused(self):
+        save = ["--plan", "--persist", "--step-docs", "-p", "X", "-f", "markdown"]
+        for skill, folder in self.SKILLS_AND_DIRS:
+            with self.subTest(skill=skill), tempfile.TemporaryDirectory() as tmp:
+                code, _, err = self.run_cli(skill, tmp, save, "Doanh thu quý 3 giảm 18%")
+                self.assertEqual(code, 0, err)
+                plan_dir = Path(tmp) / folder / "x"
+                overview = (plan_dir / "00-OVERVIEW.md").read_text(encoding="utf-8")
+                state = (plan_dir / ".workspace.json").read_text(encoding="utf-8")
+                victim = sorted(plan_dir.glob("0[2-5]-*.md"))[0]
+                victim.unlink()
+                code, out, err = self.run_cli(skill, tmp, save, "Design a new onboarding flow")
+                self.assertEqual(code, 2)
+                self.assertIn("already holds another plan", err)
+                self.assertIn("--force", err)
+                self.assertEqual(out, "")
+                self.assertFalse(victim.exists())
+                self.assertEqual((plan_dir / "00-OVERVIEW.md").read_text(encoding="utf-8"), overview)
+                self.assertEqual((plan_dir / ".workspace.json").read_text(encoding="utf-8"), state)
+                # The same request again is fine and keeps the notes
+                code, _, err = self.run_cli(skill, tmp, save, "Doanh thu quý 3 giảm 18%")
+                self.assertEqual(code, 0, err)
+                # --force replaces the plan; overview, state and status agree
+                code, _, err = self.run_cli(skill, tmp, save + ["--force"], "Design a new onboarding flow")
+                self.assertEqual(code, 0, err)
+                self.assertIn("Design a new onboarding flow", (plan_dir / "00-OVERVIEW.md").read_text(encoding="utf-8"))
+                code, out, err = self.run_cli(skill, tmp, ["--status", "--json", "-p", "x"], "")
+                self.assertEqual(code, 0, err)
+                self.assertEqual(json.loads(out)["request"], "Design a new onboarding flow")
+
+    def test_changing_the_code_task_type_leaves_no_stray_hand_off(self):
+        save = ["--plan", "--persist", "--step-docs", "-p", "w"]
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(self.run_cli("code-solving", tmp, save, "fix typo in footer")[0], 0)
+            plan_dir = Path(tmp) / "coding-plans" / "w"
+            self.assertTrue((plan_dir / "06-COMMIT.md").exists())
+            code, _, err = self.run_cli("code-solving", tmp, save + ["--type", "debug"], "fix typo in footer")
+            self.assertEqual(code, 2)
+            self.assertIn("quick-fix", err)
+            code, _, err = self.run_cli("code-solving", tmp, save + ["--type", "debug", "--force"], "fix typo in footer")
+            self.assertEqual(code, 0, err)
+            self.assertEqual(sorted(p.name for p in plan_dir.glob("06-*")), ["06-PR.md"])
+            state = json.loads((plan_dir / ".workspace.json").read_text(encoding="utf-8"))
+            self.assertEqual(state["type"], "debug")
+            self.assertNotIn("06-COMMIT.md", state["files"])
+
+    def test_workspace_names_fold_accents(self):
+        import unicodedata
+        nfd = unicodedata.normalize("NFD", "Giảm doanh thu")
+        for skill, folder in self.SKILLS_AND_DIRS:
+            core = load_skill(skill)[0]
+            with self.subTest(skill=skill):
+                self.assertEqual(core.slugify(nfd), "giam-doanh-thu")
+                self.assertEqual(core.slugify("Giảm doanh thu"), "giam-doanh-thu")
+                self.assertEqual(core.slugify("Đổi mới"), "doi-moi")
+            with self.subTest(skill=skill), tempfile.TemporaryDirectory() as tmp:
+                code, _, err = self.run_cli(skill, tmp, ["--plan", "--persist", "--step-docs", "-p", nfd], nfd)
+                self.assertEqual(code, 0, err)
+                self.assertEqual([p.name for p in (Path(tmp) / folder).iterdir()], ["giam-doanh-thu"])
+                for name in ("giam doanh thu", "Giảm doanh thu", nfd):
+                    code, out, err = self.run_cli(skill, tmp, ["--status", "-p", name], "")
+                    self.assertEqual(code, 0, err)
+                    self.assertIn("giam-doanh-thu", out)
+                # A folder saved before folding (accents in its name) is still found
+                old = Path(tmp) / folder / "giảm-chi-phí"
+                shutil.copytree(Path(tmp) / folder / "giam-doanh-thu", old)
+                code, out, err = self.run_cli(skill, tmp, ["--status", "-p", "giam chi phi"], "")
+                self.assertEqual(code, 0, err)
+                self.assertIn("giảm-chi-phí", out)
+
+    def test_next_steps_stop_offering_to_save_once_saved(self):
+        for skill, _ in self.SKILLS_AND_DIRS:
+            with self.subTest(skill=skill), tempfile.TemporaryDirectory() as tmp:
+                code, out, err = self.run_cli(skill, tmp, ["--plan", "-f", "markdown"], "login is broken")
+                self.assertIn("save step-by-step", out)
+                code, out, err = self.run_cli(skill, tmp, ["--plan", "--persist", "--step-docs", "-p", "a",
+                                                           "-f", "markdown"], "login is broken")
+                self.assertEqual(code, 0, err)
+                self.assertNotIn("save step-by-step", out)
+
+
+class ConsistentCliTests(unittest.TestCase):
+    """The three search.py scripts take the same flag spellings and use the same exit codes."""
+
+    SKILLS_AND_DIRS = WorkspaceReuseTests.SKILLS_AND_DIRS
+
+    def test_flag_spellings_are_shared(self):
+        for skill, folder in self.SKILLS_AND_DIRS:
+            script = SKILLS / skill / "scripts/search.py"
+            with tempfile.TemporaryDirectory() as tmp:
+                for flag in ("-p", "--project", "--project-name"):
+                    with self.subTest(skill=skill, flag=flag):
+                        name = "n" + flag.strip("-").replace("-", "")
+                        r = run_script(script, ["login is broken", "--plan", "--persist", flag, name], tmp)
+                        self.assertEqual(r.returncode, 0, r.stderr)
+                        self.assertTrue((Path(tmp) / folder / name / "PLAN.md").exists())
+                for flag in ("-n", "--results", "--max-results"):
+                    with self.subTest(skill=skill, flag=flag):
+                        r = run_script(script, ["bias", flag, "1", "--json"], tmp)
+                        self.assertEqual(r.returncode, 0, r.stderr)
+                        self.assertLessEqual(json.loads(r.stdout)["count"], 1)
+
+    def test_empty_input_is_a_one_line_error(self):
+        for skill, _ in self.SKILLS_AND_DIRS:
+            script = SKILLS / skill / "scripts/search.py"
+            for args in ([], ["--plan"], ["   ", "--plan", "--json"]):
+                with self.subTest(skill=skill, args=args), tempfile.TemporaryDirectory() as tmp:
+                    r = run_script(script, args, tmp)
+                    self.assertEqual(r.returncode, 2)
+                    self.assertEqual(r.stdout, "")
+                    self.assertEqual(len(r.stderr.strip().splitlines()), 1, r.stderr)
+                    self.assertTrue(r.stderr.startswith("Error: "))
+                    self.assertEqual(os.listdir(tmp), [])
+
+    def test_bad_values_exit_2_and_missing_workspace_exits_1(self):
+        for skill, _ in self.SKILLS_AND_DIRS:
+            script = SKILLS / skill / "scripts/search.py"
+            with self.subTest(skill=skill), tempfile.TemporaryDirectory() as tmp:
+                self.assertEqual(run_script(script, ["x", "--plan", "--type", "Nope"], tmp).returncode, 2)
+                self.assertEqual(run_script(script, ["--status"], tmp).returncode, 1)
+                run_script(script, ["login is broken", "--plan", "--persist", "--step-docs", "-p", "a"], tmp)
+                self.assertEqual(run_script(script, ["--done", "9", "-p", "a"], tmp).returncode, 2)
+
+    def test_empty_code_review_reviews_the_current_changes(self):
+        script = SKILLS / "code-solving/scripts/search.py"
+        with tempfile.TemporaryDirectory() as tmp:
+            env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", PYTHONIOENCODING="utf-8")
+            r = subprocess.run([sys.executable, str(script), "--stdin", "--plan", "--type", "review", "--json"],
+                               input=b"\n", cwd=tmp, env=env, capture_output=True)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            plan = json.loads(r.stdout)
+            self.assertEqual(plan["query"], "Review the current changes")
+            self.assertEqual(plan["task"]["type"], "review")
+            r = run_script(script, ["--plan", "--type", "debug"], tmp)
+            self.assertEqual(r.returncode, 2)
+
+
+class CodeContextRegressionTests(unittest.TestCase):
+    """Stack frames with spaces in Windows paths, symbols that are not the project's, folders without git."""
+
+    @classmethod
+    def setUpClass(cls):
+        sys.modules.pop("context", None)
+        path = str(SKILLS / "code-solving" / "scripts")
+        sys.path.insert(0, path)
+        try:
+            cls.context = importlib.import_module("context")
+        finally:
+            sys.path.remove(path)
+            sys.modules.pop("context", None)
+
+    def test_csharp_frame_with_spaces_in_the_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "src/App").mkdir(parents=True)
+            (root / "src/App/Program.cs").write_text("using System;\nclass Program {\n  static void Main() {\n"
+                                                     "    Run();\n    var x = obj.Name;\n  }\n}\n")
+            trace = ("Unhandled exception. System.NullReferenceException: Object reference not set to an instance "
+                     "of an object.\n   at App.Program.Main() in C:\\Users\\John Smith\\src\\App\\Program.cs:line 5")
+            locs = self.context.trace_locations(trace, ["src/App/Program.cs"], root)
+            self.assertEqual([(loc["file"], loc["line"]) for loc in locs], [("src/App/Program.cs", 5)])
+            self.assertEqual(locs[0]["code"], "var x = obj.Name;")
+
+    def test_language_names_are_not_project_symbols(self):
+        names = self.context.candidate_symbols("AttributeError: 'NoneType' object has no attribute 'getTotal' "
+                                               "in JavaScript and PostgreSQL")
+        self.assertEqual(names, ["getTotal"])
+
+    def test_symbols_are_found_without_git(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "app").mkdir()
+            (root / "app/orders.py").write_text("def get_order_total(order):\n    return 1\n")
+            (root / "app/views.py").write_text("from app.orders import get_order_total\nget_order_total(x)\n")
+            (root / "node_modules/lib").mkdir(parents=True)
+            (root / "node_modules/lib/x.js").write_text("function get_order_total() {}\n")
+            ctx = self.context.gather("get_order_total returns the wrong value", root)
+            self.assertIs(ctx["git"], False)
+            self.assertEqual(ctx["symbols"], [{"name": "get_order_total", "defined": ["app/orders.py:1"],
+                                               "files": 2}])
+
+
+class LongRequestTests(unittest.TestCase):
+    """A pasted log or document (hundreds of KB) must not stall a plan."""
+
+    LIMIT_SECONDS = 15  # generous: about 1 s on a laptop; CI machines are slower
+
+    def test_long_requests_finish_quickly(self):
+        import random
+        import time
+        rng = random.Random(7)
+        words = ("timeout deploy vendor error React we users budget revenue should or Vue hire latency cache "
+                 "database customer churn lỗi doanh thu giảm nên chọn hay").split()
+        lines, size = [], 0
+        while size < 250_000:
+            line = " ".join(rng.choice(words) for _ in range(rng.randint(5, 30)))
+            lines.append(line)
+            size += len(line.encode("utf-8")) + 1
+        text = "\n".join(lines)
+        env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", PYTHONIOENCODING="utf-8")
+        for skill in ("make-decision", "problem-solving-pro", "code-solving"):
+            args = [sys.executable, str(SKILLS / skill / "scripts/search.py"), "--stdin", "--plan", "--depth", "deep"]
+            if skill == "code-solving":
+                args.append("--no-context")
+            with self.subTest(skill=skill), tempfile.TemporaryDirectory() as tmp:
+                start = time.monotonic()
+                r = subprocess.run(args, input=text.encode("utf-8"), cwd=tmp, env=env, capture_output=True)
+                elapsed = time.monotonic() - start
+                self.assertEqual(r.returncode, 0, r.stderr.decode("utf-8", "replace")[-500:])
+                self.assertLess(elapsed, self.LIMIT_SECONDS)
+
+
+class CodeExecutiveDepthTests(unittest.TestCase):
+    """code-solving executive depth leads with a summary a stakeholder can act on."""
+
+    def test_executive_plan_starts_with_a_summary(self):
+        _, advisor = load_skill("code-solving")
+        engine = advisor.CodeSolvingAdvisor()
+        with tempfile.TemporaryDirectory() as tmp:
+            query = "Production checkout returns 502 for all users since the deploy"
+            plans = {d: engine.generate(query, depth=d, project_dir=tmp) for d in ("deep", "executive")}
+        texts = {d: advisor.format_markdown(p) for d, p in plans.items()}
+        headings = [line[4:] for line in texts["executive"].splitlines() if line.startswith("### ")]
+        self.assertEqual(headings[0], "Executive summary")
+        self.assertNotIn("Executive summary", texts["deep"])
+        summary = texts["executive"].split("### Executive summary")[1].split("###")[0]
+        for label in ("Situation", "Evidence so far", "Approach", "Main risks", "Decision needed"):
+            self.assertIn(f"**{label}:**", summary)
+        self.assertIn("mitigation", summary)  # incidents: mitigate before root-causing
+        self.assertIn("EXECUTIVE SUMMARY", advisor.format_text(plans["executive"]))
 
 
 if __name__ == "__main__":

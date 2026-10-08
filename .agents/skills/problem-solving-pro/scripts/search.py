@@ -2,14 +2,14 @@
 # -*- coding: utf-8 -*-
 """
 Problem Solving Pro Search - BM25 search engine for structured problem-solving.
-Usage: python search.py --stdin --plan [--type Diagnostic] [--category "Business Performance"] <<'TASK'
+Usage: python search.py --stdin --plan [--type Diagnostic] [--category "Business Performance"] <<'THINK_BETTER_EOF_7f3a'
        <problem>                                # problem text on stdin, never parsed by the shell
-       TASK
+       THINK_BETTER_EOF_7f3a
        python search.py "<problem>" --plan [--depth quick|standard|deep|executive] [-f ascii|markdown] [--json]
        python search.py "<problem>" --plan --persist [--step-docs] [-p "Project Name"] [-o dir] [--force]
        python search.py --status [-p name]       # progress of a saved workspace and the next step
        python search.py --done <step> -p name    # tick a step in the workspace (--undone reopens it)
-       python search.py "<query>" [--domain <domain>] [--max-results 3] [--json]
+       python search.py "<query>" [--domain <domain>] [-n 3] [--json]
 
 Domains: steps, problem-types, decomposition, prioritization, analysis, biases,
          communication, heuristics, team
@@ -17,6 +17,9 @@ Domains: steps, problem-types, decomposition, prioritization, analysis, biases,
 The --plan flag generates a problem-solving plan: it classifies the problem
 (English or Vietnamese), applies the reasoning rule for its context and searches
 every domain. Depth changes what the plan contains.
+
+The three skills share these spellings: -p/--project-name/--project, -n/--max-results/--results.
+Exit codes: 0 ok, 1 no saved workspace (or a file error), 2 bad input (empty text, unknown value).
 """
 
 import argparse
@@ -106,11 +109,13 @@ def main() -> int:
     parser.add_argument("--stdin", action="store_true",
                         help="Read the problem from stdin (safe for text with quotes, backticks or $)")
     parser.add_argument("--domain", "-d", choices=list(CSV_CONFIG.keys()), help="Search domain")
-    parser.add_argument("--max-results", "-n", type=positive_int, default=MAX_RESULTS, help="Max results (default: 3)")
+    parser.add_argument("--max-results", "--results", "-n", dest="max_results", type=positive_int,
+                        default=MAX_RESULTS, help="Max results (default: 3)")
     parser.add_argument("--json", action="store_true", help="Output as JSON (search results, the plan, or --status)")
     # Plan generation
     parser.add_argument("--plan", action="store_true", help="Generate comprehensive problem-solving plan")
-    parser.add_argument("--project-name", "-p", type=str, default=None, help="Project name for plan output")
+    parser.add_argument("--project-name", "--project", "-p", dest="project_name", type=str, default=None,
+                        help="Name for the saved plan / workspace")
     parser.add_argument("--format", "-f", choices=["ascii", "markdown"], default="ascii", help="Output format")
     # Persistence
     parser.add_argument("--persist", action="store_true", help="Save plan to solving-plans/ directory")
@@ -142,8 +147,8 @@ def main() -> int:
             return show_status(args)
 
         if not args.query.strip():
-            print("Error: Query is required. Describe the problem you want to solve.", file=sys.stderr)
-            return 1
+            print("Error: describe the problem (as the query or on stdin with --stdin).", file=sys.stderr)
+            return 2
 
         if args.plan:
             if args.json:
@@ -165,6 +170,9 @@ def main() -> int:
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 2
+    except OSError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

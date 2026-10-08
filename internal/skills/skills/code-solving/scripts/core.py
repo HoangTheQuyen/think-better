@@ -12,14 +12,18 @@ import csv
 import json
 import re
 import sys
+import unicodedata
 from collections import defaultdict
 from math import log
+from functools import lru_cache
 from pathlib import Path
 
 # ============ CONFIGURATION ============
 SKILL_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = SKILL_DIR / "data"
 MAX_RESULTS = 3
+# Folder name when a project name has nothing usable in it
+SLUG_FALLBACK = "plan"
 
 CSV_CONFIG = {
     "steps": {
@@ -65,8 +69,9 @@ CSV_CONFIG = {
 }
 
 
-# ============ TEXT PROCESSING ============
-# Kept identical to the other skills' core.py (checked by scripts/test_skill_engines.py).
+# ============ SHARED TEXT HELPERS ============
+# Identical in the three skills' core.py: scripts/test_skill_engines.py compares
+# their source. Each skill is installed on its own, so each keeps a copy.
 STOPWORDS = {
     "a", "an", "and", "are", "as", "at", "be", "been", "but", "by", "can", "do", "does",
     "for", "from", "had", "has", "have", "how", "i", "if", "in", "into", "is", "it", "its",
@@ -75,13 +80,12 @@ STOPWORDS = {
     "which", "who", "why", "will", "with", "would", "you", "your",
 }
 
-
 _SUFFIXES = ("ations", "ation", "ings", "ing", "ies", "ied", "ed", "es", "ly", "s")
 
 
-
+@lru_cache(maxsize=65536)
 def stem(word: str) -> str:
-    """Light suffix stemmer so inflected forms meet.
+    """Light suffix stemmer so inflected forms meet (cached: long requests repeat words).
 
     'hire', 'hiring', 'hired' -> 'hir'; 'uncertain', 'uncertainty' -> 'uncertain';
     'decline', 'declining', 'declined' -> 'declin'; 'secure', 'security' -> 'secur'.
@@ -107,7 +111,7 @@ def stem(word: str) -> str:
 
 
 def tokenize(text) -> list:
-    """Lowercase, strip punctuation, drop stopwords, stem.
+    """Lowercase, strip punctuation, drop stopwords, stem (for BM25 search).
 
     Two-letter tokens are kept on purpose: CI, UI, DB, QA, PR, AI, ML matter.
     """
@@ -115,153 +119,115 @@ def tokenize(text) -> list:
     return [stem(w) for w in text.split() if len(w) > 1 and w not in STOPWORDS]
 
 
+def fold(text) -> str:
+    """Accent-insensitive form: 'Nên chọn' -> 'Nen chon', 'đ' -> 'd'.
 
-# ============ BM25 ============
-class BM25:
-    """BM25 ranking over short documents."""
-
-    def __init__(self, k1: float = 1.5, b: float = 0.75):
-        self.k1, self.b = k1, b
-        self.corpus, self.doc_lengths, self.idf = [], [], {}
-        self.avgdl = 0
-
-    def fit(self, documents) -> None:
-        self.corpus = [tokenize(doc) for doc in documents]
-        if not self.corpus:
-            return
-        self.doc_lengths = [len(doc) for doc in self.corpus]
-        self.avgdl = sum(self.doc_lengths) / len(self.corpus) or 1
-        freqs = defaultdict(int)
-        for doc in self.corpus:
-            for word in set(doc):
-                freqs[word] += 1
-        n = len(self.corpus)
-        self.idf = {w: log((n - f + 0.5) / (f + 0.5) + 1) for w, f in freqs.items()}
-
-    def score(self, query: str) -> list:
-        tokens = tokenize(query)
-        scores = []
-        for idx, doc in enumerate(self.corpus):
-            tf = defaultdict(int)
-            for word in doc:
-                tf[word] += 1
-            score = 0.0
-            for token in tokens:
-                if token in self.idf and tf[token]:
-                    norm = 1 - self.b + self.b * self.doc_lengths[idx] / self.avgdl
-                    score += self.idf[token] * tf[token] * (self.k1 + 1) / (tf[token] + self.k1 * norm)
-            scores.append((idx, score))
-        return sorted(scores, key=lambda x: x[1], reverse=True)
-
-
-# ============ DATA ACCESS ============
-def load_csv(domain: str) -> list:
-    """All rows of a domain's CSV as dicts."""
-    with open(DATA_DIR / CSV_CONFIG[domain]["file"], "r", encoding="utf-8") as f:
-        return list(csv.DictReader(f))
-
-
-def find_named(domain: str, names) -> list:
-    """Rows of `domain` whose name matches one of `names` (str with ';' or list), in that order."""
-    if isinstance(names, str):
-        names = [n.strip() for n in names.split(";")]
-    col = CSV_CONFIG[domain]["name_col"]
-    by_name = {row[col].lower(): row for row in load_csv(domain)}
-    return [by_name[n.lower()] for n in names if n and n.lower() in by_name]
-
-
-def match_errors(text: str, limit: int = 3) -> list:
-    """Known errors whose message pattern appears in text, in the order they appear."""
-    hits = []
-    for row in load_csv("errors"):
-        m = re.search(row["Pattern"], text, flags=re.I)
-        if m:
-            hits.append((m.start(), row))
-    hits.sort(key=lambda hit: hit[0])
-    return [row for _, row in hits[:limit]]
-
-
-def split_identifiers(text: str) -> str:
-    """'NullPointerException in getUserId' -> 'Null Pointer Exception in get User Id'.
-
-    Error names and identifiers carry the signal in code questions.
+    NFC and NFD input give the same result, so text typed on any OS (or
+    without diacritics) matches the knowledge base.
     """
-    text = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", text)
-    return re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1 \2", text).replace("_", " ")
+    text = unicodedata.normalize("NFKD", str(text))
+    text = "".join(c for c in text if not unicodedata.combining(c))
+    return unicodedata.normalize("NFC", text.replace("đ", "d").replace("Đ", "D"))
 
 
-def search(query: str, domain: str = None, max_results: int = MAX_RESULTS) -> dict:
-    """BM25 search within one domain (auto-detected when not given)."""
-    domain = domain or detect_domain(query)
-    rows = load_csv(domain)
-    cols = CSV_CONFIG[domain]["search_cols"]
-    bm25 = BM25()
-    bm25.fit([" ".join(str(row.get(c, "")) for c in cols) for row in rows])
-    ranked = bm25.score(split_identifiers(query))
-    results = [rows[i] for i, score in ranked[:max_results] if score > 0]
-    return {"domain": domain, "query": query, "file": CSV_CONFIG[domain]["file"],
-            "count": len(results), "results": results}
+def has_accents(text) -> bool:
+    """True when text carries diacritics (e.g. Vietnamese typed with its accents)."""
+    text = unicodedata.normalize("NFC", str(text))
+    return fold(text) != text
 
 
-DOMAIN_HINTS = {
-    "debugging": ["debug", "bug", "error", "bisect", "repro", "trace", "log", "flaky", "profile", "stack"],
-    "changes": ["refactor", "migrate", "migration", "flag", "slice", "spike", "legacy", "strangler", "rewrite"],
-    "testing": ["test", "tdd", "coverage", "benchmark", "property", "snapshot", "contract"],
-    "principles": ["principle", "kiss", "yagni", "dry", "solid", "design", "coupling", "simple"],
-    "biases": ["bias", "fallacy", "assumption", "anchoring", "estimate", "premature"],
-    "review": ["review", "security", "checklist", "concurrency", "edge case", "compatibility"],
-    "artifacts": ["pr description", "commit message", "adr", "postmortem", "rfc", "design doc", "report"],
-    "steps": ["step", "process", "workflow", "gate", "define", "verify"],
-}
+def match_tokens(text, folded: bool = True) -> list:
+    """Lowercased, stemmed words (accents folded unless folded=False) for phrase matching.
 
-
-def detect_domain(query: str) -> str:
-    """Pick the domain whose hint words appear most in the query (default: steps)."""
-    q = query.lower()
-    scores = {d: sum(1 for kw in kws if kw in q) for d, kws in DOMAIN_HINTS.items()}
-    best = max(scores, key=scores.get)
-    return best if scores[best] > 0 else "steps"
-
-
-# ============ CLASSIFICATION ============
-def task_type_names() -> list:
-    """Task type ids, for --type choices."""
-    return [row["Type"] for row in load_csv("task-types")]
-
-
-def classify_task(query: str, task_type: str = None) -> tuple:
-    """Return (row, source). source is 'explicit', 'auto', or 'default' when nothing matched.
-
-    Raises:
-        ValueError: if task_type is given but unknown.
+    Unlike tokenize(), stopwords and one-letter words are kept, so keyword
+    phrases match only whole: 'how many' never matches 'too many', 'y tế'
+    (health) never matches 'kinh tế' (economy).
     """
-    rows = load_csv("task-types")
-    if task_type:
-        wanted = task_type.strip().lower()
-        for row in rows:
-            if wanted in (row["Type"], row["Name"].lower()):
-                return row, "explicit"
-        raise ValueError(f"unknown task type {task_type!r}; choose one of: {', '.join(r['Type'] for r in rows)}")
-    found = search(query, "task-types", 1)["results"]
-    if found:
-        return found[0], "auto"
-    return next(r for r in rows if r["Type"] == "feature"), "default"
+    text = fold(text) if folded else unicodedata.normalize("NFC", str(text))
+    words = re.sub(r"[^\w\s]", " ", text.lower()).split()
+    return [stem(w) for w in words]
 
 
-# ============ OUTPUT PATHS ============
+@lru_cache(maxsize=64)
+def query_grams(query: str, longest: int = 6) -> tuple:
+    """(frozenset of the query's word n-grams, folded) for phrase matching.
+
+    Text typed with accents is matched exactly, so 'chi nhánh' (branch) never
+    meets 'nhanh' (fast); text typed without accents is matched against the
+    keywords with their accents folded away. Cached: classifiers call it once
+    per CSV row.
+    """
+    folded = not has_accents(query)
+    tokens = match_tokens(query, folded)
+    grams = set()
+    for n in range(1, longest + 1):
+        grams.update(tuple(tokens[i:i + n]) for i in range(len(tokens) - n + 1))
+    return frozenset(grams), folded
+
+
+@lru_cache(maxsize=4096)
+def phrase_tokens(phrase: str, folded: bool = True) -> tuple:
+    """The match_tokens() of one keyword phrase, cached (keyword lists are matched over and over)."""
+    return tuple(match_tokens(phrase, folded))
+
+
+def display_width(text) -> int:
+    """Columns text takes in a terminal: combining marks take none, wide (CJK, emoji) characters two."""
+    width = 0
+    for ch in unicodedata.normalize("NFC", str(text)):
+        if unicodedata.combining(ch):
+            continue
+        width += 2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1
+    return width
+
+
+def pad_display(text, width: int) -> str:
+    """text (NFC) padded with spaces to `width` terminal columns."""
+    text = unicodedata.normalize("NFC", str(text))
+    return text + " " * max(0, width - display_width(text))
+
+
+def wrap_display(text, width: int, indent: str = "", subsequent: str = None) -> list:
+    """Lines of at most `width` terminal columns, wrapped at spaces; over-long words are split."""
+    subsequent = indent if subsequent is None else subsequent
+    lines, current = [], ""
+    for word in unicodedata.normalize("NFC", str(text)).split():
+        if current and display_width(current) + 1 + display_width(word) <= width:
+            current += " " + word
+            continue
+        if current:
+            lines.append(current)
+        prefix = subsequent if lines else indent
+        current = prefix + word
+        while display_width(current) > width and len(current) > len(prefix) + 1:
+            cut = len(prefix) + 1
+            while cut < len(current) and display_width(current[:cut + 1]) <= width:
+                cut += 1
+            lines.append(current[:cut])
+            prefix = subsequent
+            current = prefix + current[cut:]
+    if current:
+        lines.append(current)
+    return lines
+
+
 def slugify(text: str, max_len: int = 50) -> str:
-    """Filesystem-safe slug: no separators, no '..', never empty."""
-    slug = re.sub(r"[^\w\s-]", " ", str(text).lower())
+    """Filesystem-safe slug: no separators, no '..', never empty.
+
+    Vietnamese (and other accented Latin) text becomes plain ASCII, so a name
+    typed with or without accents, in NFC or NFD, gives the same folder.
+    """
+    slug = re.sub(r"[^\w\s-]", " ", fold(text).lower())
     slug = re.sub(r"[\s_-]+", "-", slug).strip("-")[:max_len].strip("-")
-    return slug or "plan"
+    return slug or SLUG_FALLBACK
 
 
 def default_output_dir() -> Path:
-    """Where persisted plans go when --output-dir is not given.
+    """Where plans (and journals) go when --output-dir is not given.
 
     Normally the current directory (the user's project). If the script is run
     from inside the installed skill folder (e.g. after `cd .../scripts`),
-    write to the project root instead so plans never land inside the skill,
+    use the project root instead so files never land inside the skill,
     where reinstalling or uninstalling would delete them.
     """
     cwd = Path.cwd().resolve()
@@ -293,7 +259,7 @@ def save_docs(directory: Path, docs: dict, force: bool = False) -> tuple:
 
 
 def read_stdin_query(stream=None) -> str:
-    """The task text piped on stdin (--stdin), decoded as UTF-8.
+    """The text piped on stdin (--stdin), decoded as UTF-8.
 
     Slash commands pass the user's text this way (a quoted heredoc) so that
     quotes, backticks and $ in pasted error messages never reach a shell.
@@ -304,6 +270,248 @@ def read_stdin_query(stream=None) -> str:
         data = data.decode("utf-8", errors="replace")
     return data.lstrip("\ufeff").strip()
 
+
+def matched_phrases(grams: frozenset, folded: bool, phrases) -> list:
+    """The phrases (strings) whose words appear next to each other in the query grams."""
+    return [p for p in phrases if phrase_tokens(p, folded) and phrase_tokens(p, folded) in grams]
+
+
+# ============ BM25 ============
+class BM25:
+    """BM25 ranking over short documents."""
+
+    def __init__(self, k1: float = 1.5, b: float = 0.75):
+        self.k1, self.b = k1, b
+        self.corpus, self.doc_lengths, self.idf, self.tfs = [], [], {}, []
+        self.avgdl = 0
+
+    def fit(self, documents) -> None:
+        self.corpus = [tokenize(doc) for doc in documents]
+        if not self.corpus:
+            return
+        self.doc_lengths = [len(doc) for doc in self.corpus]
+        self.avgdl = sum(self.doc_lengths) / len(self.corpus) or 1
+        freqs = defaultdict(int)
+        self.tfs = []
+        for doc in self.corpus:
+            tf = defaultdict(int)
+            for word in doc:
+                tf[word] += 1
+            self.tfs.append(tf)
+            for word in tf:
+                freqs[word] += 1
+        n = len(self.corpus)
+        self.idf = {w: log((n - f + 0.5) / (f + 0.5) + 1) for w, f in freqs.items()}
+
+    def score(self, query: str) -> list:
+        # Each query term counts once: repeating a word must not outweigh the rest
+        tokens = [t for t in dict.fromkeys(tokenize(query)) if t in self.idf]
+        scores = []
+        for idx, tf in enumerate(self.tfs):
+            score = 0.0
+            norm = 1 - self.b + self.b * self.doc_lengths[idx] / self.avgdl
+            for token in tokens:
+                if tf.get(token):
+                    score += self.idf[token] * tf[token] * (self.k1 + 1) / (tf[token] + self.k1 * norm)
+            scores.append((idx, score))
+        return sorted(scores, key=lambda x: x[1], reverse=True)
+
+
+# ============ DATA ACCESS ============
+@lru_cache(maxsize=None)
+def _read_rows(path: Path) -> tuple:
+    with open(path, "r", encoding="utf-8") as f:
+        return tuple(csv.DictReader(f))
+
+
+def load_csv(domain: str) -> list:
+    """All rows of a domain's CSV as dicts (copies: callers may change them)."""
+    return [dict(row) for row in _read_rows(DATA_DIR / CSV_CONFIG[domain]["file"])]
+
+
+def find_named(domain: str, names) -> list:
+    """Rows of `domain` whose name matches one of `names` (str with ';' or list), in that order."""
+    if isinstance(names, str):
+        names = [n.strip() for n in names.split(";")]
+    col = CSV_CONFIG[domain]["name_col"]
+    by_name = {row[col].lower(): row for row in load_csv(domain)}
+    return [by_name[n.lower()] for n in names if n and n.lower() in by_name]
+
+
+@lru_cache(maxsize=None)
+def _error_patterns() -> tuple:
+    return tuple((re.compile(row["Pattern"], re.I), row) for row in _read_rows(DATA_DIR / "errors.csv"))
+
+
+def match_errors(text: str, limit: int = 3) -> list:
+    """Known errors whose message pattern appears in text, in the order they appear."""
+    hits = []
+    for pattern, row in _error_patterns():
+        m = pattern.search(text)
+        if m:
+            hits.append((m.start(), dict(row)))
+    hits.sort(key=lambda hit: hit[0])
+    return [row for _, row in hits[:limit]]
+
+
+def split_identifiers(text: str) -> str:
+    """'NullPointerException in getUserId' -> 'Null Pointer Exception in get User Id'.
+
+    Error names and identifiers carry the signal in code questions.
+    """
+    text = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", text)
+    return re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1 \2", text).replace("_", " ")
+
+
+def _ranked(query: str, domain: str) -> tuple:
+    """(rows, [(row index, score)] best first) of a BM25 search in one domain."""
+    rows = load_csv(domain)
+    cols = CSV_CONFIG[domain]["search_cols"]
+    bm25 = BM25()
+    bm25.fit([" ".join(str(row.get(c, "")) for c in cols) for row in rows])
+    return rows, bm25.score(split_identifiers(query))
+
+
+def search(query: str, domain: str = None, max_results: int = MAX_RESULTS) -> dict:
+    """BM25 search within one domain.
+
+    Without a domain, the one the query's hint words point at; when no hint
+    matches (or that domain has nothing), the domain with the best match.
+    """
+    picked = domain or detect_domain(query, default="")
+    rows, ranked = _ranked(query, picked) if picked else ([], [])
+    if not domain and (not ranked or ranked[0][1] <= 0):
+        best = None
+        for name in CSV_CONFIG:
+            found = _ranked(query, name)
+            if found[1] and found[1][0][1] > 0 and (best is None or found[1][0][1] > best[2][0][1]):
+                best = (name,) + found
+        if best:
+            picked, rows, ranked = best
+        picked = picked or "steps"
+    results = [rows[i] for i, score in ranked[:max_results] if score > 0]
+    return {"domain": picked, "query": query, "file": CSV_CONFIG[picked]["file"],
+            "count": len(results), "results": results}
+
+
+DOMAIN_HINTS = {
+    "debugging": ["debug", "bug", "error", "bisect", "repro", "trace", "log", "flaky", "profile", "stack"],
+    "changes": ["refactor", "migrate", "migration", "flag", "slice", "spike", "legacy", "strangler", "rewrite"],
+    "testing": ["test", "tdd", "coverage", "benchmark", "property", "snapshot", "contract"],
+    "principles": ["principle", "kiss", "yagni", "dry", "solid", "design", "coupling", "simple"],
+    "biases": ["bias", "fallacy", "assumption", "anchoring", "estimate", "premature"],
+    "review": ["review", "security", "checklist", "concurrency", "edge case", "compatibility"],
+    "artifacts": ["pr description", "commit message", "adr", "postmortem", "rfc", "design doc", "report"],
+    "steps": ["step", "process", "workflow", "gate", "define", "verify"],
+    "errors": ["exception", "panic", "traceback", "error message"],
+}
+
+
+def detect_domain(query: str, default: str = "steps") -> str:
+    """Pick the domain whose hint words appear most in the query (else `default`).
+
+    Hints match whole words ('log' is not in 'catalog'); a query that quotes a
+    known error message goes to the errors domain.
+    """
+    grams, folded = query_grams(query)
+    scores = {d: len(matched_phrases(grams, folded, kws)) for d, kws in DOMAIN_HINTS.items()}
+    best = max(scores, key=scores.get)
+    if match_errors(query, 1):
+        return "errors"
+    return best if scores[best] > 0 else default
+
+
+# ============ CLASSIFICATION ============
+# On equal scores the more specific task type wins
+TYPE_PRIORITY = ["security", "incident", "flaky-test", "migration", "performance", "test", "review",
+                 "explain", "quick-fix", "refactor", "debug", "feature"]
+# A keyword phrase of several words says more than a single word
+PHRASE_WEIGHT = 1.5
+# A stack trace or a known error message makes it a debugging task unless something else is clearer
+TRACE_WEIGHT = 2
+STACK_TRACE = re.compile(
+    r"Traceback \(most recent call last\)|^\s*File \"[^\"]+\", line \d+|^\s+at \S.*[(\s][^\s()]+:\d+|"
+    r"^\s+at .+ in .+:line \d+|^goroutine \d+ \[|^\s*panic: |Exception in thread|^\s*Caused by: ", re.M)
+# A measured duration ("4 seconds", "300ms") points at performance
+DURATION = re.compile(r"\b\d+(?:[.,]\d+)?\s*(?:ms|s|secs?|seconds?|minutes?|mins?|giây|phút)\b", re.I)
+DURATION_WEIGHT = 1
+# Common Vietnamese words typed without accents. Two of them make the text Vietnamese, and then
+# one-syllable keywords match without their accents too ('loi' = lỗi); otherwise 'sap' (sập)
+# or 'cham' (chậm) could be English words or names.
+VIETNAMESE_WORDS = {
+    "khong", "duoc", "nhung", "cua", "bi", "voi", "nay", "khi", "minh", "giup", "lam", "nao", "roi",
+    "cung", "dang", "vao", "sua", "cac", "nhieu", "trang", "nguoi", "dung", "chay", "loi", "cham",
+    "nut", "trong", "sau", "truoc", "thi", "la", "cho", "ham", "tu", "sang", "len", "moi", "toi",
+    "doi", "them", "xoa", "tao", "viet", "mat", "khau", "gui", "nhap", "xuat", "hien",
+}
+
+
+def task_type_names() -> list:
+    """Task type ids, for --type choices."""
+    return [row["Type"] for row in _read_rows(DATA_DIR / CSV_CONFIG["task-types"]["file"])]
+
+
+@lru_cache(maxsize=64)
+def _keyword_phrases(cell: str, folded: bool) -> tuple:
+    """(tokens, phrase, weight, one Vietnamese syllable?) for each comma-separated keyword."""
+    out, seen = [], set()
+    for phrase in str(cell).split(","):
+        tokens = phrase_tokens(phrase, folded)
+        if tokens and tokens not in seen:
+            seen.add(tokens)
+            lone_accented = len(tokens) == 1 and has_accents(phrase)
+            out.append((tokens, phrase.strip(), PHRASE_WEIGHT if len(tokens) > 1 else 1, lone_accented))
+    return tuple(out)
+
+
+def task_scores(query: str) -> dict:
+    """{task type: (score, [matched keywords])} from whole keyword phrases in the request.
+
+    Each keyword counts once however often it appears. Text typed with accents
+    is matched against the accented keywords; text without accents against
+    the keywords with their accents folded.
+    """
+    text = split_identifiers(query)
+    grams, folded = query_grams(text)
+    vietnamese = folded and len(VIETNAMESE_WORDS.intersection(fold(text).lower().split())) >= 2
+    traced = bool(STACK_TRACE.search(query) or match_errors(query, 1))
+    timed = bool(DURATION.search(query))
+    scores = {}
+    for row in _read_rows(DATA_DIR / CSV_CONFIG["task-types"]["file"]):
+        score, matched = 0.0, []
+        for tokens, phrase, weight, lone_accented in _keyword_phrases(row["Keywords"], folded):
+            if tokens in grams and not (folded and lone_accented and not vietnamese):
+                score += weight
+                matched.append(phrase)
+        if row["Type"] == "debug" and traced:
+            score += TRACE_WEIGHT
+            matched.append("stack trace / error message")
+        if row["Type"] == "performance" and timed:
+            score += DURATION_WEIGHT
+            matched.append("a measured duration")
+        scores[row["Type"]] = (score, matched)
+    return scores
+
+
+def classify_task(query: str, task_type: str = None) -> tuple:
+    """Return (row, source). source is 'explicit', 'auto', or 'default' when nothing matched.
+
+    Raises:
+        ValueError: if task_type is given but unknown.
+    """
+    rows = load_csv("task-types")
+    if task_type:
+        wanted = task_type.strip().lower()
+        for row in rows:
+            if wanted in (row["Type"], row["Name"].lower()):
+                return row, "explicit"
+        raise ValueError(f"unknown task type {task_type!r}; choose one of: {', '.join(r['Type'] for r in rows)}")
+    scores = task_scores(query)
+    order = {name: i for i, name in enumerate(TYPE_PRIORITY)}
+    best = max(rows, key=lambda r: (scores[r["Type"]][0], -order.get(r["Type"], 99)))
+    if scores[best["Type"]][0] > 0:
+        return best, "auto"
+    return next(r for r in rows if r["Type"] == "feature"), "default"
 
 
 # ============ PROJECT COMMANDS ============

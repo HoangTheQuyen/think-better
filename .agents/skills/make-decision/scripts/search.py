@@ -4,24 +4,27 @@
 Make-Decision Search - CLI for the decision-making knowledge base.
 
 Usage:
-    python search.py --stdin --plan [--type "Binary Choice"] [--depth quick|standard|deep|executive] <<'TASK'
+    python search.py --stdin --plan [--type "Binary Choice"] [--depth quick|standard|deep|executive] <<'THINK_BETTER_EOF_7f3a'
     <decision, exactly as the user wrote it>
-    TASK
-    python search.py --stdin --plan --persist [--step-docs] [-p "name"] [-o dir] [--force] <<'TASK' ...
-    python search.py --stdin --plan --json <<'TASK' ...          # the plan as JSON
+    THINK_BETTER_EOF_7f3a
+    python search.py --stdin --plan --persist [--step-docs] [-p "name"] [-o dir] [--force] <<'THINK_BETTER_EOF_7f3a' ...
+    python search.py --stdin --plan --json <<'THINK_BETTER_EOF_7f3a' ...          # the plan as JSON
     python search.py --status [-p name]                          # progress of a saved workspace
     python search.py --done <step> -p name                       # tick a step (1-6 or its name)
-    python search.py --stdin --matrix [-c "Cost:3,Speed:2"] [--scores "A:4,3;B:5,2"] [-f markdown] <<'TASK'
+    python search.py --stdin --matrix [-c "Cost:3,Speed:2"] [--scores "A:4,3;B:5,2"] [-f markdown] <<'THINK_BETTER_EOF_7f3a'
     <the options, e.g. React vs Vue>
-    TASK
-    python search.py --stdin --journal [--confidence 70] [--review-in 14d] [--options "A, B"] <<'TASK'
+    THINK_BETTER_EOF_7f3a
+    python search.py --stdin --journal [--confidence 70] [--review-in 14d] [--options "A, B"] <<'THINK_BETTER_EOF_7f3a'
     <decision statement>
-    TASK
+    THINK_BETTER_EOF_7f3a
     python search.py --journal --review [--due]
     python search.py --journal --update "<id>" --outcome "<text>"   (or the outcome on stdin with --stdin)
     python search.py "<keywords>" [--domain <domain>] [-n 3] [--json]
 
 Domains: frameworks, types, biases, analysis, criteria, facilitation
+
+The three skills share these spellings: -p/--project-name/--project, -n/--max-results/--results.
+Exit codes: 0 ok, 1 no saved workspace (or a file error), 2 bad input (empty text, unknown value).
 """
 
 import argparse
@@ -170,14 +173,14 @@ def run_journal(args) -> int:
         if not str(outcome).strip():
             print("Error: --outcome is required with --update (or pass the outcome on stdin with --stdin).",
                   file=sys.stderr)
-            return 1
+            return 2
         print(journal.update_journal(args.update, outcome, args.output_dir))
         return 0
     statement = args.journal if isinstance(args.journal, str) else args.query
     if not str(statement or "").strip():
         print("Error: decision statement required. Use: --journal \"statement\" or --stdin --journal.",
               file=sys.stderr)
-        return 1
+        return 2
     options = [o.strip() for o in re.split(r"[,;\n]", args.options) if o.strip()] if args.options else None
     path = DecisionAdvisor().create_journal(statement, args.project, args.output_dir, options=options,
                                             framework=args.framework, confidence=args.confidence,
@@ -198,7 +201,8 @@ def main() -> int:
 
     # Plan generation
     parser.add_argument("--plan", action="store_true", help="Generate a decision-making plan")
-    parser.add_argument("--project", "-p", type=str, default=None, help="Project / workspace name")
+    parser.add_argument("--project", "--project-name", "-p", dest="project", type=str, default=None,
+                        help="Name for the saved plan / workspace (and the journal entry)")
     parser.add_argument("--format", "-f", choices=["ascii", "markdown"], default="ascii",
                         help="Output format for --plan and --matrix (default: ascii)")
     parser.add_argument("--persist", action="store_true", help="Save the plan under decision-plans/")
@@ -220,7 +224,8 @@ def main() -> int:
 
     # Domain search
     parser.add_argument("--domain", "-d", choices=list(CSV_CONFIG.keys()), help="Search one knowledge domain")
-    parser.add_argument("--results", "-n", type=positive_int, default=MAX_RESULTS, help="Max results (default: 3)")
+    parser.add_argument("--results", "--max-results", "-n", dest="results", type=positive_int, default=MAX_RESULTS,
+                        help="Max results (default: 3)")
 
     # Decision journal
     parser.add_argument("--journal", nargs="?", const=True, default=None,
@@ -259,7 +264,7 @@ def main() -> int:
             if not args.query.strip():
                 print("Error: describe the decision for --plan (as the query or on stdin with --stdin).",
                       file=sys.stderr)
-                return 1
+                return 2
             print(generate_decision_plan(args.query, args.project, "json" if args.json else args.format,
                                          persist=args.persist, output_dir=args.output_dir, depth=args.depth,
                                          step_docs=args.step_docs, decision_type=args.decision_type,
@@ -274,7 +279,7 @@ def main() -> int:
             if not description.strip() and not args.scores:
                 print("Error: give the options for --matrix (\"A vs B\", as the query or on stdin).",
                       file=sys.stderr)
-                return 1
+                return 2
             matrix = build_matrix(description, args.criteria, args.scores)
             if args.json:
                 print(json.dumps(matrix, indent=2, ensure_ascii=False))
@@ -284,18 +289,21 @@ def main() -> int:
 
         if args.domain:
             if not args.query.strip():
-                print("Error: Query is required for domain search.", file=sys.stderr)
-                return 1
+                print("Error: give search keywords for --domain.", file=sys.stderr)
+                return 2
             result = search_domain(args.query, args.domain, args.results)
         elif args.query.strip():
             result = search(args.query, max_results=args.results)
         else:
-            parser.print_help()
-            return 1
+            print("Error: describe the decision (as the query or on stdin with --stdin).", file=sys.stderr)
+            return 2
         print(json.dumps(result, indent=2, ensure_ascii=False) if args.json else format_domain_output(result))
         return 0
 
-    except (ValueError, OSError) as e:  # ValueError includes journal.JournalError
+    except ValueError as e:  # includes journal.JournalError
+        print(f"Error: {e}", file=sys.stderr)
+        return 2
+    except OSError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
 
