@@ -120,22 +120,20 @@ def tokenize(text) -> list:
 
 
 def match_tokens(text) -> list:
-    """Lowercased, stemmed words for phrase matching.
+    """Lowercased, stemmed words of text, for phrase matching.
 
     Unlike tokenize(), stopwords and one-letter words are kept, so keyword
-    phrases match only whole: 'how many' never matches 'too many', and
-    'data base' never matches 'database'.
+    phrases match only whole: 'how many' never matches 'too many'.
     """
-    text = unicodedata.normalize("NFC", str(text))
-    words = re.sub(r"[^\w\s]", " ", text.lower()).split()
+    words = re.sub(r"[^\w\s]", " ", str(text).lower()).split()
     return [stem(w) for w in words]
 
 
 @lru_cache(maxsize=64)
 def query_grams(query: str, longest: int = 6) -> frozenset:
-    """frozenset of the query's word n-grams (up to `longest` words) for phrase matching.
+    """The frozenset of the query's word n-grams (1 to `longest` words) for phrase matching.
 
-    Cached, so the same request text is split into words only once.
+    Cached: classifiers call it once per CSV row.
     """
     tokens = match_tokens(query)
     grams = set()
@@ -191,12 +189,8 @@ def wrap_display(text, width: int, indent: str = "", subsequent: str = None) -> 
 
 
 def slugify(text: str, max_len: int = 50) -> str:
-    """Filesystem-safe slug: no separators, no '..', never empty.
-
-    Text is normalized to NFC first, so a name typed in NFD (decomposed
-    accents, as on some systems) gives the same folder as NFC.
-    """
-    slug = re.sub(r"[^\w\s-]", " ", unicodedata.normalize("NFC", str(text)).lower())
+    """Filesystem-safe slug: lowercase ASCII words joined by hyphens, no separators, no '..', never empty."""
+    slug = re.sub(r"[^a-z0-9\s_-]", " ", str(text).lower())
     slug = re.sub(r"[\s_-]+", "-", slug).strip("-")[:max_len].strip("-")
     return slug or SLUG_FALLBACK
 

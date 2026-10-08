@@ -93,7 +93,7 @@ def pick_workspace(base: Path, text: str = "", name: str = ""):
     if not spaces:
         return None
     if name:
-        return next((d for d in spaces if name in (d.name, _slug(d.name))), None)
+        return next((d for d in spaces if d.name == name), None)
     words = set(re.findall(r"\w{3,}", text.lower()))
     if words:
         def score(d):
@@ -323,10 +323,3 @@ def prepare_folder(plan_dir: Path, request: str, type_name: str, new_files=(), f
     except OSError:
         pass
     return removed
-
-
-def _slug(text: str) -> str:
-    """The folder name a project name gets today (accents folded), for folders saved before that."""
-    text = unicodedata.normalize("NFKD", str(text).replace("đ", "d").replace("Đ", "D"))
-    text = "".join(c for c in text if not unicodedata.combining(c)).lower()
-    return re.sub(r"[\s_-]+", "-", re.sub(r"[^\w\s-]", " ", text)).strip("-")[:50].strip("-")

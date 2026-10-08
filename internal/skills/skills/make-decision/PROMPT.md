@@ -70,7 +70,8 @@ The here-string ends at a line that starts with `'@`. If a line of the user's te
 
 When user requests decision-making help (decide, choose between options, weigh a trade-off), follow this workflow. To find why something went wrong use problem-solving-pro; for bugs and code changes use code-solving.
 
-**Language:** Respond in English. The scripts' output is in English: show it as it is, and keep commands, flags, file names and option names exactly as written
+**Language:** Respond in English. The scripts' output is in English: show it as it is, and keep
+commands, flags, file names and option names exactly as written
 (option names as the user wrote them).
 
 If the user has not said what they are deciding, ask what the decision and the options are before running anything.
@@ -93,12 +94,14 @@ python3 .agents/skills/make-decision/scripts/search.py --stdin --plan -f markdow
 THINK_BETTER_EOF_7f3a
 ```
 
-If the user asked to save the work ("save", "step-by-step", "workspace"), run the Step 2b command instead of this one: it prints the same plan.
+If the user asked to save the work ("save", "step-by-step", "workspace"), run the Step 2b command
+instead of this one: it prints the same plan.
 
 **Classify it yourself when you can** — you understand the decision better than keyword matching.
 Add `--type "<decision type>"`, one of: Binary Choice, Multi-Option Selection, Resource Allocation, Strategic Direction, Operational / Tactical, Decision Under Uncertainty, Group / Stakeholder Decision, Time-Pressured Decision.
-Without it the script scores each type's signal phrases (e.g. "deadline", "board", "uncertain")
-and adds the options it found ("A vs B" or "A or B" leans Binary Choice, three or more lean Multi-Option Selection). The plan says what
+Without it the script scores each type's signal phrases (e.g. "deadline", "board", "uncertain") and
+adds the options it found ("A vs B" or "A or B" leans Binary Choice, three or more lean Multi-Option
+Selection). The plan says what
 matched; when nothing did, it says so and lists the `--type` values: then re-run with `--type`.
 
 The plan contains:
@@ -186,7 +189,8 @@ React vs Vue
 THINK_BETTER_EOF_7f3a
 ```
 
-Options are read from "A vs B vs C", "A, B or C", "Which X: A, B or C", "between A and B". With `--scores` the matrix shows the
+Options are read from "A vs B vs C", "A, B or C", "Which X: A, B or C", "between A and B",
+"choose between A, B and C", "compare A with B". With `--scores` the matrix shows the
 weighted totals, the **winner**, and the **sensitivity**: for each criterion, the weight at which
 another option would tie the winner, with the smallest such change called out. A winner that flips
 under a small change is fragile: firm up that criterion before deciding. Weights may be any
@@ -213,7 +217,7 @@ Migration finished on time, 15% under budget
 THINK_BETTER_EOF_7f3a
 ```
 
-Journal files live in `.decisions/` with ASCII file names. An
+Journal files live in `.decisions/` with lowercase ASCII file names. An
 `--update` id that matches no entry, or several, is an error (exit code 1) listing the matches.
 
 ---
@@ -331,4 +335,4 @@ re-run; otherwise stop. Never present a plan the script did not produce.
    - Walk through the framework step by step
 3. **Script errors**: Errors go to stderr with exit code 1 (e.g. a journal id with no or several matches, scores that do not match the criteria); fix the input the message names and re-run
 4. **No type matched**: the plan says so and lists the `--type` values; pick one and re-run
-5. **Languages**: keywords are matched in English. For other languages, translate the key terms to English before calling `search.py`. Respond in English.
+5. **Languages**: the knowledge base and the matching are English only. For other languages, translate the key terms to English before calling `search.py`, and respond in English

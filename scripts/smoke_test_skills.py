@@ -18,7 +18,7 @@ SKILLS_DIR = os.path.join(ROOT, ".agents", "skills")
 QUERIES = [
     "should we migrate to microservices",
     "revenue dropped 20% despite market growth",
-    "nên chọn AWS hay GCP",
+    "should we pick AWS or GCP",
 ]
 DEPTHS = ["quick", "standard", "deep", "executive"]
 # (args, expected exit code): flag spellings every skill accepts, and bad input
