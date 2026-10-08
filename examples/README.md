@@ -65,7 +65,7 @@ To run the scripts yourself, work from the project root:
 ```bash
 # 1. Install the skill
 think-better init --ai claude --skill make-decision
-DECIDE=.claude/skills/make-decision/scripts/search.py   # Copilot: .github/prompts/make-decision/...
+DECIDE=.claude/skills/make-decision/scripts/search.py   # Copilot: .github/skills/make-decision/...
 
 # 2. Generate decision plan (always start here)
 python3 $DECIDE "your decision question" --plan -p "Project Name"

@@ -36,10 +36,10 @@ think-better init --ai copilot --skill make-decision
 
 ### Step 2: Generate decision plan
 
-Run from the project root (Copilot installs the skill under `.github/prompts/`):
+Run from the project root (Copilot installs the skill under `.github/skills/`):
 
 ```bash
-DECIDE=.github/prompts/make-decision/scripts/search.py
+DECIDE=.github/skills/make-decision/scripts/search.py
 python3 $DECIDE "Should we add more bundled skills to the CLI tool or keep it minimal with 2 skills" \
   --plan -p "CLI Product Strategy" -f markdown
 ```

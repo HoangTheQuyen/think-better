@@ -46,13 +46,15 @@ Then, **inside your project**, install the skills for your AI tool:
 | AI tool | Command | Skills | Slash commands |
 |---------|---------|--------|----------------|
 | Claude Code | `think-better init --ai claude` | `.claude/skills/` | `.claude/commands/` |
-| GitHub Copilot | `think-better init --ai copilot` | `.github/prompts/<skill>/` | `.github/prompts/*.prompt.md` (agent mode) |
+| GitHub Copilot | `think-better init --ai copilot` | `.github/skills/` | `.github/prompts/*.prompt.md` (agent mode) |
 | Antigravity | `think-better init --ai antigravity` | `.agents/skills/` | `.agents/workflows/` |
 | OpenCode | `think-better init --ai opencode` | `.opencode/skills/` | `.opencode/commands/` |
 
 Every target gets all three skills and all 20 slash commands (`/solve*`, `/decide*`, `/code*`).
-Add `--global` to install once for every project (Claude Code, OpenCode, Antigravity), or
-`--skill code-solving` to install a single skill with its commands. The skills need **Python 3**
+Add `--global` to install once for every project (for GitHub Copilot this installs the skills,
+in `~/.copilot/skills/`, but not the slash commands), `--skill code-solving` to install a single
+skill with its commands, or `--exclude-command code.perf` to leave out a slash command you do not
+want. The skills need **Python 3**
 (standard library only); run `think-better check` to verify.
 
 After upgrading the binary, run `think-better update` to refresh every install; files you edited
@@ -64,7 +66,7 @@ are kept (see [Updating](#updating)).
 ```bash
 # Pin a release and pick the directory (no sudo needed)
 curl -fsSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/install.sh \
-  | THINK_BETTER_VERSION=v1.4.0 INSTALL_DIR="$HOME/bin" sh
+  | THINK_BETTER_VERSION=v1.5.0 INSTALL_DIR="$HOME/bin" sh
 
 # Nix
 nix run github:HoangTheQuyen/think-better -- init --ai claude
@@ -80,8 +82,8 @@ and check it against `checksums.txt`.
 
 ## 30 seconds per skill
 
-Type a slash command, or just describe the problem: in Claude Code, OpenCode and Antigravity the
-AI also picks the skill from its trigger phrases (see [How a skill is picked](#how-a-skill-is-picked)).
+Type a slash command, or just describe the problem: the AI also picks the skill from its
+description and trigger phrases (see [How a skill is picked](#how-a-skill-is-picked)).
 The samples below are real script output for these requests, shortened.
 
 **`/decide`: choose between options**
@@ -199,9 +201,11 @@ skills add what a prompt alone does not:
 | Claude Code | Yes: skills in `.claude/skills/` are picked by their trigger phrases | `.claude/commands/` |
 | OpenCode | Yes: skills in `.opencode/skills/` are found by OpenCode's skill tool | `.opencode/commands/` |
 | Antigravity | Yes: skills in `.agents/skills/` | `.agents/workflows/` |
-| GitHub Copilot | No, use the slash commands: the skill files under `.github/prompts/<skill>/` are only run by them | Prompt files in `.github/prompts/` (agent mode) |
+| GitHub Copilot | Yes, in agent mode: skills in `.github/skills/` are loaded when a request matches their description | Prompt files in `.github/prompts/` (agent mode) |
 
-Slash commands work in every tool and set the depth for you.
+Slash commands work in every tool and set the depth for you. Copilot installs made by v1.4.0 or
+earlier put the skills in `.github/prompts/<skill>/`, where Copilot does not load them on its own;
+`think-better update` moves them to `.github/skills/`.
 
 ## How it works
 
@@ -232,25 +236,37 @@ the scripts run locally with no network calls, accounts or API keys.
 ```bash
 think-better init        # Install skills and slash commands; re-running it updates the install
 think-better update      # Update every install (this project and --global) after upgrading the binary
+think-better diff        # Show the new versions (.new) waiting to be merged into files you modified
 think-better check       # Python 3, and each install: installed / outdated / modified / incomplete
 think-better list        # Skills and where they are installed (every AI tool, project and global)
-think-better uninstall   # Remove a skill and its slash commands (keeps files you modified)
+think-better uninstall   # Remove a skill (--skill) or all of them (--all); keeps files you modified
 think-better version     # Show version (also -v, --version)
 ```
 
 | Flag | Commands | What it does |
 |------|----------|--------------|
-| `--ai <tool>` | init, update, uninstall | `claude`, `copilot`, `antigravity` or `opencode`. Without it `init` and `uninstall` ask (or use `THINK_BETTER_AI`); `update` updates every tool |
-| `--skill <name>` | init, update, uninstall | One skill: `make-decision`, `problem-solving-pro` or `code-solving` (default: all; required by `uninstall`) |
-| `--global` | init, update, uninstall | Your user account (every project) instead of the current project; Claude Code, OpenCode and Antigravity |
+| `--ai <tool>` | init, update, uninstall, diff | `claude`, `copilot`, `antigravity` or `opencode`. Without it `init` asks (or uses `THINK_BETTER_AI`); `update` and `diff` cover every tool; `uninstall` finds where the skill is installed and asks only when that is several tools |
+| `--skill <name>` | init, update, uninstall, diff | One skill: `make-decision`, `problem-solving-pro` or `code-solving` (default: all; `uninstall` needs `--skill` or `--all`) |
+| `--all` | uninstall | Remove every installed skill |
+| `--global` | init, update, uninstall, diff | Your user account (every project) instead of the current project. GitHub Copilot: the skills only (`~/.copilot/skills/`); its slash commands are installed per project |
 | `--force` | init, update | Replace files you modified, after saving yours as `<file>.bak` |
-| `--force` | uninstall | Do not ask for confirmation (required without a terminal) |
+| `--force` | uninstall | Also delete files you modified (and their `.new`), without asking; prints a warning |
+| `-y`, `--yes` | uninstall | Do not ask for confirmation (required without a terminal); files you modified are kept |
+| `--exclude-command <cmd>` | init, update | Leave out a slash command, e.g. `code.perf` (repeatable or comma-separated; later updates remember it) |
+| `--include-command <cmd>` | init, update | Install an excluded slash command again |
 | `--dry-run` | init, update, uninstall | Show what would change without writing anything |
+| `--context <n>` | diff | Unchanged lines shown around each change (default 3) |
 | `--json` | check, list | Machine-readable output |
 | `--strict` | check | Also exit 1 when an install is outdated |
 
-`THINK_BETTER_AI=claude` sets the default for `--ai`. `think-better help <command>` shows a
-command's help.
+`THINK_BETTER_AI=claude` sets the default for `--ai` (and picks the tool for `uninstall` when a
+skill is installed for several). `think-better help <command>` shows a command's help.
+
+You can run `update`, `check`, `list`, `uninstall` and `diff` from any folder inside the project:
+they look upward for the project's install, up to the repository root and never into your home
+directory. `init` installs into the current folder and warns when a parent folder already has an
+install. `think-better init --ai claude` run in your home directory is the same as `--global`
+(`~/.claude/` is your user-level install).
 
 ### Updating
 
@@ -264,12 +280,30 @@ Each install records what it wrote (`.think-better.json` in the skill folder,
 existing install:
 
 - files you have not modified are replaced with the new version;
-- files you modified are kept, and the new version is written next to them as `<file>.new`
-  (compare the two, merge what you want, delete the `.new`);
+- files you modified are kept, and the new version is written next to them as `<file>.new`;
 - `--force` replaces them instead, after saving yours as `<file>.bak`;
-- files no longer part of a skill are removed, unless you modified them.
+- files no longer part of a skill are removed, unless you modified them;
+- a slash command you deleted is restored, and `update` names it: to keep it out, run
+  `think-better update --exclude-command code.perf` (remembered in the workflow manifest;
+  `--include-command` brings it back);
+- installs made before these manifests existed (v1.3.0 and earlier) are recognized too: files you
+  did not change are updated in place, without `.new` or `.bak` files;
+- GitHub Copilot skills installed by v1.4.0 or earlier under `.github/prompts/<skill>/` are moved
+  to `.github/skills/<skill>/`, files you edited included (with their `.new`); `check` reports
+  them as outdated until you do.
 
-`uninstall` likewise deletes only files you have not modified.
+Then review what is waiting to be merged:
+
+```bash
+think-better diff                     # unified diff: your file (---) against the new version (+++)
+mv SKILL.md.new SKILL.md              # take the new version
+rm SKILL.md.new                       # or keep yours
+think-better update --force           # or take every new version (yours are saved as .bak)
+```
+
+`uninstall` likewise deletes only files you have not modified, unless you add `--force`. When it
+keeps some, it marks the skill's manifest as uninstalled, so `check` and `update` treat the skill
+as not installed and a later `init` installs it fresh.
 
 ## Documentation
 
@@ -290,10 +324,12 @@ Directions we are exploring, in no particular order and without dates. Tell us w
 you in [Discussions](https://github.com/HoangTheQuyen/think-better/discussions).
 
 - More AI tools, as they add support for skills or custom commands
-- Native skills for GitHub Copilot, so it can pick a skill from natural language too
 - More knowledge records (frameworks, known errors, criteria templates) and better
   classification of requests, in English and Vietnamese
 - More worked [examples](examples/README.md), including ones from the community
+
+Done: native agent skills for GitHub Copilot (`.github/skills/`), so Copilot picks a skill from
+natural language too.
 
 ---
 
@@ -326,27 +362,40 @@ go install github.com/HoangTheQuyen/think-better/cmd/think-better@latest
 
 # Trong thư mục project: cài skill cho công cụ AI của bạn
 think-better init --ai claude        # hoặc: --ai copilot, --ai antigravity, --ai opencode
-think-better init --ai claude --global   # một lần cho mọi project (không áp dụng cho Copilot)
+think-better init --ai claude --global   # một lần cho mọi project (Copilot: chỉ cài skill, không cài lệnh slash)
 ```
 
 Cần **Python 3** (chỉ dùng thư viện chuẩn). Kiểm tra bằng `think-better check`.
 
 Sau khi nâng cấp CLI, chạy `think-better update` (thêm `--dry-run` để xem trước) để cập nhật mọi nơi
-đã cài. File bạn đã sửa được giữ nguyên, bản mới nằm ngay cạnh với đuôi `.new`; với `--force`, file
-được thay bằng bản mới và bản của bạn được lưu thành `.bak`.
+đã cài. File bạn đã sửa được giữ nguyên, bản mới nằm ngay cạnh với đuôi `.new`: xem khác biệt bằng
+`think-better diff`, rồi nhận bản mới (`mv <file>.new <file>`) hoặc giữ bản của bạn (`rm <file>.new`).
+Với `--force`, file được thay bằng bản mới và bản của bạn được lưu thành `.bak`. Bản cài từ v1.3.0
+trở về trước cũng được nhận ra: file bạn chưa sửa được cập nhật thẳng, không sinh `.new` hay `.bak`.
+Skill Copilot do v1.4.0 trở về trước cài trong `.github/prompts/<skill>/` được tự chuyển sang
+`.github/skills/<skill>/` (giữ cả file bạn đã sửa).
+
+Không cần lệnh slash nào thì bỏ nó ra bằng `--exclude-command code.perf` (với `init` hoặc `update`;
+lần cập nhật sau vẫn nhớ, `--include-command` để cài lại). Các lệnh `update`, `check`, `list`,
+`uninstall`, `diff` chạy được từ thư mục con của project: CLI tự tìm lên bản cài của project (tối
+đa tới thư mục gốc của repo, không bao giờ lên thư mục home).
 
 ### Lệnh CLI
 
 ```bash
 think-better init        # Cài skill và lệnh slash; chạy lại để cập nhật
 think-better update      # Cập nhật mọi bản cài (project này và --global)
+think-better diff        # Xem bản mới (.new) đang chờ gộp vào file bạn đã sửa
 think-better check       # Kiểm tra Python 3 và trạng thái từng bản cài
 think-better list        # Skill nào đang được cài ở đâu
-think-better uninstall   # Gỡ một skill (--skill), giữ lại file bạn đã sửa
+think-better uninstall   # Gỡ một skill (--skill) hoặc tất cả (--all), giữ lại file bạn đã sửa
 think-better version     # Xem phiên bản
 ```
 
-Cờ dùng chung: `--ai`, `--skill`, `--global`, `--force`, `--dry-run` (chi tiết ở mục [CLI](#cli)).
+Cờ dùng chung: `--ai`, `--skill`, `--global`, `--force`, `--dry-run`, `--exclude-command` (chi tiết ở
+mục [CLI](#cli)). `uninstall` tự tìm skill đang được cài cho công cụ AI nào, không cần `--ai` (chỉ hỏi
+khi skill được cài cho nhiều công cụ); `-y`/`--yes` bỏ bước xác nhận nhưng vẫn giữ file bạn đã sửa,
+còn `--force` xóa luôn cả file bạn đã sửa (kèm cảnh báo).
 
 ### 3 skill
 
@@ -374,8 +423,9 @@ Cờ dùng chung: `--ai`, `--skill`, `--global`, `--force`, `--dry-run` (chi ti�
 
 `.quick` quét nhanh, lệnh gốc là mặc định, `.deep` phân tích sâu cho việc quan trọng, `.exec` thêm tóm tắt cho lãnh đạo.
 
-Với Claude Code, OpenCode và Antigravity, bạn cứ nói tự nhiên ("Doanh thu giảm 20%, tại sao?"), AI sẽ tự
-chọn skill. Với GitHub Copilot, hãy dùng lệnh slash (prompt file trong `.github/prompts/`, chế độ agent).
+Bạn cứ nói tự nhiên ("Doanh thu giảm 20%, tại sao?"), AI sẽ tự chọn skill, ở cả bốn công cụ. Với
+GitHub Copilot, skill nằm trong `.github/skills/` và được nạp ở chế độ agent; lệnh slash là prompt file
+trong `.github/prompts/`.
 
 ```
 /decide.deep Nên dùng AWS hay Azure hay GCP?
@@ -400,7 +450,7 @@ file; ở phiên sau, dùng `/solve.resume`, `/decide.resume` hoặc `/code.resu
   AI trả lời bằng tiếng Việt và dịch kế hoạch (script in ra bằng tiếng Anh).
 - Mọi thứ chạy trên máy bạn: script không gọi mạng, không cần tài khoản hay API key.
 - Gặp lỗi? Xem [Troubleshooting](USER-GUIDE.md#troubleshooting) và [FAQ](USER-GUIDE.md#faq) trong User Guide.
-- Lộ trình: thêm công cụ AI, skill gốc cho Copilot, thêm bản ghi kiến thức và ví dụ (xem [Roadmap](#roadmap)).
+- Lộ trình: thêm công cụ AI, thêm bản ghi kiến thức và ví dụ (xem [Roadmap](#roadmap)). Skill gốc cho Copilot đã xong.
 - Tài liệu chi tiết: [User Guide](USER-GUIDE.md) · [Quick Reference](QUICK-REFERENCE.md) · [Ví dụ](examples/README.md)
 - Muốn đóng góp skill/framework mới? Xem [CONTRIBUTING.md](CONTRIBUTING.md) (PR bằng tiếng Việt cũng được).
 

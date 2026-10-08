@@ -10,7 +10,10 @@ the Markdown docs resolve:
   task types, ...)
 - slash commands: files in .agents/workflows/; README and the guides list every
   one, and every /solve, /decide or /code command the docs mention exists
-- AI tools: the targets in internal/targets/target.go
+- AI tools: the targets in internal/targets/target.go, and the install paths in
+  the README and USER-GUIDE tables match each target's paths there
+- CLI commands: README and USER-GUIDE mention every think-better subcommand
+  (cmd/think-better/main.go)
 - bias names in the docs' bias tables exist in a skill's biases CSV
 - the sample outputs in the docs match a real run (scripts/test_doc_samples.py)
 - the version in Formula/think-better.rb has a CHANGELOG.md section
@@ -32,6 +35,8 @@ ROOT = Path(__file__).resolve().parent.parent
 SKILLS_DIR = ROOT / ".agents" / "skills"
 WORKFLOWS_DIR = ROOT / ".agents" / "workflows"
 TARGETS_GO = ROOT / "internal" / "targets" / "target.go"
+MAIN_GO = ROOT / "cmd" / "think-better" / "main.go"
+USER_GUIDE = ROOT / "USER-GUIDE.md"
 README = ROOT / "README.md"
 # Guides checked like the README, except that they need not repeat every count.
 GUIDES = [ROOT / "USER-GUIDE.md", ROOT / "QUICK-REFERENCE.md"]
@@ -118,6 +123,28 @@ def workflows():
 
 def targets():
     return re.findall(r'^\s*Name:\s*"([a-z0-9-]+)"', TARGETS_GO.read_text(encoding="utf-8"), re.M)
+
+
+def target_paths():
+    """{name: {"install": ..., "workflow": ..., "global": ...}} from target.go
+    (each entry's fields up to the next Name:)."""
+    text = TARGETS_GO.read_text(encoding="utf-8")
+    out = {}
+    blocks = re.split(r'^\s*Name:\s*"', text, flags=re.M)[1:]
+    for block in blocks:
+        name = block.split('"', 1)[0]
+        fields = dict(re.findall(r'^\s*(\w+):\s*"([^"]*)"', block, re.M))
+        out[name] = {
+            "install": fields.get("InstallPattern", ""),
+            "workflow": fields.get("WorkflowPattern", ""),
+            "global": fields.get("GlobalInstallPattern", ""),
+        }
+    return out
+
+
+def cli_commands():
+    """Subcommand names from the command map in cmd/think-better/main.go."""
+    return re.findall(r'^\s*"([a-z-]+)":\s*cli\.Run', MAIN_GO.read_text(encoding="utf-8"), re.M)
 
 
 # ---------------------------------------------------------------- helpers
@@ -210,6 +237,49 @@ def check_counts(path, text, records, commands, target_names, full, required=Tru
     for cmd in commands:
         if not re.search(rf"(?<![\w/.]){re.escape('/' + cmd)}(?![\w.-])", text):
             fail(f"{where}: slash command /{cmd} is not mentioned")
+
+
+# ---------------------------------------------------------------- install paths
+
+def table_row(text, display, must_follow=""):
+    """The first Markdown table row whose first cell is display (and whose
+    second cell starts with must_follow), or None."""
+    m = re.search(rf"^\|\s*{re.escape(display)}\s*\|\s*{re.escape(must_follow)}[^\n]*$", text, re.M)
+    return m.group(0) if m else None
+
+
+def check_install_paths(paths):
+    """The README install table and the USER-GUIDE "Where the files go" table
+    show each target's current paths."""
+    readme = README.read_text(encoding="utf-8")
+    guide = USER_GUIDE.read_text(encoding="utf-8")
+    for name, p in paths.items():
+        display = TARGET_DISPLAY.get(name)
+        if display is None or not p["install"]:
+            continue
+        skills_root = p["install"].replace("{skill}/", "")
+        skill_dir = p["install"].replace("{skill}", "<skill>")
+        for where, row, want in (
+            ("README.md install table", table_row(readme, display, f"`think-better init --ai {name}`"),
+             [skills_root, p["workflow"]]),
+            ("USER-GUIDE.md 'Where the files go' table", table_row(guide, display, "`."),
+             [skill_dir, p["workflow"]] + (["~/" + p["global"].replace("{skill}/", "")] if p["global"] else [])),
+        ):
+            if row is None:
+                fail(f"{where}: no row for {display}")
+                continue
+            for path in filter(None, want):
+                if f"`{path}" not in row:
+                    fail(f"{where}: the {display} row does not show `{path}` "
+                         "(internal/targets/target.go)")
+
+
+def check_cli_commands(commands):
+    for path in (README, USER_GUIDE):
+        text = path.read_text(encoding="utf-8")
+        for cmd in commands:
+            if not re.search(rf"think-better {re.escape(cmd)}\b", text):
+                fail(f"{rel(path)}: does not mention `think-better {cmd}` (cmd/think-better/main.go)")
 
 
 # ---------------------------------------------------------------- bias names
@@ -363,6 +433,11 @@ def main():
     for guide in GUIDES:
         check_counts(guide, guide.read_text(encoding="utf-8"), records, commands, target_names,
                      True, required=False)
+    check_install_paths(target_paths())
+    subcommands = cli_commands()
+    if not subcommands:
+        fail("scripts/test_docs.py: no subcommands found in cmd/think-better/main.go")
+    check_cli_commands(subcommands)
     names = known_biases()
     for path in doc_files(BIAS_DOCS, BIAS_GLOBS):
         check_bias_names(path, names)
