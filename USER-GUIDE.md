@@ -545,10 +545,10 @@ PostgreSQL (primary + read replica), Redis cache.
 ## 📖 Learning Path
 
 ### Week 1: Get Familiar
-- [ ] Install both skills
-- [ ] Read through examples/ directory (01-05)
+- [ ] Install the skills
+- [ ] Read through the examples/ directory (01-06)
 - [ ] Try one simple decision using make-decision skill
-- [ ] Try one simple debugging problem using problem-solving-pro
+- [ ] Try one simple bug with `/code.debug` (code-solving)
 
 ### Week 2: Build Habit
 - [ ] Make one multi-option decision using full workflow
@@ -593,9 +593,9 @@ python scripts/search.py "list all biases" --domain biases
 
 ### From the Community
 
-- See [examples/](../examples/) for detailed case studies
-- Check templates 06-10 for structure
-- Review README.md for full reference
+- See [examples/](examples/README.md) for detailed case studies
+- See the [Quick Reference](QUICK-REFERENCE.md) for a one-page summary
+- Ask or report problems in [GitHub issues](https://github.com/HoangTheQuyen/think-better/issues)
 
 ---
 

@@ -254,7 +254,7 @@ Recent changes: [recent deployments/config changes]
 - **Main Guide:** [USER-GUIDE.md](USER-GUIDE.md) — Full workflows with examples
 - **Case Studies:** [examples/](examples/) — Real decisions with outcomes
 - **Skill Reference:** `.agents/skills/make-decision/SKILL.md` — Full documentation
-- **Templates:** [examples/06-template.md](examples/06-template.md) onwards — Adapt for your use cases
+- **Coding Example:** [examples/06-code-debug-typeerror.md](examples/06-code-debug-typeerror.md) — `/code.debug` from stack trace to PR
 
 ---
 
