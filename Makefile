@@ -2,9 +2,8 @@
 # Framework + AI for clear thinking and better decisions
 
 BINARY_NAME := think-better
-CMD_PATH := ./cmd/make-decision
+CMD_PATH := ./cmd/think-better
 BIN_DIR := bin
-SKILLS_DIR := internal/skills/skills
 
 # Version injection via ldflags
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -18,23 +17,13 @@ LDFLAGS := -s -w \
 # Cross-compilation targets
 PLATFORMS := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64
 
-.PHONY: all build build-all test clean embed-prep lint fmt tidy
+.PHONY: all build build-all test test-cover test-py check clean embed-prep lint fmt tidy help
 
 all: embed-prep build
 
-## embed-prep: Copy skill and workflow files into internal/ for embedding
+## embed-prep: Mirror .agents/ skills and workflows into internal/skills for embedding
 embed-prep:
-	@echo "Preparing embedded skills..."
-	@rm -rf $(SKILLS_DIR)
-	@mkdir -p $(SKILLS_DIR)
-	@cp -r .agents/skills/make-decision $(SKILLS_DIR)/make-decision
-	@cp -r .agents/skills/problem-solving-pro $(SKILLS_DIR)/problem-solving-pro
-	@find $(SKILLS_DIR) -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-	@echo "Preparing embedded workflows..."
-	@rm -rf internal/skills/workflows
-	@mkdir -p internal/skills/workflows
-	@cp .agents/workflows/*.md internal/skills/workflows/
-	@echo "Done: skills + workflows ready for embedding"
+	go generate ./internal/skills
 
 ## build: Build for current platform
 build: embed-prep
@@ -61,13 +50,23 @@ build-all: embed-prep
 test:
 	go test ./...
 
+## test-py: Smoke-test the Python skill scripts
+test-py:
+	python3 scripts/smoke_test_skills.py
+
+## check: Everything CI runs — use before opening a PR
+check:
+	go vet ./...
+	go test ./...
+	$(MAKE) test-py
+
 ## test-cover: Run tests with coverage
 test-cover:
 	go test -cover ./...
 
 ## clean: Remove build artifacts
 clean:
-	rm -rf $(BIN_DIR) $(SKILLS_DIR)
+	rm -rf $(BIN_DIR)
 
 ## lint: Run golangci-lint
 lint:

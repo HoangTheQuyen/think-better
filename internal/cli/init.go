@@ -107,7 +107,7 @@ Flags:`)
 		totalFiles += len(created)
 	}
 
-	// Install workflow files (for targets that support them, e.g., Antigravity)
+	// Install workflow files (slash commands, e.g. /solve, /decide) for targets that support them
 	// Always attempt workflow installation regardless of skill errors —
 	// workflows are independent of skills and should not be blocked by them.
 	if target.HasWorkflows() {
@@ -142,6 +142,12 @@ Flags:`)
 			}
 			fmt.Println("  - Workflows installed: /solve, /solve.deep, /solve.exec, /solve.quick")
 			fmt.Println("  - Workflows installed: /decide, /decide.deep, /decide.exec, /decide.quick")
+		} else if ai == "claude" {
+			for _, s := range skillsToInstall {
+				fmt.Printf("  - Skill %q is available in .claude/skills/%s/\n", s.Name, s.Name)
+			}
+			fmt.Println("  - Slash commands installed: /solve, /solve.quick, /solve.deep, /solve.exec")
+			fmt.Println("  - Slash commands installed: /decide, /decide.quick, /decide.deep, /decide.exec")
 		} else if ai == "opencode" {
 			fmt.Println("  - Skills installed as OpenCode skills (SKILL.md entry points)")
 			for _, s := range skillsToInstall {

@@ -24,22 +24,11 @@
 
           vendorHash = null; # no external dependencies
 
-          # Copy skill/workflow files into internal/ for Go embed
-          preBuild = ''
-            rm -rf internal/skills/skills
-            mkdir -p internal/skills/skills
-            cp -r .agents/skills/make-decision internal/skills/skills/make-decision
-            cp -r .agents/skills/problem-solving-pro internal/skills/skills/problem-solving-pro
-            find internal/skills/skills -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-
-            rm -rf internal/skills/workflows
-            mkdir -p internal/skills/workflows
-            cp .agents/workflows/*.md internal/skills/workflows/
-          '';
-
+          # Skills are mirrored into internal/skills via `go generate` and committed;
+          # TestEmbeddedInSync guarantees they match .agents/.
           env.CGO_ENABLED = 0;
 
-          subPackages = [ "cmd/make-decision" ];
+          subPackages = [ "cmd/think-better" ];
 
           ldflags = [
             "-s" "-w"
@@ -47,11 +36,6 @@
             "-X main.commit=${version}"
             "-X main.buildDate=1970-01-01"
           ];
-
-          # Rename binary from make-decision to think-better
-          postInstall = ''
-            mv $out/bin/make-decision $out/bin/think-better
-          '';
 
           # Wrap the binary so Python 3 is available at runtime (used by analysis scripts)
           nativeBuildInputs = [ pkgs.makeWrapper ];

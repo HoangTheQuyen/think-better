@@ -80,12 +80,14 @@ func ValidateAI(aiFlag string) (string, error) {
 		return strings.ToLower(aiFlag), targets.ValidateTarget(aiFlag)
 	}
 
-	// Check environment variable
-	if env := os.Getenv("MAKE_DECISION_AI"); env != "" {
-		if err := targets.ValidateTarget(env); err != nil {
-			return "", fmt.Errorf("MAKE_DECISION_AI env var: %w", err)
+	// Check environment variables (MAKE_DECISION_AI is the legacy name)
+	for _, name := range []string{"THINK_BETTER_AI", "MAKE_DECISION_AI"} {
+		if env := os.Getenv(name); env != "" {
+			if err := targets.ValidateTarget(env); err != nil {
+				return "", fmt.Errorf("%s env var: %w", name, err)
+			}
+			return strings.ToLower(env), nil
 		}
-		return strings.ToLower(env), nil
 	}
 
 	// Interactive prompt
@@ -97,7 +99,7 @@ func ValidateAI(aiFlag string) (string, error) {
 		return choice, nil
 	}
 
-	return "", fmt.Errorf("--ai is required in non-interactive mode (or set MAKE_DECISION_AI env var)")
+	return "", fmt.Errorf("--ai is required in non-interactive mode (or set THINK_BETTER_AI env var)")
 }
 
 // Errorf prints a formatted error to stderr.

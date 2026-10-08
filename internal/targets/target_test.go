@@ -131,3 +131,17 @@ func TestTargetFields(t *testing.T) {
 		}
 	}
 }
+
+func TestAdaptWorkflow(t *testing.T) {
+	src := "1. Read:\n// turbo\n```\ncat .agents/skills/make-decision/SKILL.md\n```\n"
+
+	if got := FindTarget("antigravity").AdaptWorkflow(src); got != src {
+		t.Errorf("antigravity should keep workflow unchanged, got:\n%s", got)
+	}
+
+	got := FindTarget("claude").AdaptWorkflow(src)
+	want := "1. Read:\n```\ncat .claude/skills/make-decision/SKILL.md\n```\n"
+	if got != want {
+		t.Errorf("claude AdaptWorkflow =\n%s\nwant:\n%s", got, want)
+	}
+}

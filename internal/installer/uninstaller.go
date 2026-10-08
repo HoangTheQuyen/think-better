@@ -81,7 +81,7 @@ func cleanEmptyDirsRecursive(dir string, stopAt string) {
 
 	// First, collect all subdirectories and try to remove them bottom-up
 	var dirs []string
-	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+	_ = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil
 		}
@@ -95,7 +95,7 @@ func cleanEmptyDirsRecursive(dir string, stopAt string) {
 	for i := len(dirs) - 1; i >= 0; i-- {
 		entries, err := os.ReadDir(dirs[i])
 		if err == nil && len(entries) == 0 {
-			os.Remove(dirs[i])
+			_ = os.Remove(dirs[i]) // best-effort cleanup
 		}
 	}
 
@@ -110,7 +110,7 @@ func cleanEmptyDirsRecursive(dir string, stopAt string) {
 		if err != nil || len(entries) > 0 {
 			break
 		}
-		os.Remove(current)
+		_ = os.Remove(current) // best-effort cleanup
 		current = filepath.Dir(current)
 	}
 }

@@ -1,6 +1,9 @@
 package skills
 
-import "testing"
+import (
+	"testing"
+	"testing/fstest"
+)
 
 func TestFindSkill(t *testing.T) {
 	tests := []struct {
@@ -70,14 +73,50 @@ func TestRegistryFields(t *testing.T) {
 		if skill.Description == "" {
 			t.Errorf("skill %q has empty Description", skill.Name)
 		}
-		if skill.EntryPoint == "" {
-			t.Errorf("skill %q has empty EntryPoint", skill.Name)
-		}
-		if skill.AntigravityEntryPoint == "" {
-			t.Errorf("skill %q has empty AntigravityEntryPoint", skill.Name)
-		}
 		if len(skill.Dependencies) == 0 {
 			t.Errorf("skill %q has no Dependencies", skill.Name)
+		}
+	}
+}
+
+func TestNoDiscoveryErrors(t *testing.T) {
+	for _, e := range discoveryErrors {
+		t.Error(e)
+	}
+}
+
+func TestDiscoverRejectsInvalidSkills(t *testing.T) {
+	fsys := fstest.MapFS{
+		"skills/good/SKILL.md":       {Data: []byte("---\nname: good\ndescription: Does a thing. Use when...\n---\n")},
+		"skills/no-skill-md/x.md":    {Data: []byte("hi")},
+		"skills/wrong-name/SKILL.md": {Data: []byte("---\nname: other\ndescription: x\n---\n")},
+		"skills/no-desc/SKILL.md":    {Data: []byte("---\nname: no-desc\n---\n")},
+	}
+	pkgs, errs := discover(fsys)
+	if len(pkgs) != 1 || pkgs[0].Name != "good" || pkgs[0].Description != "Does a thing." {
+		t.Errorf("discover() pkgs = %+v, want only %q", pkgs, "good")
+	}
+	if len(errs) != 3 {
+		t.Errorf("discover() errs = %v, want 3 errors", errs)
+	}
+}
+
+func TestParseFrontmatter(t *testing.T) {
+	doc := "---\nname: demo\ndescription: |\n  First line.\n  Second line.\nother: 'quoted'\n---\n# Body\n"
+	meta, err := ParseFrontmatter(doc)
+	if err != nil {
+		t.Fatalf("ParseFrontmatter error: %v", err)
+	}
+	want := map[string]string{"name": "demo", "description": "First line. Second line.", "other": "quoted"}
+	for k, v := range want {
+		if meta[k] != v {
+			t.Errorf("meta[%q] = %q, want %q", k, meta[k], v)
+		}
+	}
+
+	for _, bad := range []string{"no frontmatter", "---\nname: x\n"} {
+		if _, err := ParseFrontmatter(bad); err == nil {
+			t.Errorf("ParseFrontmatter(%q) = nil error, want error", bad)
 		}
 	}
 }

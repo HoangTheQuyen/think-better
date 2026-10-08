@@ -155,6 +155,7 @@ func (inst *Installer) InstallWorkflows(target *targets.AITarget, force bool) ([
 			return fmt.Errorf("creating directory for workflow %s: %w", path, err)
 		}
 
+		data = []byte(target.AdaptWorkflow(string(data)))
 		if err := os.WriteFile(targetPath, data, 0o644); err != nil {
 			return fmt.Errorf("writing workflow %s: %w", path, err)
 		}

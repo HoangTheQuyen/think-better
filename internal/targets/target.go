@@ -11,8 +11,11 @@ type AITarget struct {
 	Name            string // Canonical identifier (e.g., "claude", "copilot")
 	DisplayName     string // Human-friendly name
 	InstallPattern  string // Path template with {skill} placeholder
-	WorkflowPattern string // Directory for workflow files (empty = no workflow support)
+	WorkflowPattern string // Directory for workflow (slash command) files (empty = no workflow support)
 }
+
+// sourceSkillsRoot is where workflows reference skills in the .agents/ sources.
+const sourceSkillsRoot = ".agents/skills/"
 
 // Targets contains all supported AI assistant targets.
 var Targets = []AITarget{
@@ -20,7 +23,7 @@ var Targets = []AITarget{
 		Name:            "claude",
 		DisplayName:     "Claude",
 		InstallPattern:  ".claude/skills/{skill}/",
-		WorkflowPattern: "",
+		WorkflowPattern: ".claude/commands/",
 	},
 	{
 		Name:            "copilot",
@@ -75,6 +78,30 @@ func (t *AITarget) InstallDir(skillName string) string {
 // WorkflowDir returns the workflow directory for this target, or empty string if not supported.
 func (t *AITarget) WorkflowDir() string {
 	return t.WorkflowPattern
+}
+
+// SkillsRoot returns the directory that contains all skills for this target
+// (e.g., ".claude/skills/").
+func (t *AITarget) SkillsRoot() string {
+	return strings.TrimSuffix(t.InstallPattern, "{skill}/")
+}
+
+// AdaptWorkflow rewrites a workflow written for the .agents/ layout so it
+// works for this target: skill paths point at the target's skills root, and
+// Antigravity-only "// turbo" annotations are dropped elsewhere.
+func (t *AITarget) AdaptWorkflow(content string) string {
+	if t.SkillsRoot() == sourceSkillsRoot {
+		return content
+	}
+	content = strings.ReplaceAll(content, sourceSkillsRoot, t.SkillsRoot())
+	lines := strings.Split(content, "\n")
+	kept := lines[:0]
+	for _, l := range lines {
+		if strings.TrimSpace(l) != "// turbo" {
+			kept = append(kept, l)
+		}
+	}
+	return strings.Join(kept, "\n")
 }
 
 // HasWorkflows returns true if this target supports workflow installation.
