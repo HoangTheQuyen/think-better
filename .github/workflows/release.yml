@@ -129,7 +129,7 @@ jobs:
         needs: [preflight, checks, nix]
         if: github.event_name == 'push' || github.ref == 'refs/heads/main'
         runs-on: ubuntu-latest
-        timeout-minutes: 30
+        timeout-minutes: 20
         permissions:
             contents: write # create and publish the release, push the tag and the Formula/bucket commits
             id-token: write # keyless cosign signature and build provenance (Sigstore OIDC)
@@ -181,11 +181,13 @@ jobs:
             # It also writes the Homebrew formula and Scoop manifest to dist/
             # (skip_upload: they are committed below, once the assets exist).
             # Exact GoReleaser version (same as ci.yml); see .goreleaser.yaml.
+            # --skip=before: the `before` hook is `go test ./...`, which the
+            # checks job already ran on this commit.
             - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
               with:
                   distribution: goreleaser
                   version: v2.18.2
-                  args: release --clean
+                  args: release --clean --skip=before
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
