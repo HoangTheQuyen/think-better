@@ -9,20 +9,27 @@ curl -fsSL https://raw.githubusercontent.com/HoangTheQuyen/think-better/main/ins
 
 # Install skills and slash commands (in your project root)
 think-better init --ai claude            # Claude Code
-think-better init --ai copilot           # GitHub Copilot (agent mode, .github/prompts/)
+think-better init --ai copilot           # GitHub Copilot (agent mode: .github/skills/ + .github/prompts/)
 think-better init --ai antigravity       # Antigravity
 think-better init --ai opencode          # OpenCode
-think-better init --ai claude --global   # once for all projects (not Copilot)
+think-better init --ai claude --global   # once for all projects (Copilot: skills only, no slash commands)
 
 think-better list                # what is installed where
 think-better check               # Python 3 + each install: installed / outdated / modified / incomplete
 think-better update --dry-run    # after upgrading the binary: what would change
 think-better update              # apply; your edited files are kept, new version saved as <file>.new
-think-better uninstall --skill make-decision --ai claude   # keeps files you modified
+think-better diff                # your edited files against their .new versions
+think-better init --ai claude --exclude-command code.perf   # leave out a slash command (remembered)
+think-better uninstall --skill make-decision   # finds the AI tool; keeps files you modified
+think-better uninstall --all --yes             # every skill, no confirmation
 ```
 
-Flags: `--ai`, `--skill`, `--global`, `--force` (init/update: replace your edits, saving them as
-`.bak`; uninstall: no confirmation), `--dry-run`. `THINK_BETTER_AI=claude` sets the default `--ai`.
+Flags: `--ai`, `--skill`, `--global`, `--dry-run`; `--force` (init/update: replace your edits,
+saving them as `.bak`; uninstall: also delete files you modified); `-y`/`--yes` (uninstall: no
+confirmation, keeps your edits); `--exclude-command`/`--include-command` (init/update);
+`--context N` (diff). `THINK_BETTER_AI=claude` sets the default `--ai`. After `diff`: take the new
+version with `mv <file>.new <file>`, keep yours with `rm <file>.new`. Commands other than `init`
+work from any folder inside the project.
 
 ---
 
@@ -36,21 +43,25 @@ Flags: `--ai`, `--skill`, `--global`, `--force` (init/update: replace your edits
 
 Add "save step-by-step" (or "lưu", "lưu lại", "lưu từng bước") to save a workspace; continue it with the
 `.resume` command (no text: the latest workspace). `/code.review` with no text reviews your current changes.
-In Claude Code, OpenCode and Antigravity you can also just describe the problem; in GitHub
-Copilot use the slash commands.
+You can also just describe the problem: every supported tool loads the skills by their
+description (GitHub Copilot in agent mode).
 
 ---
 
 ## Running the Scripts Yourself
 
 From the project root. Paths for Claude Code (others: `.opencode/skills/`, `.agents/skills/`,
-`.github/prompts/` for Copilot):
+`.github/skills/` for Copilot):
 
 ```bash
 DECIDE=.claude/skills/make-decision/scripts/search.py
 SOLVE=.claude/skills/problem-solving-pro/scripts/search.py
 CODE=.claude/skills/code-solving/scripts/search.py
 ```
+
+All three take `-p`/`--project-name`/`--project` and `-n`/`--max-results`/`--results`. Bad input
+(an empty request, scores outside 1-5) exits 2; a missing saved workspace exits 1. Reusing a
+workspace name for another request needs `--force` or another `-p`.
 
 ---
 
